@@ -57,12 +57,12 @@ esac
 output=""
 status=0
 
-if ! check_out=$(cd "$REPO_ROOT" && ./bin/check-health.sh 2>&1); then
+if ! check_out=$(cd "$REPO_ROOT" && "$HARNESS_ROOT/bin/check-health.sh" 2>&1); then
     output="${output}❌ Health check failed:\n${check_out}\n\n"
     status=1
 fi
 
-if ! lint_out=$(cd "$REPO_ROOT" && ./bin/lint-secrets.sh 2>&1); then
+if ! lint_out=$(cd "$REPO_ROOT" && "$HARNESS_ROOT/bin/lint-secrets.sh" 2>&1); then
     output="${output}❌ Secret lint failed:\n${lint_out}\n\n"
     status=1
 fi

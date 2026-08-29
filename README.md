@@ -152,6 +152,7 @@ Full guide with worked examples: [docs/marketplaces.md](docs/marketplaces.md).
 - [Architecture](docs/architecture.md) — the four layers in depth
 - [Evaluation](docs/evaluation.md) — the rubric and how to read a score
 - [Git flow](docs/git-flow.md) — branch model, release and back-merge PRs
+- [Using it from another repo](docs/consuming-the-harness.md) — vendoring the engine and pointing it at your own config
 - [Skill marketplaces](docs/marketplaces.md) — registering, installing, validating and scoring marketplace skills
 - [External skills](docs/external-skills.md) — registering third-party bundles rather than vendoring them
 

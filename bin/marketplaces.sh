@@ -137,7 +137,7 @@ case "$cmd" in
                   [ -n "$only" ] && [ "$plugin" != "$only" ] && continue
                   found=1
                   log_info "── $mp/$plugin ──"
-                  SKILLS_DIR="$dir" "$REPO_ROOT/evals/run-skill-eval.sh"
+                  SKILLS_DIR="$dir" "$HARNESS_ROOT/evals/run-skill-eval.sh"
               done < <(find "$cache" -mindepth 3 -maxdepth 3 -type d -name skills | sort)
               [ "$found" -eq 1 ] || log_error "No installed skills matched${only:+ plugin '$only'} in '$mp'" ;;
     -h|--help) sed -n '/^# Usage:/,/^$/p' "$0" | sed 's/^# \{0,1\}//' ;;

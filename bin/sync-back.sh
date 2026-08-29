@@ -132,14 +132,14 @@ fi
 # Skip if AI_SETUP_SKIP_EVAL is set or Claude CLI is unavailable (e.g. CI).
 if [ -n "$pr_tool" ] && [ "${AI_SETUP_SKIP_EVAL:-0}" != "1" ] && command -v claude >/dev/null 2>&1; then
     log_info "Re-scoring $domain to refresh benchmark..."
-    "$REPO_ROOT/evals/run-eval.sh" "$domain" || log_warn "Eval failed; comment will use last-known scores."
+    "$HARNESS_ROOT/evals/run-eval.sh" "$domain" || log_warn "Eval failed; comment will use last-known scores."
 
     comment_body=$(mktemp)
     {
         printf '## Benchmark — full domain scores\n\n'
         printf 'Refreshed after this PR. See `evals/results/` for full findings per domain.\n\n'
         printf '```\n'
-        "$REPO_ROOT/benchmarks/report.sh"
+        "$HARNESS_ROOT/benchmarks/report.sh"
         printf '```\n'
     } >"$comment_body"
 
