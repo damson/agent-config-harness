@@ -103,15 +103,22 @@ and mixing them makes both harder to change.
 
 ## Skills
 
-`user-dev/skills/` holds 24 skills — procedures an agent loads on demand. They
-ship because the repo enforces a portability rule on them: **a skill may never
-name this repo's paths or assume its folder names**, so they work anywhere they
-are installed.
+The skills this repo produced live in a separate marketplace, grouped by theme —
+see `agent-skills`. What stays here is the **machinery that holds a skill to a
+standard**, plus one skill (`refresh-domain-benchmark`) that is coupled to this
+repo's own eval harness and makes no sense outside it.
 
-Every one must carry frontmatter whose `name` matches its folder, a `## Procedure`
-(or `## Step N`) heading, and a `## When to STOP` section. `tests/skills.bats`
-enforces all three. Skills install flat into `~/.claude/skills/`, so leaf names are
-a shared namespace and must be unique — also tested.
+`tests/skills.bats` enforces, for every skill under `user-dev/skills/`:
+
+- frontmatter `name:` matches the folder name
+- a non-empty `description:`
+- a `## Procedure` (or `## Step N`) heading
+- a **`## When to STOP`** section
+- leaf names unique across grouped folders, because skills install *flat* into
+  `~/.claude/skills/` and share one namespace
+
+`just eval-skills <name>` then scores the skill's prose on the same rubric the
+config files get.
 
 ## What this is not
 
@@ -127,11 +134,11 @@ a shared namespace and must be unique — also tested.
 - [Architecture](docs/architecture.md) — the four layers in depth
 - [Evaluation](docs/evaluation.md) — the rubric and how to read a score
 - [Git flow](docs/git-flow.md) — branch model, release and back-merge PRs
-- [Instruction-file loading](docs/claude-md-loading.md) — what actually loads, tested with controls
 - [External skills](docs/external-skills.md) — registering third-party bundles rather than vendoring them
-- [Shell gotchas](docs/shell-gotchas.md) — four zsh/bats behaviours that return a wrong answer instead of an error
-- [CLI recipes](docs/cli-recipes.md) — non-git invocations whose obvious form is subtly wrong
-- [Git recipes](docs/git-recipes.md) — worktree and history-rewriting syntax worth looking up
+
+General engineering notes that used to live here — how instruction files load,
+shell and CLI traps, git syntax — moved to `engineering-notes`, since they are
+reference material with a different lifetime than this repo.
 
 ## Support
 

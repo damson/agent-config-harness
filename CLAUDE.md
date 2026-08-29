@@ -37,6 +37,11 @@ domain registry and what this repo is for. Don't duplicate that here.
   `user-dev/skills/<project>/<project>-<skill>/`. They still install flat, so
   leaf names are a shared namespace and must be unique. Generic skills stay at
   the top level and must not name a project.
+- **Portable skills do not live here.** They belong in the themed marketplace
+  repo. `user-dev/skills/` keeps only skills coupled to this repo's own harness —
+  today that is `refresh-domain-benchmark`, which drives `evals/run-eval.sh` and
+  reads `config/domains.conf`. A skill that would work anywhere is a sign it
+  should be published to the marketplace instead.
 - **Never run `bin/setup.sh` from a worktree.** It points every
   `~/.claude/skills/*` symlink at `$REPO_ROOT`, so a worktree run repoints them
   all at a path that dies with the worktree. Verify setup.sh edits with
