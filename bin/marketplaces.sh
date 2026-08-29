@@ -89,7 +89,9 @@ do_status() {
 }
 
 do_install() {
-    require_claude
+    # Resolve what was asked for BEFORE demanding the CLI: a typo'd id should say
+    # so, not send you off to install Claude Code first. This also keeps the
+    # argument handling testable on a machine with no CLI, such as CI.
     local only="${1:-}" targets
     if [ -n "$only" ]; then
         marketplace_exists "$only" || log_error "Unknown marketplace: $only"
@@ -97,6 +99,7 @@ do_install() {
     else
         targets=$(list_marketplaces)
     fi
+    require_claude
     [ -n "$targets" ] || { log_info "Nothing registered."; return 0; }
 
     for mp in $targets; do

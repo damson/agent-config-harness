@@ -3,9 +3,10 @@
 # Tests for the skill-marketplace registry, the structural validator, and
 # bin/marketplaces.sh.
 #
-# `claude` is stubbed onto PATH so nothing reaches the network, and every
-# validator case builds a throwaway skills tree rather than depending on the
-# skills this repo happens to ship today.
+# Nothing here reaches the network: the registry cases read a throwaway conf,
+# the validator cases build a throwaway skills tree rather than depending on the
+# skills this repo happens to ship today, and the one case that would invoke the
+# CLI runs with a PATH that has no `claude` on it.
 
 load helpers/common
 
@@ -35,7 +36,6 @@ setup() {
     cd "$REPO_ROOT"
     TREE=$(mktemp -d)
     CONF=$(mktemp)
-    BIN=$(mktemp -d)
     cat > "$CONF" <<'EOF'
 # comment line, must be skipped
 demo = owner/demo-repo :: alpha,beta :: https://example.invalid/demo
@@ -45,7 +45,7 @@ EOF
 }
 
 teardown() {
-    rm -rf "$TREE" "$BIN"
+    rm -rf "$TREE"
     rm -f "$CONF"
 }
 
@@ -81,9 +81,14 @@ teardown() {
 }
 
 @test "marketplaces: install rejects an unregistered id instead of adding it" {
-    run ./bin/marketplaces.sh install not-registered
+    # Deliberately run with a PATH that has no `claude` on it. The id is resolved
+    # before the CLI is required, so a typo reports the typo rather than sending
+    # you to install Claude Code — and this test then means the same thing on a
+    # developer machine and in CI, where the CLI is absent.
+    run env PATH="/usr/bin:/bin:/usr/sbin:/sbin" ./bin/marketplaces.sh install not-registered
     [ "$status" -ne 0 ]
     assert_contains "$output" "Unknown marketplace"
+    assert_not_contains "$output" "not on PATH"
 }
 
 # ── validator ─────────────────────────────────────────────
