@@ -17,7 +17,15 @@
 
 # ── Environment ───────────────────────────────────────────
 _lib_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd "$_lib_dir/.." && pwd)"
+
+# Two roots, because the engine and the config it manages need not be the same
+# checkout. HARNESS_ROOT is where these scripts, rubrics and templates live.
+# REPO_ROOT is the config repo being managed — its registries, its workspace
+# domains, its results. Standalone they are the same directory; a consumer repo
+# vendors the harness (a submodule, say) and sets AGENT_CONFIG_ROOT to itself.
+HARNESS_ROOT="$(cd "$_lib_dir/.." && pwd)"
+REPO_ROOT="${AGENT_CONFIG_ROOT:-$HARNESS_ROOT}"
+[ -d "$REPO_ROOT" ] || { printf 'AGENT_CONFIG_ROOT is not a directory: %s\n' "$REPO_ROOT" >&2; exit 1; }
 DOMAINS_CONF="$REPO_ROOT/config/domains.conf"
 EXTERNAL_SKILLS_CONF="$REPO_ROOT/config/external-skills.conf"
 

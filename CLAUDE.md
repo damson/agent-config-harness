@@ -64,3 +64,9 @@ domain registry and what this repo is for. Don't duplicate that here.
 - **Statusline doc stays in sync.** Any change to `user-dev/statusline.sh`
   (segments, order, colours, formatting, fields) must update the "Statusline"
   section in `README.md` in the same change.
+- **Two roots, and they are not interchangeable.** `HARNESS_ROOT` is this
+  checkout — scripts, rubrics, templates. `REPO_ROOT` is the config repo being
+  managed, which is this one only when `AGENT_CONFIG_ROOT` is unset. A new path
+  belongs to whichever owns the file: a rubric is `HARNESS_ROOT`, a domain's
+  `CLAUDE.md` is `REPO_ROOT`. Getting it backwards is silent — the engine reads
+  its own example domains and reports healthy.

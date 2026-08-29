@@ -94,8 +94,8 @@ done
 "$SCRIPT_DIR/install-external-skills.sh" </dev/null
 
 # ── 3. Git aliases (stealth pull / stealth commit) ────────
-git config --global alias.spull  "!$REPO_ROOT/bin/git-stealth.sh pull"
-git config --global alias.scommit "!$REPO_ROOT/bin/git-stealth.sh commit"
+git config --global alias.spull  "!$HARNESS_ROOT/bin/git-stealth.sh pull"
+git config --global alias.scommit "!$HARNESS_ROOT/bin/git-stealth.sh commit"
 log_ok "Configured git aliases: spull, scommit"
 
 # ── 4. Pre-push guard on this repo (block direct push to main/develop) ─
