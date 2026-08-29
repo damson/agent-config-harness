@@ -2,7 +2,8 @@
 #
 # AI Setup — Skill Eval Runner
 #
-# Scores every SKILL.md under user-dev/skills/ using evals/prompts/skill-quality.md
+# Scores every SKILL.md under the managed repo's user-dev/skills/ (or SKILLS_DIR)
+# using the harness's evals/prompts/skill-quality.md
 # and writes results to evals/results/ + benchmarks/scores/ with domain = "skill:<name>".
 #
 # Usage:
