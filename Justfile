@@ -29,6 +29,28 @@ skills-install *ARGS:
 skills-status:
     @./bin/install-external-skills.sh --list
 
+# ── Skill marketplaces ────────────────────────────────────
+
+# What skill marketplaces are registered, and which of their plugins are installed.
+marketplaces-status:
+    @./bin/marketplaces.sh status
+
+# Add every registered marketplace and install its plugins. Needs the claude CLI.
+marketplaces-install id="":
+    @./bin/marketplaces.sh install {{id}}
+
+# Structural check on a skills tree: this repo's by default, or a marketplace's.
+validate-skills dir="":
+    @./bin/validate-skills.sh {{dir}}
+
+# Structural check on the skills a marketplace installed.
+validate-marketplace id:
+    @./bin/validate-skills.sh --marketplace {{id}}
+
+# Score a marketplace's skills on the skill rubric. Pass a plugin to narrow it.
+eval-marketplace id plugin="":
+    @./bin/marketplaces.sh eval {{id}} {{plugin}}
+
 # Scan the repo for secrets / API keys.
 lint:
     @./bin/lint-secrets.sh
