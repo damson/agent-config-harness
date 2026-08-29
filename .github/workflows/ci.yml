@@ -1,0 +1,57 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main, develop]
+  workflow_dispatch:
+
+# A newer push makes an in-flight run for the same ref pointless. Without this,
+# a hung run also blocks the queue for its successor.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    name: Validate scripts and run tests
+    runs-on: ubuntu-latest
+    # The whole job is ~30s of work. Ten minutes is a hang, not slowness — fail
+    # so the PR shows red instead of sitting in_progress until the 6-hour cap.
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install bats and jq
+        timeout-minutes: 5
+        run: .github/install-packages.sh bats jq
+
+      - name: Make scripts executable
+        run: chmod +x bin/*.sh evals/*.sh benchmarks/*.sh lib/*.sh
+
+      - name: Syntax check all shell scripts
+        run: |
+          for f in bin/*.sh evals/*.sh benchmarks/*.sh lib/*.sh; do
+            bash -n "$f"
+          done
+
+      - name: Run bats tests
+        run: bats tests/
+
+      - name: Run secret lint
+        run: ./bin/lint-secrets.sh
+
+  shellcheck:
+    name: ShellCheck
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install shellcheck
+        timeout-minutes: 5
+        run: .github/install-packages.sh shellcheck
+
+      - name: Lint shell scripts
+        run: |
+          shellcheck -x -S warning -e SC1091 bin/*.sh evals/*.sh benchmarks/*.sh lib/*.sh

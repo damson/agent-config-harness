@@ -1,0 +1,38 @@
+name: Release PR
+
+# Keeps a standing develop → main PR open, refreshed weekly. It never merges:
+# promotion stays a human decision, and the summary and before/after diagram
+# still have to be written by hand. What this removes is the excuse — the
+# inventory is assembled for you, so a release is a review rather than an
+# archaeology exercise.
+on:
+  schedule:
+    - cron: '0 9 * * MON'   # Mondays 09:00 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: write
+
+concurrency:
+  group: release-pr
+  cancel-in-progress: false
+
+jobs:
+  release-pr:
+    name: Open or refresh the release PR
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0   # the script diffs main..develop
+
+      - name: Open or refresh
+        run: ./bin/open-release-pr.sh
+        env:
+          # A PR opened with GITHUB_TOKEN does not trigger other workflows, so
+          # CI will not re-run on it. That is acceptable here and nowhere else:
+          # every commit in the batch was already CI-green on its own PR, and
+          # this one adds none. Swap in a PAT if that ever stops being true.
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

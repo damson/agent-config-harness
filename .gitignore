@@ -1,0 +1,20 @@
+.DS_Store
+
+# Eval results may contain copies of config content + git hashes.
+# Treat them as local artifacts; commit deliberately via `just benchmark-commit`.
+evals/results/
+benchmarks/scores/
+!benchmarks/scores/.gitkeep
+
+# Setup log is machine-local
+SETUP_LOG.md
+SYNC_LOG.md
+
+# Session resume briefs and local Claude settings at the repo root are
+# machine-local. Anchored: workspace/<domain>/.claude/ is tracked content.
+#
+# Ignore the CONTENTS, not the directory: git never descends into an ignored
+# directory, so `/.claude/` would make a future ai-setup-only project skill
+# silently un-committable. Excluding `/.claude/*` keeps the negation below live.
+/.claude/*
+!/.claude/skills/

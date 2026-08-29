@@ -1,0 +1,11 @@
+# Cursor-only rules for mobile work (example)
+#
+# This file is a REAL file, not a symlink to CLAUDE.md, because it carries
+# something the other agents do not need. Where a domain's .cursorrules would be
+# a byte-for-byte duplicate, make it a symlink instead — `just eval` scores a
+# duplicate down on conciseness and consistency.
+
+- Prefer inline edits over rewriting a whole file; this project's reviewers read
+  diffs, not files.
+- Do not auto-run the build after each edit. It is slow enough that it breaks
+  flow, and CI catches what matters.

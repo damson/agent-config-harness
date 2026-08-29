@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "AI Setup Eval Result",
+  "type": "object",
+  "required": ["date", "domain", "scores", "total", "percentage", "grade", "findings"],
+  "properties": {
+    "date": { "type": "string", "format": "date-time" },
+    "domain": { "type": "string" },
+    "git_hash": { "type": "string" },
+    "scores": {
+      "type": "object",
+      "required": ["clarity", "conciseness", "completeness", "consistency", "actionability"],
+      "properties": {
+        "clarity":       { "type": "integer", "minimum": 1, "maximum": 5 },
+        "conciseness":   { "type": "integer", "minimum": 1, "maximum": 5 },
+        "completeness":  { "type": "integer", "minimum": 1, "maximum": 5 },
+        "consistency":   { "type": "integer", "minimum": 1, "maximum": 5 },
+        "actionability": { "type": "integer", "minimum": 1, "maximum": 5 }
+      },
+      "additionalProperties": false
+    },
+    "total": { "type": "integer", "minimum": 5, "maximum": 25 },
+    "percentage": { "type": "integer", "minimum": 20, "maximum": 100 },
+    "grade": { "type": "string", "enum": ["A", "B", "C", "D", "F"] },
+    "findings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["dimension", "file", "section", "issue", "recommendation"],
+        "properties": {
+          "dimension":      { "type": "string" },
+          "file":           { "type": "string" },
+          "section":        { "type": "string" },
+          "issue":          { "type": "string" },
+          "recommendation": { "type": "string" }
+        }
+      }
+    }
+  }
+}
