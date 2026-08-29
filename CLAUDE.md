@@ -42,6 +42,14 @@ domain registry and what this repo is for. Don't duplicate that here.
   today that is `refresh-domain-benchmark`, which drives `evals/run-eval.sh` and
   reads `config/domains.conf`. A skill that would work anywhere is a sign it
   should be published to the marketplace instead.
+- **Adding a skill marketplace:** edit `config/marketplaces.conf` only — never
+  modify scripts. `bin/marketplaces.sh` reads it through `lib/common.sh`. The id
+  is the marketplace's `name` from its `marketplace.json`, which need NOT equal
+  the repo name; `plugin@marketplace` addresses the former.
+- **Never probe a path to decide whether a plugin is installed.** Both
+  `plugins/marketplaces/<id>` and `plugins/cache/<id>/<plugin>` survive an
+  uninstall, so a probe reports installed forever. Ask `claude plugin list`.
+  See [docs/marketplaces.md](docs/marketplaces.md).
 - **Never run `bin/setup.sh` from a worktree.** It points every
   `~/.claude/skills/*` symlink at `$REPO_ROOT`, so a worktree run repoints them
   all at a path that dies with the worktree. Verify setup.sh edits with

@@ -99,26 +99,44 @@ and mixing them makes both harder to change.
 | `just eval-skills [skill]` | Score a skill against the skill rubric |
 | `just benchmark` | Print the score trend per domain |
 | `just skills-install` | Install third-party skill bundles from the registry |
+| `just marketplaces-status` | What skill marketplaces are registered, and what is installed |
+| `just marketplaces-install` | Add registered marketplaces and install their plugins |
+| `just validate-skills [dir]` | Structural check on a skills tree |
+| `just validate-marketplace <id>` | Structural check on a marketplace's installed skills |
+| `just eval-marketplace <id>` | Score a marketplace's skills on the rubric |
 | `just release` / `just backmerge` | Open the release and back-merge PRs. Never merges |
 
-## Skills
+## Skills, and marketplaces
 
-The skills this repo produced live in a separate marketplace, grouped by theme —
-see `agent-skills`. What stays here is the **machinery that holds a skill to a
-standard**, plus one skill (`refresh-domain-benchmark`) that is coupled to this
-repo's own eval harness and makes no sense outside it.
+Portable skills live in **Claude Code marketplaces**, not in this repo. What this
+repo provides is the part a marketplace does not: a registry so the set is
+reproducible, and checks that hold someone else's skills to the same standard as
+your own.
 
-`tests/skills.bats` enforces, for every skill under `user-dev/skills/`:
+```bash
+just marketplaces-install             # add registered marketplaces, install their plugins
+just validate-marketplace <id>        # structural check on the skills it installed
+just eval-marketplace <id> [plugin]   # score them on the skill rubric
+```
 
-- frontmatter `name:` matches the folder name
-- a non-empty `description:`
-- a `## Procedure` (or `## Step N`) heading
-- a **`## When to STOP`** section
-- leaf names unique across grouped folders, because skills install *flat* into
-  `~/.claude/skills/` and share one namespace
+Register one with a line in `config/marketplaces.conf`:
 
-`just eval-skills <name>` then scores the skill's prose on the same rubric the
-config files get.
+```
+fullstack-skills = damson/fullstack-skills :: * :: https://github.com/damson/fullstack-skills
+```
+
+`bin/validate-skills.sh` enforces, on any skills tree — yours or a marketplace's:
+frontmatter `name` matching the folder, a non-empty `description`, a `## Procedure`
+(or `## Step N`) section, a **`## When to STOP`** section, and leaf names unique
+across groups because skills install *flat* into `~/.claude/skills/` and share one
+namespace. It reports every problem rather than the first.
+
+`user-dev/skills/` keeps only skills coupled to this repo's own tooling — today
+`refresh-domain-benchmark`, which drives `evals/run-eval.sh` and reads
+`config/domains.conf`. A skill that would work anywhere belongs in a marketplace,
+and keeping it in both places puts two copies under one name in `~/.claude/skills/`.
+
+Full guide with worked examples: [docs/marketplaces.md](docs/marketplaces.md).
 
 ## What this is not
 
@@ -134,6 +152,7 @@ config files get.
 - [Architecture](docs/architecture.md) — the four layers in depth
 - [Evaluation](docs/evaluation.md) — the rubric and how to read a score
 - [Git flow](docs/git-flow.md) — branch model, release and back-merge PRs
+- [Skill marketplaces](docs/marketplaces.md) — registering, installing, validating and scoring marketplace skills
 - [External skills](docs/external-skills.md) — registering third-party bundles rather than vendoring them
 
 General engineering notes that used to live here — how instruction files load,
