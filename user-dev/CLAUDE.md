@@ -33,4 +33,5 @@ you would think to open a doc.
 
 `@path` imports work in `CLAUDE.md` but **not** in `.claude/rules/` files, and
 they do not reduce context — an imported file is expanded at launch. To share a
-rule between locations, symlink it. Tested, with controls: `docs/claude-md-loading.md`.
+rule between locations, symlink it. Tested with controls in the `engineering-notes`
+repo, under `agents/`.
