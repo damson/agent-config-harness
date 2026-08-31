@@ -130,6 +130,39 @@ different attention:
 
 ---
 
+## Two things that make a PR-opening workflow fail
+
+Both bit the automation here, and neither is visible from the workflow file.
+
+**A job-level `permissions: pull-requests: write` is not sufficient.** The
+repository must also allow it:
+
+```
+Settings → Actions → General → Workflow permissions
+  ☑ Allow GitHub Actions to create and approve pull requests
+```
+
+```bash
+gh api -X PUT repos/<owner>/<repo>/actions/permissions/workflow \
+  -F can_approve_pull_request_reviews=true \
+  -f default_workflow_permissions=read
+```
+
+Without it, `gh pr create` inside a workflow fails with *GitHub Actions is not
+permitted to create or approve pull requests* — a message that reads like a token
+problem and is not one.
+
+**A workflow with no `pull_request` trigger is never exercised by review.** The
+release and back-merge workflows run only on `push` to `main`, so a PR that moves
+or renames a script they call goes green and fails on the next release instead.
+When relocating a script, grep **every** workflow, not just the one CI runs:
+
+```bash
+grep -rn 'run: \./' .github/workflows/
+```
+
+---
+
 ---
 
 ## The `just sync` Flow
