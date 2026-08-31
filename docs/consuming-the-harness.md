@@ -54,6 +54,62 @@ workspace/<domain>/          your per-domain rules
 .harness/                    the engine, pinned
 ```
 
+## In CI, when the harness is private
+
+`actions/checkout` authenticates with the job's `GITHUB_TOKEN`, which is scoped to
+the repo being built. A private harness lives in a *different* repo, so the
+submodule fetch fails no matter what `submodules:` is set to. Give the job a PAT
+with read access to the harness and check the submodule out yourself:
+
+```yaml
+- uses: actions/checkout@v4          # no submodules: — it cannot reach the harness
+- name: Check out the harness
+  env:
+    HARNESS_TOKEN: ${{ secrets.HARNESS_TOKEN }}
+  run: |
+    auth=$(printf 'x-access-token:%s' "$HARNESS_TOKEN" | base64 | tr -d '\n')
+    git config --global http.https://github.com/.extraheader "AUTHORIZATION: basic $auth"
+    git submodule update --init --depth 1 .harness
+```
+
+Two things about that snippet are not obvious, and both cost real time.
+
+**The credentials go in a header, not the URL.** The form everyone reaches for
+first is rejected outright:
+
+```bash
+# Rejected by GitHub, whatever the token:
+git clone https://x-access-token:$TOKEN@github.com/owner/repo.git
+# remote: Invalid username or token. Password authentication is not supported
+# for Git operations.
+```
+
+The error names a username and a password, so it reads as a credential-format
+problem. It is not: GitHub refuses URL-embedded credentials for git operations
+outright, and no token value makes that form work. The `http.extraheader` form
+above is what `actions/checkout` itself uses.
+
+**Storing the secret without a terminal stores nothing.** Set it like this:
+
+```bash
+read -rs TOKEN && printf '%s' "$TOKEN" | gh secret set HARNESS_TOKEN --repo <owner>/<repo>
+```
+
+Run interactively, `gh secret set NAME` prompts for the value. Run anywhere
+without a TTY — a script, a CI step, an agent shell — it reads **stdin instead of
+prompting**, and an empty stdin stores an **empty secret**. It exits `0` and the
+secret listing shows the name with a fresh timestamp, so the only symptom is the
+submodule checkout failing later with an ordinary `401`, indistinguishable from a
+token that is invalid or revoked.
+
+`read -rs` keeps the value off the screen and out of shell history, and piping it
+gives `gh` real stdin to read.
+
+**Diagnosing it after the fact:** print the length in the job, next to where the
+token is used. The length is not the secret and CI cannot mask it, and `0` versus
+`93` distinguishes an empty secret from a bad one in a single line — nothing else
+does.
+
 ## What this buys, and what it costs
 
 The engine is versioned and tested once, in its own repo, with its own CI. Your

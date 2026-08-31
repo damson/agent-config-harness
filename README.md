@@ -156,7 +156,6 @@ Full guide with worked examples: [docs/marketplaces.md](docs/marketplaces.md).
 - [Instruction-file loading](docs/claude-md-loading.md) — what actually loads, tested with controls
 - [Shell gotchas](docs/shell-gotchas.md) — four zsh/bats behaviours that return a wrong answer instead of an error
 - [Git recipes](docs/git-recipes.md) — worktree and history-rewriting syntax worth looking up
-- [CLI recipes](docs/cli-recipes.md) — non-git invocations whose obvious form is subtly wrong
 - [Skill marketplaces](docs/marketplaces.md) — registering, installing, validating and scoring marketplace skills
 - [External skills](docs/external-skills.md) — registering third-party bundles rather than vendoring them
 
