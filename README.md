@@ -160,10 +160,6 @@ Full guide with worked examples: [docs/marketplaces.md](docs/marketplaces.md).
 - [Skill marketplaces](docs/marketplaces.md) — registering, installing, validating and scoring marketplace skills
 - [External skills](docs/external-skills.md) — registering third-party bundles rather than vendoring them
 
-General engineering notes that used to live here — how instruction files load,
-shell and CLI traps, git syntax — moved to `engineering-notes`, since they are
-reference material with a different lifetime than this repo.
-
 ## Support
 
 Maintained by one person for one person's setup, published because the measurement
