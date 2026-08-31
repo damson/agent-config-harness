@@ -155,7 +155,6 @@ Full guide with worked examples: [docs/marketplaces.md](docs/marketplaces.md).
 - [Using it from another repo](docs/consuming-the-harness.md) — vendoring the engine and pointing it at your own config
 - [Instruction-file loading](docs/claude-md-loading.md) — what actually loads, tested with controls
 - [Shell gotchas](docs/shell-gotchas.md) — four zsh/bats behaviours that return a wrong answer instead of an error
-- [Git recipes](docs/git-recipes.md) — worktree and history-rewriting syntax worth looking up
 - [Skill marketplaces](docs/marketplaces.md) — registering, installing, validating and scoring marketplace skills
 - [External skills](docs/external-skills.md) — registering third-party bundles rather than vendoring them
 
