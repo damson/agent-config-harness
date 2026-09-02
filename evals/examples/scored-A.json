@@ -1,0 +1,31 @@
+{
+  "date": "2026-09-02T00:07:52Z",
+  "domain": "backend-node",
+  "git_hash": "232ee14",
+  "scores": {
+    "clarity": 5,
+    "conciseness": 5,
+    "completeness": 4,
+    "consistency": 5,
+    "actionability": 5
+  },
+  "total": 24,
+  "percentage": 96,
+  "grade": "A",
+  "findings": [
+    {
+      "dimension": "completeness",
+      "file": "workspace/backend-node/CLAUDE.md",
+      "section": "-",
+      "issue": "No build/run/tooling guidance: nothing on package manager, how to run tests, lint, or type-check, so an agent must guess the commands for the repo it lands in.",
+      "recommendation": "Add a short 'Commands' or 'Tooling' section (or a pointer rule like 'read package.json scripts before inventing commands; prefer the repo's package manager lockfile to pick npm/pnpm/yarn')."
+    },
+    {
+      "dimension": "completeness",
+      "file": "workspace/backend-node/CLAUDE.md",
+      "section": "Editing discipline",
+      "issue": "The 'match the existing framework/ORM/test runner' rule covers conventions, but the file gives no direction for greenfield choices when the repo has none established.",
+      "recommendation": "Add one line naming the default stack to reach for when starting fresh (e.g. 'greenfield: Fastify + Drizzle + Vitest'), so the rule resolves in both situations."
+    }
+  ]
+}
