@@ -127,6 +127,42 @@ The split matters because the layers have different owners and different
 lifetimes. Your commit-message preference is not your team's architecture rule,
 and mixing them makes both harder to change.
 
+## Statusline
+
+`user-dev/statusline.sh` renders the Claude Code prompt line. `just setup` links
+it to `~/.claude/statusline.sh` and wires it into `~/.claude/settings.json` as
+the `statusLine` command. It reads the session JSON Claude Code pipes on stdin
+(requires `jq`; without it only the location line renders) and prints two lines
+— metrics first, location second:
+
+```
+ctx ▕████░░░▏ 52% 104k/200k | $0.42 | api $0.40 | +156/-23 | 5h ▕██░░▏ 28% ↺ 2h11m | Opus 4.8 (1M)·high
+<dir> ⎇ <branch>*
+```
+
+Line 1 segments, in order, joined by ` | `:
+
+| Segment | Shows |
+|---|---|
+| `ctx` | Context-window bar (8 cells), % used, tokens used / window size compacted (`104k`, `1.2M`) |
+| `$` | Estimated session cost, USD |
+| `api $` | Org month-to-date API spend — optional, see below |
+| `+/-` | Lines added (green) / removed (red) this session |
+| `5h` | 5-hour rate-window bar (5 cells), % used, `↺` reset countdown (`2h11m`, `44m`, `now`) |
+| model | Display name (magenta) · reasoning effort when not `medium`, or `⚡` in fast mode; output style appended when not `default` |
+
+Line 2 is the working directory's basename (blue) and the git branch (green),
+with a yellow `*` when the tree is dirty. Bars and percentages colour by load:
+green below 60%, yellow below 85%, red at 85% and above. Labels and separators
+are grey, costs cyan. Every field in the stdin schema is optional — a segment
+self-hides when its data is absent.
+
+The `api $` segment stays dormant unless an Anthropic Admin key is provided via
+`$ANTHROPIC_ADMIN_KEY` or `~/.claude/anthropic_admin_key` (keep the keyfile
+`chmod 600`). It sums the org's month-to-date Admin cost report, cached and
+refreshed by a detached background fetch about every 15 minutes — the render
+itself never blocks on the network.
+
 ## Commands
 
 | Command | What it does |
