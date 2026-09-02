@@ -1,4 +1,4 @@
-## 👥 In plain words
+## 👥 Non-technical summary
 
 <!--
     3–5 sentences someone outside this codebase could follow. No identifiers,
