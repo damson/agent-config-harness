@@ -1,6 +1,6 @@
 # Architecture
 
-The ai-setup repo is a four-layer pipeline for AI configuration. Each layer has a single responsibility and a clear contract with the layer below.
+The agent-config-harness repo is a four-layer pipeline for AI configuration. Each layer has a single responsibility and a clear contract with the layer below.
 
 ```mermaid
 flowchart BT
@@ -47,7 +47,7 @@ Single source of truth for which domains exist and which files each one manages.
 # domain = workspace_subdir : files_to_manage
 # (CLAUDE.md is canonical; sibling AGENTS.md — and duplicate .cursorrules —
 #  are symlinks -> CLAUDE.md and are not listed)
-android         = workspace/android         : AGENTS.md>project/CLAUDE.md, CLAUDE.md, .cursorrules
+mobile          = workspace/mobile          : AGENTS.md>project/CLAUDE.md, CLAUDE.md, .cursorrules
 web-react       = workspace/web-react, workspace/web : CLAUDE.md
 backend-node    = workspace/backend-node    : CLAUDE.md
 data-extraction = workspace/data-extraction : CLAUDE.md
@@ -93,6 +93,10 @@ Every script:
 - Sources `lib/common.sh`
 - Uses the shared logging functions
 - Reads the domain registry — never hardcodes paths
+
+One deliberate exception: `bin/eval-action.sh` is the GitHub Action entry
+point and runs in a repo that vendors nothing, so it stays self-contained
+rather than sourcing `lib/common.sh`.
 
 ---
 
@@ -152,7 +156,8 @@ See [evaluation.md](evaluation.md) for the rubric.
 These are non-negotiable design rules. Don't break them in PRs.
 
 1. **No script hardcodes a domain name or workspace path.** Read from the registry.
-2. **Every script sources `lib/common.sh`** and uses its logging functions.
+2. **Scripts source `lib/common.sh`** and use its logging functions. The one
+   deliberate exception is `bin/eval-action.sh` — see Layer 1.
 3. **`main` is protected.** No direct pushes. PR required.
 4. **Tests pass before merge.** `bats tests/` and `shellcheck` both green.
 5. **Lint runs without false positives.** If lint catches legitimate doc content, fix the pattern, not the doc.

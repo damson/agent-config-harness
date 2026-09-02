@@ -13,7 +13,7 @@ template or the guide (both of which must stay vendor-neutral).
 
 | Domain | ‹test command› | ‹repo-specific review gate› |
 |---|---|---|
-| `android` | `./gradlew testDebugUnitTest` (scoped: `:feature:<name>:testDebugUnitTest --tests "*Pattern*"`); `detekt` + `formatKotlin` clean | Screenshot baselines recorded **and** verified (Roborazzi); detekt/ktlint green in CI |
+| `mobile` | `./gradlew testDebugUnitTest` (scoped: `:feature:<name>:testDebugUnitTest --tests "*Pattern*"`); `detekt` + `formatKotlin` clean | Screenshot baselines recorded **and** verified (Roborazzi); detekt/ktlint green in CI |
 | `web-react` | `pnpm test && pnpm typecheck && pnpm lint` (Vitest + RTL) | `eslint-plugin-jsx-a11y` clean, no silenced warnings; Playwright E2E for new user flows |
 | `backend-node` | `pnpm test && pnpm test:integration && pnpm typecheck` (integration needs Docker/Testcontainers) | New migration created for any schema change (never edit a shipped one); integration suite green |
 | `data-extraction` | `pytest && ruff check && mypy --strict` | Contract/schema tests green (schema drift fails the build); fixtures scrubbed of real tokens |

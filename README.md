@@ -51,7 +51,7 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
-      - uses: damson/agent-config-harness@main
+      - uses: damson/agent-config-harness@v1
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         with:
@@ -59,14 +59,28 @@ jobs:
           fail-below: C         # the job fails only below this grade
 ```
 
+Pin the action to a tag or a commit SHA, never a branch — a mutable ref means
+your CI runs whatever that ref points at tomorrow.
+
 The score and findings land in the job summary. Remember the eval moves ±1–2 on
 borderline scores — gate on the grade you can live with, not the one you are
 proud of.
 
+And treat the gate as an advisory signal, not a security control: the grade
+comes from an LLM reading the PR author's own file, so a determined author can
+steer their grade with content addressed to the evaluator. It catches drift
+and sloppiness, not adversaries.
+
 ## Install
 
+Prerequisites: `git`, [`just`](https://github.com/casey/just),
+[`bats`](https://github.com/bats-core/bats-core), `jq`, and the
+[`claude` CLI](https://docs.anthropic.com/en/docs/claude-code). Only the eval
+commands call the API and need an `ANTHROPIC_API_KEY`; everything else runs
+offline.
+
 ```bash
-git clone <this repo> ~/workspace/agent-config-harness
+git clone https://github.com/damson/agent-config-harness.git ~/workspace/agent-config-harness
 cd ~/workspace/agent-config-harness
 just setup      # symlink configs and skills into ~/.claude/, install git hooks
 just check      # verify every link and domain resolves

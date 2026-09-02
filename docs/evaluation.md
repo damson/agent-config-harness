@@ -7,7 +7,7 @@
 ## Running
 
 ```bash
-just eval android       # score a single domain
+just eval mobile        # score a single domain
 just eval               # score all registered domains
 ```
 
@@ -100,12 +100,12 @@ A common pattern is intentional layering: a global `CLAUDE.md` overrides a domai
 
 ## Reading the Output
 
-Example `evals/results/2026-05-25-android.json`:
+Example `evals/results/2026-05-25-mobile.json`:
 
 ```json
 {
   "date": "2026-05-25T10:30:00Z",
-  "domain": "android",
+  "domain": "mobile",
   "git_hash": "1477b4c",
   "scores": {
     "clarity": 4,
@@ -142,7 +142,7 @@ just benchmark
 Prints one table per domain:
 
 ```
-android
+mobile
 ──────────────────────────────────────────────────────────────────
 Date         Clarity   Concise   Complete   Consistent   Action    Total  Grade
 2026-05-10   4         3         5          4            4         80%    B
