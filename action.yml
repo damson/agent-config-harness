@@ -1,0 +1,51 @@
+name: Config Eval
+description: >
+  Score CLAUDE.md / AGENTS.md quality on a five-dimension rubric out of 25, and
+  fail the build when the grade slips below a threshold. Config files steer how
+  coding agents behave and usually rot unmeasured; this puts a number on them.
+author: Damien Dagnet
+branding:
+  icon: bar-chart-2
+  color: purple
+
+inputs:
+  files:
+    description: Comma-separated config files to score, relative to the repo root. Ignored when `domain` is set.
+    required: false
+    default: CLAUDE.md
+  domain:
+    description: For repos that are harness consumers with their own config/domains.conf — score this registered domain instead of raw files.
+    required: false
+    default: ""
+  fail-below:
+    description: Minimum passing grade (A, B, C, D or F). The job fails only when the scored grade is below this.
+    required: false
+    default: C
+
+outputs:
+  grade:
+    description: The letter grade the config scored.
+    value: ${{ steps.score.outputs.grade }}
+  total:
+    description: The numeric score out of 25.
+    value: ${{ steps.score.outputs.total }}
+
+runs:
+  using: composite
+  steps:
+    - name: Install the Claude CLI
+      shell: bash
+      run: |
+        command -v jq >/dev/null || { echo "::error::jq is required"; exit 1; }
+        command -v claude >/dev/null || npm install -g @anthropic-ai/claude-code
+
+    - name: Score
+      id: score
+      shell: bash
+      env:
+        EVAL_FILES: ${{ inputs.files }}
+        EVAL_DOMAIN: ${{ inputs.domain }}
+        FAIL_BELOW: ${{ inputs.fail-below }}
+      run: |
+        chmod +x "${{ github.action_path }}"/bin/*.sh "${{ github.action_path }}"/evals/*.sh "${{ github.action_path }}"/lib/*.sh
+        "${{ github.action_path }}/bin/eval-action.sh"
