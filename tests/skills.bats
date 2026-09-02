@@ -174,7 +174,7 @@ SKILLEOF
 @test "PR template: the installed template exists and carries every mandatory section" {
     local t="$REPO_ROOT/.github/PULL_REQUEST_TEMPLATE.md"
     [ -f "$t" ]
-    grep -q '## 👥 Non-technical summary' "$t"
+    grep -q '## 👥 High-level summary' "$t"
     grep -q '## 📋 What changed' "$t"
     grep -q '## ✅ Test plan' "$t"
     grep -q '## 🤖 Review' "$t"

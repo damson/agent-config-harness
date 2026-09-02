@@ -9,7 +9,7 @@
 #
 # It never merges. It opens a PR pre-filled with the inventory a human cannot
 # be bothered to assemble — the PRs in the batch, the diffstat, the commit
-# count — and leaves the parts that need judgement (the non-technical summary and
+# count — and leaves the parts that need judgement (the high-level summary and
 # the before/after diagram) as an unfilled template.
 #
 # Usage:
