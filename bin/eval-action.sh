@@ -24,6 +24,13 @@
 
 set -euo pipefail
 
+# Fail fast on a missing key: without it the eval dies downstream with a
+# CLI error that never mentions the actual cause.
+if [ -z "${ANTHROPIC_API_KEY:-}" ]; then
+    echo "::error::ANTHROPIC_API_KEY is not set — pass it to the action via env."
+    exit 1
+fi
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 HARNESS="$(dirname "$SCRIPT_DIR")"
 
@@ -65,16 +72,34 @@ AGENT_CONFIG_ROOT="$root" "$HARNESS/evals/run-eval.sh" "$domain"
 result=$(ls -t "$root/evals/results/"*"-$domain.json" 2>/dev/null | head -1)
 [ -n "$result" ] || { echo "::error::Eval produced no result file"; exit 1; }
 
+# The result JSON is LLM output over a PR-author-controlled file, so nothing
+# in it is trustworthy. Validate the fields that become workflow outputs — a
+# multi-line value appended raw to $GITHUB_OUTPUT would smuggle extra
+# variables into the consumer workflow — and never echo a rejected value:
+# printing it is itself a workflow-command injection vector.
 grade=$(jq -r .grade "$result")
 total=$(jq -r .total "$result")
+if ! [[ "$grade" =~ ^[ABCDF]$ ]]; then
+    echo "::error::Eval result carries an invalid grade — refusing to publish it."
+    exit 1
+fi
+if ! [[ "$total" =~ ^[0-9]{1,2}(\.[0-9]+)?$ ]]; then
+    echo "::error::Eval result carries an invalid total — refusing to publish it."
+    exit 1
+fi
 
 if [ -n "${GITHUB_OUTPUT:-}" ]; then
     { printf 'grade=%s\n' "$grade"; printf 'total=%s\n' "$total"; } >> "$GITHUB_OUTPUT"
 fi
 if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
+    # Findings are free text from the same untrusted result: flatten control
+    # characters (a \n would break out of the bullet) and neutralize < so an
+    # injected finding cannot render HTML/markdown that turns the job summary
+    # into a phishing or exfiltration lure.
     {
         printf '## Config eval: %s/25 — grade %s\n\n' "$total" "$grade"
-        jq -r '.findings[] | "- **\(.dimension)** \(.file)/\(.section): \(.issue)"' "$result"
+        jq -r '.findings[]? | "- **\(.dimension)** \(.file)/\(.section): \(.issue)" | gsub("\\p{Cc}"; " ")' "$result" \
+            | sed 's/</\&lt;/g'
     } >> "$GITHUB_STEP_SUMMARY"
 fi
 
