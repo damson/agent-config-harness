@@ -2,20 +2,35 @@
 
 The ai-setup repo is a four-layer pipeline for AI configuration. Each layer has a single responsibility and a clear contract with the layer below.
 
-```
-┌─────────────────────────────────────────────────────────┐
-│  LAYER 4 — BENCHMARKS                                   │
-│  Reads benchmarks/scores/ → trend tables                │
-├─────────────────────────────────────────────────────────┤
-│  LAYER 3 — EVALS                                        │
-│  Claude scores files → JSON results → benchmarks        │
-├─────────────────────────────────────────────────────────┤
-│  LAYER 2 — VERIFICATION                                 │
-│  check-health.sh + lint-secrets.sh + Claude hooks       │
-├─────────────────────────────────────────────────────────┤
-│  LAYER 1 — CORE                                         │
-│  config/domains.conf + lib/common.sh + bin/             │
-└─────────────────────────────────────────────────────────┘
+```mermaid
+flowchart BT
+    subgraph core["Layer 1 — Core"]
+        registry["config/domains.conf<br/>domain registry"]
+        common["lib/common.sh<br/>the only registry parser"]
+        scripts["bin/ scripts"]
+        registry --> common
+        common -->|sourced by| scripts
+    end
+
+    subgraph verify["Layer 2 — Verification"]
+        check["check-health.sh<br/>(just check)"]
+        lint["lint-secrets.sh<br/>(just lint)"]
+        hook["PostToolUse hook<br/>on-config-edit.sh"]
+    end
+
+    subgraph evals["Layer 3 — Evals"]
+        runeval["run-eval.sh +<br/>config-quality.md prompt"]
+        out[("evals/results/ (full JSON)<br/>benchmarks/scores/ (snapshot)")]
+        runeval -->|validated JSON| out
+    end
+
+    subgraph bench["Layer 4 — Benchmarks"]
+        report["benchmarks/report.sh<br/>(just benchmark) → trend table"]
+    end
+
+    core --> verify
+    verify --> evals
+    out --> report
 ```
 
 ---
@@ -67,6 +82,9 @@ This is the only place where the registry format is parsed. Adding a field to th
 | `git-stealth.sh` | Backs `git spull` / `git scommit` aliases |
 | `open-release-pr.sh` | Open or refresh the standing `develop` → `main` release PR. Never merges |
 | `open-backmerge-pr.sh` | Open or refresh the `main` → `develop` PR that closes the post-release gap. Never merges |
+| `eval-action.sh` | Entry point for the "score your config in CI" GitHub Action (`action.yml`) |
+| `marketplaces.sh` | Install skills from the marketplaces registered in `config/marketplaces.conf` |
+| `validate-skills.sh` | Validate the structure of any skills tree (incl. marketplace-installed) |
 | `install-external-skills.sh` | Install the third-party skill bundles in `config/external-skills.conf` |
 | `impeccable-hooks.sh` | Install the impeccable design hook into frontend projects |
 
