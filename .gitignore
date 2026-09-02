@@ -2,9 +2,14 @@
 
 # Eval results may contain copies of config content + git hashes.
 # Treat them as local artifacts; commit deliberately via `just benchmark-commit`.
+# Scores: ignore the CONTENTS, not the directory (see the /.claude/ note below),
+# so the .gitkeep negation stays live and fresh clones get the directory.
 evals/results/
-benchmarks/scores/
-!benchmarks/scores/.gitkeep
+/benchmarks/scores/*
+!/benchmarks/scores/.gitkeep
+
+# Personal memory notes written by the remember plugin — never commit them.
+/.remember/
 
 # Setup log is machine-local
 SETUP_LOG.md
