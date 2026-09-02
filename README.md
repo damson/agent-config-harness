@@ -37,6 +37,30 @@ structure and the tests, you never need a key.
 
 ---
 
+## Score your config in CI
+
+The rubric is also a GitHub Action — this repo doubles as one. Point it at any
+repo's `CLAUDE.md` and the build fails when config quality slips below a grade:
+
+```yaml
+jobs:
+  config-eval:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: damson/agent-config-harness@main
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        with:
+          files: CLAUDE.md      # comma-separated; or `domain:` for consumer repos
+          fail-below: C         # the job fails only below this grade
+```
+
+The score and findings land in the job summary. Remember the eval moves ±1–2 on
+borderline scores — gate on the grade you can live with, not the one you are
+proud of.
+
 ## Install
 
 ```bash
