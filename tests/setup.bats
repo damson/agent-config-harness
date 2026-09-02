@@ -45,6 +45,41 @@ teardown() {
     [ -e "$HOME/workspace/mobile/CLAUDE.md" ]   # resolves
 }
 
+@test "setup: backs up a pre-existing real file before linking over it" {
+    mkdir -p "$HOME/.claude"
+    printf 'my own config\n' > "$HOME/.claude/CLAUDE.md"
+    run ./bin/setup.sh
+    [ "$status" -eq 0 ]
+    # The link landed…
+    [ -L "$HOME/.claude/CLAUDE.md" ]
+    [ "$(readlink "$HOME/.claude/CLAUDE.md")" = "$REPO_ROOT/user-dev/CLAUDE.md" ]
+    # …and the original content survived in a timestamped backup, with a warning.
+    local backup
+    backup=$(find "$HOME/.claude" -maxdepth 1 -name 'CLAUDE.md.bak.*' | head -1)
+    [ -n "$backup" ]
+    assert_contains "$(cat "$backup")" "my own config"
+    assert_contains "$output" "$backup"
+}
+
+@test "setup: replaces a pre-existing symlink without creating a backup" {
+    mkdir -p "$HOME/.claude"
+    ln -s /nonexistent/old-target "$HOME/.claude/preferences.md"
+    run ./bin/setup.sh
+    [ "$status" -eq 0 ]
+    [ -L "$HOME/.claude/preferences.md" ]
+    [ "$(readlink "$HOME/.claude/preferences.md")" = "$REPO_ROOT/user-dev/preferences.md" ]
+    local leftover
+    leftover=$(find "$HOME/.claude" -maxdepth 1 -name 'preferences.md.bak.*')
+    [ -z "$leftover" ]
+}
+
+@test "setup: fresh install creates no backup files" {
+    ./bin/setup.sh >/dev/null 2>&1
+    local leftover
+    leftover=$(find "$HOME/.claude" -maxdepth 1 -name '*.bak.*')
+    [ -z "$leftover" ]
+}
+
 @test "setup: is idempotent (runs twice without error)" {
     ./bin/setup.sh >/dev/null
     run ./bin/setup.sh
