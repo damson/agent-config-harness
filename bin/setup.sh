@@ -94,8 +94,8 @@ done
 "$SCRIPT_DIR/install-external-skills.sh" </dev/null
 
 # ── 3. Git aliases (stealth pull / stealth commit) ────────
-git config --global alias.spull  "!$REPO_ROOT/bin/git-stealth.sh pull"
-git config --global alias.scommit "!$REPO_ROOT/bin/git-stealth.sh commit"
+git config --global alias.spull  "!$HARNESS_ROOT/bin/git-stealth.sh pull"
+git config --global alias.scommit "!$HARNESS_ROOT/bin/git-stealth.sh commit"
 log_ok "Configured git aliases: spull, scommit"
 
 # ── 4. Pre-push guard on this repo (block direct push to main/develop) ─
@@ -128,11 +128,14 @@ fi
 # ── 5. Claude Code hooks (opt-in) ─────────────────────────
 # We don't auto-install hooks because they modify agent behavior. If the user
 # wants the in-session validation loop, they can run:
-#   cp config/templates/claude-hooks.json .claude/settings.json
+#   cp <harness>/config/templates/claude-hooks.json .claude/settings.json
 # (or merge if .claude/settings.json already exists).
 if [ ! -f "$REPO_ROOT/.claude/settings.json" ]; then
     log_info "Optional: enable Claude Code hooks with:"
-    log_info "  cp config/templates/claude-hooks.json .claude/settings.json"
+    # Printed for a human to run, so it has to be a path that exists from where
+    # they are. In a consumer repo the template lives under the harness, not
+    # under the repo being managed.
+    log_info "  cp ${HARNESS_ROOT}/config/templates/claude-hooks.json .claude/settings.json"
 fi
 
 # ── 6. Append setup log ───────────────────────────────────

@@ -17,7 +17,15 @@
 
 # ── Environment ───────────────────────────────────────────
 _lib_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd "$_lib_dir/.." && pwd)"
+
+# Two roots, because the engine and the config it manages need not be the same
+# checkout. HARNESS_ROOT is where these scripts, rubrics and templates live.
+# REPO_ROOT is the config repo being managed — its registries, its workspace
+# domains, its results. Standalone they are the same directory; a consumer repo
+# vendors the harness (a submodule, say) and sets AGENT_CONFIG_ROOT to itself.
+HARNESS_ROOT="$(cd "$_lib_dir/.." && pwd)"
+REPO_ROOT="${AGENT_CONFIG_ROOT:-$HARNESS_ROOT}"
+[ -d "$REPO_ROOT" ] || { printf 'AGENT_CONFIG_ROOT is not a directory: %s\n' "$REPO_ROOT" >&2; exit 1; }
 DOMAINS_CONF="$REPO_ROOT/config/domains.conf"
 EXTERNAL_SKILLS_CONF="$REPO_ROOT/config/external-skills.conf"
 
@@ -315,7 +323,9 @@ detect_domain() {
 # tests/skills.bats enforces it, because a collision would silently overwrite
 # one skill's symlink with another's.
 list_skill_dirs() {
-    local root="$REPO_ROOT/user-dev/skills"
+    # SKILLS_DIR points discovery at a tree this repo does not own — the skills a
+    # marketplace installed, say. Unset, it is this repo's own skills.
+    local root="${SKILLS_DIR:-$REPO_ROOT/user-dev/skills}"
     [ -d "$root" ] || return 0
 
     local dir nested
@@ -350,4 +360,40 @@ extract_json_object() {
         END { if (!first || !last) exit 1
               for (i = first; i <= last; i++) print line[i] }
     '
+}
+
+# ── Marketplace registry (config/marketplaces.conf) ───────
+
+MARKETPLACES_CONF="${MARKETPLACES_CONF:-$REPO_ROOT/config/marketplaces.conf}"
+
+_marketplace_line() {
+    [ -f "$MARKETPLACES_CONF" ] || return 1
+    grep -E "^[[:space:]]*$1[[:space:]]*=" "$MARKETPLACES_CONF" 2>/dev/null | head -1
+}
+
+# Every registered marketplace id, in file order.
+list_marketplaces() {
+    [ -f "$MARKETPLACES_CONF" ] || return 0
+    grep -vE '^[[:space:]]*(#|$)' "$MARKETPLACES_CONF" \
+        | sed -E 's/^[[:space:]]*([^=[:space:]]+).*/\1/'
+}
+
+# Field 1: the source `claude plugin marketplace add` is given.
+get_marketplace_source() {
+    _marketplace_line "$1" | awk -F'::' '{print $1}' \
+        | sed -E 's/^[^=]*=[[:space:]]*//; s/[[:space:]]*$//'
+}
+
+# Field 2: the plugins to install — `*` means every plugin declared.
+get_marketplace_plugins() {
+    _marketplace_line "$1" | awk -F'::' '{print $2}' | sed -E 's/^[[:space:]]*//; s/[[:space:]]*$//'
+}
+
+# Field 3: documentation URL.
+get_marketplace_docs() {
+    _marketplace_line "$1" | awk -F'::' '{print $3}' | sed -E 's/^[[:space:]]*//; s/[[:space:]]*$//'
+}
+
+marketplace_exists() {
+    [ -n "$(_marketplace_line "$1")" ]
 }

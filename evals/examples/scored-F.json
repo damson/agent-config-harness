@@ -1,0 +1,52 @@
+{
+  "date": "2026-09-02T00:08:24Z",
+  "domain": "degraded",
+  "git_hash": "unknown",
+  "scores": {
+    "clarity": 4,
+    "conciseness": 2,
+    "completeness": 3,
+    "consistency": 1,
+    "actionability": 3
+  },
+  "total": 13,
+  "percentage": 52,
+  "grade": "F",
+  "findings": [
+    {
+      "dimension": "consistency",
+      "file": "ws/CLAUDE.md",
+      "section": "General guidance",
+      "issue": "\"Prefer mocking the database layer in tests\" directly contradicts the Testing section's \"run against real Postgres / Redis via Testcontainers. Don't mock the DB layer.\" An agent cannot satisfy both.",
+      "recommendation": "Delete the mocking line from General guidance; the Testing section already states the intended policy."
+    },
+    {
+      "dimension": "conciseness",
+      "file": "ws/CLAUDE.md",
+      "section": "Important reminders",
+      "issue": "The section restates seven rules verbatim from earlier sections, adding no new information and creating a second copy that can drift.",
+      "recommendation": "Delete the entire \"Important reminders\" section; each rule already lives under its topical heading."
+    },
+    {
+      "dimension": "actionability",
+      "file": "ws/CLAUDE.md",
+      "section": "General guidance",
+      "issue": "\"Write clean, maintainable code and follow industry best practices\" and \"organize modules logically\" are unexecutable platitudes — every model already attempts this, so the lines only add noise.",
+      "recommendation": "Remove the two platitude bullets; keep only rules that change agent behavior, as the rest of the file does."
+    },
+    {
+      "dimension": "completeness",
+      "file": "ws/CLAUDE.md",
+      "section": "-",
+      "issue": "No build/run/test commands (how to run the Testcontainers suite, lint, typecheck) and no git/PR conventions, so an agent must guess the verification workflow.",
+      "recommendation": "Add a short Commands section (test, lint, typecheck, dev server) and a line on branch/commit conventions or a pointer to where they live."
+    },
+    {
+      "dimension": "clarity",
+      "file": "ws/CLAUDE.md",
+      "section": "Editing discipline",
+      "issue": "\"TypeScript strict, plus exactOptionalPropertyTypes\" doesn't say where this is enforced or what to do in a repo where it is off (enable it vs. conform to existing config), leaving the agent to guess against the \"match the repo\" rule above it.",
+      "recommendation": "State the intent explicitly, e.g. \"tsconfig must set strict and exactOptionalPropertyTypes; enable them if missing in repos this guide owns.\""
+    }
+  ]
+}

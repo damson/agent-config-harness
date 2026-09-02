@@ -37,6 +37,19 @@ domain registry and what this repo is for. Don't duplicate that here.
   `user-dev/skills/<project>/<project>-<skill>/`. They still install flat, so
   leaf names are a shared namespace and must be unique. Generic skills stay at
   the top level and must not name a project.
+- **Portable skills do not live here.** They belong in the themed marketplace
+  repo. `user-dev/skills/` keeps only skills coupled to this repo's own harness —
+  today that is `refresh-domain-benchmark`, which drives `evals/run-eval.sh` and
+  reads `config/domains.conf`. A skill that would work anywhere is a sign it
+  should be published to the marketplace instead.
+- **Adding a skill marketplace:** edit `config/marketplaces.conf` only — never
+  modify scripts. `bin/marketplaces.sh` reads it through `lib/common.sh`. The id
+  is the marketplace's `name` from its `marketplace.json`, which need NOT equal
+  the repo name; `plugin@marketplace` addresses the former.
+- **Never probe a path to decide whether a plugin is installed.** Both
+  `plugins/marketplaces/<id>` and `plugins/cache/<id>/<plugin>` survive an
+  uninstall, so a probe reports installed forever. Ask `claude plugin list`.
+  See [docs/marketplaces.md](docs/marketplaces.md).
 - **Never run `bin/setup.sh` from a worktree.** It points every
   `~/.claude/skills/*` symlink at `$REPO_ROOT`, so a worktree run repoints them
   all at a path that dies with the worktree. Verify setup.sh edits with
@@ -51,3 +64,9 @@ domain registry and what this repo is for. Don't duplicate that here.
 - **Statusline doc stays in sync.** Any change to `user-dev/statusline.sh`
   (segments, order, colours, formatting, fields) must update the "Statusline"
   section in `README.md` in the same change.
+- **Two roots, and they are not interchangeable.** `HARNESS_ROOT` is this
+  checkout — scripts, rubrics, templates. `REPO_ROOT` is the config repo being
+  managed, which is this one only when `AGENT_CONFIG_ROOT` is unset. A new path
+  belongs to whichever owns the file: a rubric is `HARNESS_ROOT`, a domain's
+  `CLAUDE.md` is `REPO_ROOT`. Getting it backwards is silent — the engine reads
+  its own example domains and reports healthy.

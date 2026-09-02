@@ -2,7 +2,8 @@
 #
 # AI Setup — Skill Eval Runner
 #
-# Scores every SKILL.md under user-dev/skills/ using evals/prompts/skill-quality.md
+# Scores every SKILL.md under the managed repo's user-dev/skills/ (or SKILLS_DIR)
+# using the harness's evals/prompts/skill-quality.md
 # and writes results to evals/results/ + benchmarks/scores/ with domain = "skill:<name>".
 #
 # Usage:
@@ -20,11 +21,13 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 require jq    "brew install jq"
 require claude "Install Claude CLI"
 
-PROMPT="$REPO_ROOT/evals/prompts/skill-quality.md"
-SCHEMA="$REPO_ROOT/evals/eval-schema.json"
+PROMPT="$HARNESS_ROOT/evals/prompts/skill-quality.md"
+SCHEMA="$HARNESS_ROOT/evals/eval-schema.json"
 RESULTS_DIR="$REPO_ROOT/evals/results"
 SCORES_DIR="$REPO_ROOT/benchmarks/scores"
-SKILLS_DIR="$REPO_ROOT/user-dev/skills"
+# Default to this repo's skills; SKILLS_DIR points it at any tree, which is how
+# `just eval-skills --marketplace <id>` scores skills this repo does not own.
+SKILLS_DIR="${SKILLS_DIR:-$REPO_ROOT/user-dev/skills}"
 mkdir -p "$RESULTS_DIR" "$SCORES_DIR"
 
 [ -f "$PROMPT" ] || log_error "Prompt missing: $PROMPT"

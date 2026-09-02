@@ -33,9 +33,35 @@ Three things make that possible, and they are the reason this exists:
 
 **Requires an API key.** The eval harness shells out to the Claude CLI. Everything
 else — linking, health checks, the test suite — runs offline. If you only want the
-structure and the tests, you never need a key.
+structure and the tests, you never need a key. And seeing the output needs
+nothing at all: [evals/examples/](evals/examples/) holds a real A and a real F
+for the same config, one edit apart.
 
 ---
+
+## Score your config in CI
+
+The rubric is also a GitHub Action — this repo doubles as one. Point it at any
+repo's `CLAUDE.md` and the build fails when config quality slips below a grade:
+
+```yaml
+jobs:
+  config-eval:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: damson/agent-config-harness@main
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        with:
+          files: CLAUDE.md      # comma-separated; or `domain:` for consumer repos
+          fail-below: C         # the job fails only below this grade
+```
+
+The score and findings land in the job summary. Remember the eval moves ±1–2 on
+borderline scores — gate on the grade you can live with, not the one you are
+proud of.
 
 ## Install
 
@@ -99,19 +125,44 @@ and mixing them makes both harder to change.
 | `just eval-skills [skill]` | Score a skill against the skill rubric |
 | `just benchmark` | Print the score trend per domain |
 | `just skills-install` | Install third-party skill bundles from the registry |
+| `just marketplaces-status` | What skill marketplaces are registered, and what is installed |
+| `just marketplaces-install` | Add registered marketplaces and install their plugins |
+| `just validate-skills [dir]` | Structural check on a skills tree |
+| `just validate-marketplace <id>` | Structural check on a marketplace's installed skills |
+| `just eval-marketplace <id>` | Score a marketplace's skills on the rubric |
 | `just release` / `just backmerge` | Open the release and back-merge PRs. Never merges |
 
-## Skills
+## Skills, and marketplaces
 
-`user-dev/skills/` holds 24 skills — procedures an agent loads on demand. They
-ship because the repo enforces a portability rule on them: **a skill may never
-name this repo's paths or assume its folder names**, so they work anywhere they
-are installed.
+Portable skills live in **Claude Code marketplaces**, not in this repo. What this
+repo provides is the part a marketplace does not: a registry so the set is
+reproducible, and checks that hold someone else's skills to the same standard as
+your own.
 
-Every one must carry frontmatter whose `name` matches its folder, a `## Procedure`
-(or `## Step N`) heading, and a `## When to STOP` section. `tests/skills.bats`
-enforces all three. Skills install flat into `~/.claude/skills/`, so leaf names are
-a shared namespace and must be unique — also tested.
+```bash
+just marketplaces-install             # add registered marketplaces, install their plugins
+just validate-marketplace <id>        # structural check on the skills it installed
+just eval-marketplace <id> [plugin]   # score them on the skill rubric
+```
+
+Register one with a line in `config/marketplaces.conf`:
+
+```
+fullstack-skills = damson/fullstack-skills :: * :: https://github.com/damson/fullstack-skills
+```
+
+`bin/validate-skills.sh` enforces, on any skills tree — yours or a marketplace's:
+frontmatter `name` matching the folder, a non-empty `description`, a `## Procedure`
+(or `## Step N`) section, a **`## When to STOP`** section, and leaf names unique
+across groups because skills install *flat* into `~/.claude/skills/` and share one
+namespace. It reports every problem rather than the first.
+
+`user-dev/skills/` keeps only skills coupled to this repo's own tooling — today
+`refresh-domain-benchmark`, which drives `evals/run-eval.sh` and reads
+`config/domains.conf`. A skill that would work anywhere belongs in a marketplace,
+and keeping it in both places puts two copies under one name in `~/.claude/skills/`.
+
+Full guide with worked examples: [docs/marketplaces.md](docs/marketplaces.md).
 
 ## What this is not
 
@@ -127,11 +178,11 @@ a shared namespace and must be unique — also tested.
 - [Architecture](docs/architecture.md) — the four layers in depth
 - [Evaluation](docs/evaluation.md) — the rubric and how to read a score
 - [Git flow](docs/git-flow.md) — branch model, release and back-merge PRs
+- [Using it from another repo](docs/consuming-the-harness.md) — vendoring the engine and pointing it at your own config
 - [Instruction-file loading](docs/claude-md-loading.md) — what actually loads, tested with controls
-- [External skills](docs/external-skills.md) — registering third-party bundles rather than vendoring them
 - [Shell gotchas](docs/shell-gotchas.md) — four zsh/bats behaviours that return a wrong answer instead of an error
-- [CLI recipes](docs/cli-recipes.md) — non-git invocations whose obvious form is subtly wrong
-- [Git recipes](docs/git-recipes.md) — worktree and history-rewriting syntax worth looking up
+- [Skill marketplaces](docs/marketplaces.md) — registering, installing, validating and scoring marketplace skills
+- [External skills](docs/external-skills.md) — registering third-party bundles rather than vendoring them
 
 ## Support
 

@@ -54,7 +54,7 @@ stat=$(git diff --shortstat "origin/$BASE" "origin/$HEAD")
 [ -n "$stat" ] || stat="(no file changes)"
 oldest=$(git log "$range" --format='%ad' --date=short | tail -1)
 
-template="$REPO_ROOT/config/templates/pr/release.md"
+template="$HARNESS_ROOT/config/templates/pr/release.md"
 [ -f "$template" ] || log_error "Missing release template: $template"
 
 body=$(cat <<BODY
