@@ -33,7 +33,9 @@ Three things make that possible, and they are the reason this exists:
 
 **Requires an API key.** The eval harness shells out to the Claude CLI. Everything
 else — linking, health checks, the test suite — runs offline. If you only want the
-structure and the tests, you never need a key.
+structure and the tests, you never need a key. And seeing the output needs
+nothing at all: [evals/examples/](evals/examples/) holds a real A and a real F
+for the same config, one edit apart.
 
 ---
 
