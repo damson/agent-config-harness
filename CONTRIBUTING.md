@@ -40,3 +40,14 @@ comment saying exactly what mutation they were proven against.
 it. That is fine — it is not required for a PR. If you are changing a config file
 and can run it, include the before and after scores. Remember the score moves
 ±1–2 on borderline runs; one run is not a trend.
+
+## Releases and changelog
+
+Gitflow: `develop` integrates, `main` releases — and `main` only moves by
+promoting `develop` through the standing release PR (`just release` opens or
+refreshes it; merging stays a human decision). Each release is tagged `vX.Y.Z`
+with a GitHub Release whose notes are the changelog, and the `v1` tag moves to
+the latest `v1.x.y` so Action consumers pinned to `@v1` pick up fixes.
+
+There is no `CHANGELOG.md`, deliberately — the release PR carries the full
+inventory of what ships, and the GitHub Release keeps it.

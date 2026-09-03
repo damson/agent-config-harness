@@ -1,0 +1,30 @@
+name: Bug report
+description: Something misbehaves — a script, a test, the eval, the Action.
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you ran, what you expected, what you got.
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Reproduction
+      description: The commands and the smallest setup that shows it.
+  - type: textarea
+    id: eval-json
+    attributes:
+      label: Eval result JSON — if this involves `just eval`
+      description: >-
+        Anything involving `just eval` is hard to reproduce without your config
+        and your API key — paste the generated JSON from `evals/results/` and
+        it becomes tractable. Remember the score moves ±1–2 on borderline runs.
+      render: json
+  - type: input
+    id: env
+    attributes:
+      label: Environment
+      description: OS, shell, and versions of just / bats / jq / claude if relevant.
