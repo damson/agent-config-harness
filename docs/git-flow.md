@@ -83,7 +83,7 @@ The script fills in what can be derived: commit count, the PRs in the batch,
 the diffstat, the oldest unreleased commit. Two sections it deliberately leaves
 blank, because they need judgement:
 
-- **the plain-words summary**, and
+- **the high-level summary**, and
 - **a before/after diagram, which a release must carry.** Individual PRs skip
   the diagram when nothing moves; across a batch something almost always has,
   and the release is the only place a reader sees where the repo ended up
