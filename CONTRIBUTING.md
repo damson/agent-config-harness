@@ -49,5 +49,15 @@ refreshes it; merging stays a human decision). Each release is tagged `vX.Y.Z`
 with a GitHub Release whose notes are the changelog, and the `v1` tag moves to
 the latest `v1.x.y` so Action consumers pinned to `@v1` pick up fixes.
 
+The post-merge steps are manual today, run by a maintainer against the merge
+commit on `main`:
+
+```bash
+gh release create vX.Y.Z --target main --title "vX.Y.Z" --notes "<changelog>"
+git fetch origin main && git tag -f v1 origin/main && git push -f origin v1
+```
+
+(`gh release create` makes the `vX.Y.Z` tag itself; only `v1` moves by hand.)
+
 There is no `CHANGELOG.md`, deliberately — the release PR carries the full
 inventory of what ships, and the GitHub Release keeps it.
