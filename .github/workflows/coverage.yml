@@ -82,5 +82,9 @@ jobs:
         uses: codecov/codecov-action@0fb7174895f61a3b6b78fc075e0cd60383518dac # v5.5.5
         with:
           files: ${{ env.COBERTURA }}
+          # Without this the uploader also auto-collects anything whose name
+          # matches its search patterns (kcov's side JSONs, even a bats file
+          # with "coverage" in its name) and reports them as coverage.
+          disable_search: true
           use_oidc: true
           fail_ci_if_error: false
