@@ -57,7 +57,7 @@ else
 fi
 
 body=$(cat <<BODY
-## 👥 In plain words
+## 👥 High-level summary
 
 Releases move code one way, from the integration branch to the release branch. Each one leaves a merge commit behind on the release branch that the integration branch never receives. Nothing about the files differs, so nothing looks wrong, but the two branches drift a commit further apart every time — and tools that ask whether a branch is behind start answering yes about a branch that is missing nothing.
 

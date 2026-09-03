@@ -25,7 +25,7 @@ ai-config/<type>-<domain>-<YYYY-MM-DD>
 | `new-domain` | Adding a new workspace domain |
 
 Examples:
-- `ai-config/sync-android-2026-05-25`
+- `ai-config/sync-mobile-2026-05-25`
 - `ai-config/improve-web-react-2026-05-26`
 - `ai-config/new-domain-data-extraction-2026-05-24`
 
@@ -172,10 +172,10 @@ just sync ~/workspace/mobile/acme-mobile
 ```
 
 What it does:
-1. Auto-detects the domain via `detect-domain.sh` ("android" in this case).
-2. Diffs each managed file (`AGENTS.md`, `CLAUDE.md`, `.cursorrules` for android) against the project's local copy.
+1. Auto-detects the domain via `detect-domain.sh` ("mobile" in this case).
+2. Diffs each managed file (`AGENTS.md`, `CLAUDE.md`, `.cursorrules` for mobile) against the project's local copy.
 3. If anything differs, copies the project's version into `workspace/mobile/`.
-4. Creates branch `ai-config/sync-android-<YYYY-MM-DD>` (or appends `-2`, `-3` if it already exists).
+4. Creates branch `ai-config/sync-mobile-<YYYY-MM-DD>` (or appends `-2`, `-3` if it already exists).
 5. Commits with message `sync: mobile config from acme-mobile`.
 6. Pushes the branch to `origin`.
 7. Opens a PR against `develop`:
@@ -198,7 +198,7 @@ exists to produce. Squash only where the branch is a single change plus fixups.
 ## PR Conventions
 
 - **Title:** `ai-config: <type> <domain> — <short summary>`
-  - e.g. `ai-config: sync android — pickup new ktlint rule`
+  - e.g. `ai-config: sync mobile — pickup new ktlint rule`
 - **Body:** what changed and why. Mention the source project. Include score deltas if you ran `just eval` before and after.
 - **Reviewers:** none required for personal repo, but CI must pass.
 
@@ -221,7 +221,7 @@ This replaces `acme-mobile/AGENTS.md` with a symlink into `workspace/mobile/AGEN
 Inside the host repo:
 
 ```bash
-git spull          # pull with stealth handling (auto-syncs any teammate updates back into ai-setup)
+git spull          # pull with stealth handling (auto-syncs any teammate updates back into this repo)
 git scommit -m …   # commit AI rule edits — creates a branch in the host repo and opens an MR
 ```
 
@@ -241,4 +241,4 @@ Clears `skip-worktree` and restores the file from the host repo's git index. Re-
 just materialize ~/workspace/mobile/acme-mobile AGENTS.md
 ```
 
-Stages the current ai-setup content as a normal file in the host repo (so you can commit it there) and immediately restores the stealth symlink. Use when you specifically want to land the rule in the host repo.
+Stages this repo's current content as a normal file in the host repo (so you can commit it there) and immediately restores the stealth symlink. Use when you specifically want to land the rule in the host repo.

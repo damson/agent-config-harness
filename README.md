@@ -51,7 +51,7 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
-      - uses: damson/agent-config-harness@main
+      - uses: damson/agent-config-harness@v1
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         with:
@@ -59,14 +59,28 @@ jobs:
           fail-below: C         # the job fails only below this grade
 ```
 
+Pin the action to a tag or a commit SHA, never a branch — a mutable ref means
+your CI runs whatever that ref points at tomorrow.
+
 The score and findings land in the job summary. Remember the eval moves ±1–2 on
 borderline scores — gate on the grade you can live with, not the one you are
 proud of.
 
+And treat the gate as an advisory signal, not a security control: the grade
+comes from an LLM reading the PR author's own file, so a determined author can
+steer their grade with content addressed to the evaluator. It catches drift
+and sloppiness, not adversaries.
+
 ## Install
 
+Prerequisites: `git`, [`just`](https://github.com/casey/just),
+[`bats`](https://github.com/bats-core/bats-core), `jq`, and the
+[`claude` CLI](https://docs.anthropic.com/en/docs/claude-code). Only the eval
+commands call the API and need an `ANTHROPIC_API_KEY`; everything else runs
+offline.
+
 ```bash
-git clone <this repo> ~/workspace/agent-config-harness
+git clone https://github.com/damson/agent-config-harness.git ~/workspace/agent-config-harness
 cd ~/workspace/agent-config-harness
 just setup      # symlink configs and skills into ~/.claude/, install git hooks
 just check      # verify every link and domain resolves
@@ -112,6 +126,42 @@ workspace/<d>/    per-domain rules, loaded when you work in that domain
 The split matters because the layers have different owners and different
 lifetimes. Your commit-message preference is not your team's architecture rule,
 and mixing them makes both harder to change.
+
+## Statusline
+
+`user-dev/statusline.sh` renders the Claude Code prompt line. `just setup` links
+it to `~/.claude/statusline.sh` and wires it into `~/.claude/settings.json` as
+the `statusLine` command. It reads the session JSON Claude Code pipes on stdin
+(requires `jq`; without it only the location line renders) and prints two lines
+— metrics first, location second:
+
+```
+ctx ▕████░░░▏ 52% 104k/200k | $0.42 | api $0.40 | +156/-23 | 5h ▕██░░▏ 28% ↺ 2h11m | Opus 4.8 (1M)·high
+<dir> ⎇ <branch>*
+```
+
+Line 1 segments, in order, joined by ` | `:
+
+| Segment | Shows |
+|---|---|
+| `ctx` | Context-window bar (8 cells), % used, tokens used / window size compacted (`104k`, `1.2M`) |
+| `$` | Estimated session cost, USD |
+| `api $` | Org month-to-date API spend — optional, see below |
+| `+/-` | Lines added (green) / removed (red) this session |
+| `5h` | 5-hour rate-window bar (5 cells), % used, `↺` reset countdown (`2h11m`, `44m`, `now`) |
+| model | Display name (magenta) · reasoning effort when not `medium`, or `⚡` in fast mode; output style appended when not `default` |
+
+Line 2 is the working directory's basename (blue) and the git branch (green),
+with a yellow `*` when the tree is dirty. Bars and percentages colour by load:
+green below 60%, yellow below 85%, red at 85% and above. Labels and separators
+are grey, costs cyan. Every field in the stdin schema is optional — a segment
+self-hides when its data is absent.
+
+The `api $` segment stays dormant unless an Anthropic Admin key is provided via
+`$ANTHROPIC_ADMIN_KEY` or `~/.claude/anthropic_admin_key` (keep the keyfile
+`chmod 600`). It sums the org's month-to-date Admin cost report, cached and
+refreshed by a detached background fetch about every 15 minutes — the render
+itself never blocks on the network.
 
 ## Commands
 

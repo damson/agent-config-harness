@@ -91,6 +91,21 @@ teardown() {
     assert_not_contains "$output" "not on PATH"
 }
 
+@test "marketplaces: a wildcard registry entry lists the manifest's declared plugins" {
+    # `everything` registers plugins `*`, so the names can only come from the
+    # checked-out marketplace.json — this pins the manifest parsing (jq, not
+    # python3) without any network or a real CLI.
+    mkdir -p "$TREE/cfg/plugins/marketplaces/everything/.claude-plugin" "$TREE/stub"
+    printf '{"name":"everything","plugins":[{"name":"gamma"},{"name":"delta"}]}\n' \
+        > "$TREE/cfg/plugins/marketplaces/everything/.claude-plugin/marketplace.json"
+    printf '#!/bin/sh\nexit 0\n' > "$TREE/stub/claude"   # `plugin list` → nothing installed
+    chmod +x "$TREE/stub/claude"
+    run env CLAUDE_CONFIG_DIR="$TREE/cfg" PATH="$TREE/stub:$PATH" ./bin/marketplaces.sh status
+    [ "$status" -eq 0 ]
+    assert_contains "$output" "gamma"
+    assert_contains "$output" "delta"
+}
+
 # ── validator ─────────────────────────────────────────────
 
 @test "validate-skills: a well-formed tree passes" {

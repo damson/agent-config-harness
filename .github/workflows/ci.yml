@@ -1,5 +1,9 @@
 name: CI
 
+# CI only reads the checkout; never inherit repo-default write scopes.
+permissions:
+  contents: read
+
 on:
   pull_request:
   push:

@@ -2,7 +2,8 @@
 #
 # AI Setup — Secret Linter
 #
-# Scans tracked files for actual secret value patterns. Tries hard to avoid
+# Scans tracked files (git ls-files — untracked local state like .remember/
+# or logs is noise) for actual secret value patterns. Tries hard to avoid
 # false positives in documentation (e.g. the word "secret" appearing in
 # prose). For each pattern, we require a value-like context (assignment,
 # explicit token shape) rather than the word alone.
@@ -24,6 +25,8 @@ PATTERNS=(
     'Bearer[[:space:]]+[A-Za-z0-9._\-]{16,}'
     # GitHub personal access tokens
     'ghp_[A-Za-z0-9]{20,}'
+    # Anthropic API keys
+    'sk-ant-[A-Za-z0-9_\-]{16,}'
     # Stripe live keys
     'sk_live_[A-Za-z0-9]{16,}'
     # Slack incoming webhooks
@@ -34,29 +37,34 @@ PATTERNS=(
     '-----BEGIN (RSA |EC |OPENSSH |DSA |PGP )?PRIVATE KEY-----'
 )
 
-EXCLUDE_DIRS=(
-    --exclude-dir='.git'
-    --exclude-dir='node_modules'
-    --exclude-dir='evals/results'
-    --exclude-dir='benchmarks/scores'
-)
-EXCLUDE_FILES=(
-    --exclude='SYNC_LOG.md'
-    --exclude='SETUP_LOG.md'
-    --exclude='lint-secrets.sh'   # this file contains the patterns themselves
+# Git pathspecs, not grep --exclude-dir: --exclude-dir takes a bare directory
+# NAME, so a path like 'evals/results' never matched anything. Pathspecs
+# handle full paths, and git ls-files limits the scan to tracked files.
+EXCLUDE_PATHSPECS=(
+    ':(exclude)evals/results'
+    ':(exclude)benchmarks/scores'
+    ':(exclude,glob)**/SYNC_LOG.md'
+    ':(exclude,glob)**/SETUP_LOG.md'
+    ':(exclude)bin/lint-secrets.sh'      # contains the patterns themselves
+    ':(exclude)tests/lint-secrets.bats'  # contains fixtures that must match them
 )
 
-log_info "Scanning for secret value patterns..."
+cd "$REPO_ROOT"
+git rev-parse --is-inside-work-tree >/dev/null 2>&1 ||
+    log_error "Not a git repository: $REPO_ROOT (the linter scans tracked files)"
+
+log_info "Scanning tracked files for secret value patterns..."
 
 found=0
 for pattern in "${PATTERNS[@]}"; do
     # -P would be ideal but is not portable. Use -E with caveats.
-    if matches=$(grep -rIEn "$pattern" "$REPO_ROOT" "${EXCLUDE_DIRS[@]}" "${EXCLUDE_FILES[@]}" 2>/dev/null); then
-        if [ -n "$matches" ]; then
-            log_warn "Pattern matched: $pattern"
-            printf '%s\n' "$matches" >&2
-            found=$((found + 1))
-        fi
+    # -e keeps a pattern starting with '-' from being read as options.
+    matches=$(git ls-files -z -- "${EXCLUDE_PATHSPECS[@]}" \
+        | xargs -0 grep -IHEn -e "$pattern" 2>/dev/null) || true
+    if [ -n "$matches" ]; then
+        log_warn "Pattern matched: $pattern"
+        printf '%s\n' "$matches" >&2
+        found=$((found + 1))
     fi
 done
 

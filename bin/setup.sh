@@ -21,17 +21,31 @@ LOG_FILE="$REPO_ROOT/SETUP_LOG.md"
 
 log_info "Starting AI Setup..."
 
+# Link a file into place without destroying an adopter's existing config.
+# A regular file at the destination is someone's real content: move it aside to
+# a timestamped backup and say so. A symlink (whoever it points at) is just a
+# previous wiring — replace it silently, as re-runs always have.
+link_file() {
+    local src="$1" dest="$2" backup
+    if [ -e "$dest" ] && [ ! -L "$dest" ]; then
+        backup="$dest.bak.$(date '+%Y%m%d-%H%M%S')"
+        mv "$dest" "$backup"
+        log_warn "Existing $dest moved to $backup"
+    fi
+    ln -sf "$src" "$dest"
+}
+
 # ── 1. Global links (user-dev = developer, user-pers = personal identity) ──
 mkdir -p "$HOME/.claude"
 
-ln -sf "$REPO_ROOT/user-dev/CLAUDE.md"           "$HOME/.claude/CLAUDE.md"
-ln -sf "$REPO_ROOT/user-dev/preferences.md"      "$HOME/.claude/preferences.md"
-ln -sf "$REPO_ROOT/user-dev/statusline.sh"        "$HOME/.claude/statusline.sh"
+link_file "$REPO_ROOT/user-dev/CLAUDE.md"      "$HOME/.claude/CLAUDE.md"
+link_file "$REPO_ROOT/user-dev/preferences.md" "$HOME/.claude/preferences.md"
+link_file "$REPO_ROOT/user-dev/statusline.sh"  "$HOME/.claude/statusline.sh"
 chmod +x "$REPO_ROOT/user-dev/statusline.sh"
 log_ok "Linked user-dev/* into ~/.claude/"
 
-ln -sf "$REPO_ROOT/user-pers/user_tone_of_voice.md" "$HOME/.claude/user_tone_of_voice.md"
-ln -sf "$REPO_ROOT/user-pers/custom_instructions.md" "$HOME/.claude/custom_instructions.md"
+link_file "$REPO_ROOT/user-pers/user_tone_of_voice.md"  "$HOME/.claude/user_tone_of_voice.md"
+link_file "$REPO_ROOT/user-pers/custom_instructions.md" "$HOME/.claude/custom_instructions.md"
 log_ok "Linked user-pers/* into ~/.claude/"
 
 # Merge the statusLine key into ~/.claude/settings.json (preserve existing keys).
@@ -56,7 +70,7 @@ for _domain in $(list_domains); do
     [ -f "$REPO_ROOT/$_ws/CLAUDE.md" ] || continue
     _leaf=${_ws#workspace/}
     mkdir -p "$HOME/workspace/$_leaf"
-    ln -sf "$REPO_ROOT/$_ws/CLAUDE.md" "$HOME/workspace/$_leaf/CLAUDE.md"
+    link_file "$REPO_ROOT/$_ws/CLAUDE.md" "$HOME/workspace/$_leaf/CLAUDE.md"
     log_ok "Linked $_domain layer → ~/workspace/$_leaf/CLAUDE.md"
 done
 unset _domain _ws _leaf

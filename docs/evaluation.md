@@ -7,14 +7,19 @@
 ## Running
 
 ```bash
-just eval android       # score a single domain
+just eval mobile        # score a single domain
 just eval               # score all registered domains
 ```
 
 Output:
-- Per-domain JSON in `evals/results/YYYY-MM-DD-<domain>.json`
-- Compact snapshot in `benchmarks/scores/YYYY-MM-DD-<domain>.json`
+- Per-domain JSON in `evals/results/YYYY-MM-DDTHHMMSS-<domain>.json`
+- Compact snapshot in `benchmarks/scores/YYYY-MM-DDTHHMMSS-<domain>.json`
 - Findings printed to the terminal
+
+Filenames carry the run timestamp to the second, so a same-day rerun never
+overwrites an earlier result. The eval runs on a pinned model by default
+(`claude-sonnet-5`) so scores stay comparable; set `EVAL_MODEL` to score with a
+different model deliberately.
 
 Both directories are gitignored by default. To save a snapshot to git:
 
@@ -100,12 +105,12 @@ A common pattern is intentional layering: a global `CLAUDE.md` overrides a domai
 
 ## Reading the Output
 
-Example `evals/results/2026-05-25-android.json`:
+Example `evals/results/2026-05-25T103000-mobile.json`:
 
 ```json
 {
   "date": "2026-05-25T10:30:00Z",
-  "domain": "android",
+  "domain": "mobile",
   "git_hash": "1477b4c",
   "scores": {
     "clarity": 4,
@@ -142,7 +147,7 @@ just benchmark
 Prints one table per domain:
 
 ```
-android
+mobile
 ──────────────────────────────────────────────────────────────────
 Date         Clarity   Concise   Complete   Consistent   Action    Total  Grade
 2026-05-10   4         3         5          4            4         80%    B

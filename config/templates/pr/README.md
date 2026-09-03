@@ -44,7 +44,7 @@ same attention as a real one and returns nothing.
 
 | Section | When | Answers |
 |---|---|---|
-| 👥 In plain words | Always | Why should anyone care? |
+| 👥 High-level summary | Always | Why should anyone care? |
 | 📐 Before / after diagram | Flow changed | What moved? |
 | 📸 Visible changes | A human can see it | What does it look like now? |
 | 📋 What changed | Always | What did you decide, and why? |
@@ -53,7 +53,7 @@ same attention as a real one and returns nothing.
 
 ---
 
-### 👥 In plain words
+### 👥 High-level summary
 
 Three to five sentences someone outside the codebase could follow. No
 identifiers, no file names, no jargon.
@@ -278,7 +278,7 @@ and all three were wrong. Skipping a finding is legitimate — skipping it
 | Pattern | Why it fails |
 |---|---|
 | "N/A" under a conditional heading | Costs a reader the same attention as content, returns nothing. Delete the section. |
-| Plain-words section full of identifiers | It is a second summary, not a plain-words section. |
+| High-level summary full of identifiers | It is a second technical summary, not one anyone can read. |
 | Ticking every box because the suite is green | A green suite proves the tests you have pass, not that the change works. |
 | One bullet per changed file | The diff already does this. Explain decisions, not inventory. |
 | Screenshot linked to a branch path | 404s the moment the branch is deleted. Pin to a commit SHA. |
@@ -297,7 +297,7 @@ There, the template existed but was described in the contributor guide only as
 a formatting tip — which sections to omit — and never as a requirement.
 
 Eight consecutive pull requests (#33–#40) were then written free-hand. Every
-one of them shipped without a plain-words section and without a test plan. All
+one of them shipped without a high-level summary and without a test plan. All
 eight had to have their descriptions reconstructed after merge, at which point
 the reviewers had already made their decisions with worse information than they
 should have had. Five older PRs also carried escaped backticks that rendered as

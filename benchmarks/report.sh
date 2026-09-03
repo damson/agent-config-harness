@@ -47,8 +47,13 @@ for d in $domains; do
     printf '%-12s %-9s %-9s %-10s %-12s %-8s %-6s %s\n' \
         "Date" "Clarity" "Concise" "Complete" "Consistent" "Action" "Total" "Grade"
 
-    # Find files for this domain and sort by date in filename
-    find "$SCORES_DIR" -name "*-$d.json" 2>/dev/null | sort | while read -r f; do
+    # Select files by the domain recorded IN the JSON, not by filename glob —
+    # a glob like *-web.json also matches skill-web.json (any domain this one
+    # is a suffix of). The glob itself iterates in lexicographic order, which
+    # is date order for the timestamped stems.
+    for f in "$SCORES_DIR"/*.json; do
+        [ -f "$f" ] || continue
+        [ "$(jq -r '.domain // empty' "$f" 2>/dev/null)" = "$d" ] || continue
         date=$(jq -r '.date' "$f" | cut -dT -f1)
         clarity=$(jq -r '.scores.clarity' "$f")
         concise=$(jq -r '.scores.conciseness' "$f")

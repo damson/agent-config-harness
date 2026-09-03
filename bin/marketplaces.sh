@@ -42,13 +42,13 @@ plugin_installed() {
 }
 
 # Plugin names a marketplace declares, read from its checked-out manifest.
+# jq, not python3: jq is already a repo-wide dependency, while shelling out to
+# python3 on a fresh Mac pops the Command Line Tools install dialog.
 declared_plugins() {
     local mp="$1" manifest
     manifest="${CLAUDE_CONFIG_DIR:-$HOME/.claude}/plugins/marketplaces/$mp/.claude-plugin/marketplace.json"
     [ -f "$manifest" ] || return 1
-    python3 -c 'import json,sys
-d=json.load(open(sys.argv[1]))
-print("\n".join(p["name"] for p in d.get("plugins",[])))' "$manifest"
+    jq -r '.plugins[]?.name // empty' "$manifest"
 }
 
 # The plugins to act on: the registry list, or everything declared when it is `*`.
@@ -63,6 +63,7 @@ wanted_plugins() {
 }
 
 do_status() {
+    require jq "brew install jq"
     local any=0
     for mp in $(list_marketplaces); do
         any=1
@@ -100,6 +101,7 @@ do_install() {
         targets=$(list_marketplaces)
     fi
     require_claude
+    require jq "brew install jq"
     [ -n "$targets" ] || { log_info "Nothing registered."; return 0; }
 
     for mp in $targets; do

@@ -21,6 +21,13 @@ inputs:
     description: Minimum passing grade (A, B, C, D or F). The job fails only when the scored grade is below this.
     required: false
     default: C
+  claude-version:
+    description: >-
+      Exact version of @anthropic-ai/claude-code to install when the runner has
+      no claude CLI. Pinned (never `latest`) so a compromised or breaking npm
+      release cannot walk into a job that holds an API key.
+    required: false
+    default: "2.1.259"
 
 outputs:
   grade:
@@ -35,9 +42,15 @@ runs:
   steps:
     - name: Install the Claude CLI
       shell: bash
+      env:
+        CLAUDE_VERSION: ${{ inputs.claude-version }}
       run: |
         command -v jq >/dev/null || { echo "::error::jq is required"; exit 1; }
-        command -v claude >/dev/null || npm install -g @anthropic-ai/claude-code
+        if ! command -v claude >/dev/null; then
+          [[ "$CLAUDE_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] \
+            || { echo "::error::claude-version must be an exact x.y.z version"; exit 1; }
+          npm install -g "@anthropic-ai/claude-code@${CLAUDE_VERSION}"
+        fi
 
     - name: Score
       id: score

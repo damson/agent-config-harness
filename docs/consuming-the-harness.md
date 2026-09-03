@@ -68,9 +68,15 @@ with read access to the harness and check the submodule out yourself:
     HARNESS_TOKEN: ${{ secrets.HARNESS_TOKEN }}
   run: |
     auth=$(printf 'x-access-token:%s' "$HARNESS_TOKEN" | base64 | tr -d '\n')
-    git config --global http.https://github.com/.extraheader "AUTHORIZATION: basic $auth"
-    git submodule update --init --depth 1 .harness
+    git -c "http.https://github.com/.extraheader=AUTHORIZATION: basic $auth" \
+      submodule update --init --depth 1 .harness
 ```
+
+The `-c` scopes the credential to that one command on purpose. Writing it with
+`git config --global` also works, but on a self-hosted runner the global config
+persists across jobs — the auth header stays behind for whatever runs next, so
+that route needs an explicit `git config --global --unset` in an `if: always()`
+cleanup step.
 
 Two things about that snippet are not obvious, and both cost real time.
 

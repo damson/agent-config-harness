@@ -31,7 +31,7 @@
     regardless of how small the diff is.
 -->
 
-## 👥 In plain words
+## 👥 High-level summary
 
 <!--
     3–5 sentences someone outside this codebase could follow. No identifiers,

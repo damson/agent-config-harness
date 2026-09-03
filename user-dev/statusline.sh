@@ -133,13 +133,16 @@ _fetch_api_cost() {
     if [ -n "$key" ] && command -v curl >/dev/null 2>&1; then
         start="$(date -u +%Y-%m-01T00:00:00Z)"
         end="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-        resp="$(curl -s --max-time 20 -G "https://api.anthropic.com/v1/organizations/cost_report" \
+        # Key goes in via stdin (-H @-), never argv: a -H "x-api-key: $key"
+        # argument is visible in `ps` for the whole request window.
+        resp="$(printf 'x-api-key: %s\n' "$key" | \
+            curl -s --max-time 20 -G "https://api.anthropic.com/v1/organizations/cost_report" \
             --data-urlencode "starting_at=$start" \
             --data-urlencode "ending_at=$end" \
             --data-urlencode "bucket_width=1d" \
             --data-urlencode "limit=31" \
             -H "anthropic-version: 2023-06-01" \
-            -H "x-api-key: $key" 2>/dev/null)"
+            -H @- 2>/dev/null)"
         # amount is a decimal string in cents → sum all buckets/results, /100 for USD
         dollars="$(printf '%s' "$resp" | jq -r '
             [ .data[]?.results[]?.amount | select(. != null) | tonumber ] | add // empty | . / 100
