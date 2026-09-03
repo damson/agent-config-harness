@@ -128,11 +128,30 @@ Public keys start with -----BEGIN PUBLIC KEY-----.'
 
 @test "lint-secrets: allowlisted fake example values do not fire" {
     # Documentation that illustrates the linter itself uses known-fake
-    # values; those are allowlisted rather than the doc edited.
-    plant "docs/example.md" 'Set `API_KEY=abc123def` to authenticate.'
+    # values; those are allowlisted rather than the doc edited. Lowercase
+    # on purpose: the pre-fix case-sensitive matcher already caught this
+    # spelling, so only the allowlist can keep the test green — an
+    # uppercase fixture would pass with no allowlist at all.
+    plant "docs/example.md" 'Set `api_key=abc123def` to authenticate.'
     run_lint
     [ "$status" -eq 0 ]
     assert_contains "$output" "No secret values detected"
+}
+
+@test "lint-secrets: a real secret beside an allowlisted fake still fires" {
+    # Regression: the allowlist used to drop the whole matched LINE, so a
+    # real credential could hide behind a fake in a trailing comment.
+    plant "mixed.env" 'api_key=Qw8rTy2uIo5pAs1d  # docs show abc123def'
+    run_lint
+    [ "$status" -ne 0 ]
+    assert_contains "$output" "mixed.env"
+}
+
+@test "lint-secrets: a value merely containing an allowlisted fake still fires" {
+    plant "sneaky.env" 'api_key=xxabc123defyy'
+    run_lint
+    [ "$status" -ne 0 ]
+    assert_contains "$output" "sneaky.env"
 }
 
 @test "lint-secrets: the real repo tree lints clean" {
