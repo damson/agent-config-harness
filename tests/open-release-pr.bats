@@ -92,6 +92,21 @@ teardown() {
     assert_contains "$output" "(no file changes)"   # stated, rather than a blank cell
 }
 
+@test "open-release-pr: a squash-merged PR is listed alongside merge-commit PRs" {
+    (
+        cd "$REPO"
+        git commit -q --allow-empty -m "Tighten the flux capacitor (#123)"
+        git update-ref refs/remotes/origin/develop HEAD
+    )
+    run env PATH="$BIN:$PATH" bash -c "cd '$REPO' && '$REPO_ROOT/bin/open-release-pr.sh' --dry-run"
+    [ "$status" -eq 0 ]
+    # Assert on the inventory row itself — the subjects list also prints
+    # "(#123)", so a whole-output match could never fail.
+    prs_row=$(printf '%s\n' "$output" | grep '| Pull requests |')
+    assert_contains "$prs_row" "#123"   # squash subject "... (#123)"
+    assert_contains "$prs_row" "#99"    # classic merge subject still picked up
+}
+
 @test "open-release-pr: --dry-run touches nothing" {
     run env PATH="$BIN:$PATH" bash -c "cd '$REPO' && '$REPO_ROOT/bin/open-release-pr.sh' --dry-run"
     [ "$status" -eq 0 ]

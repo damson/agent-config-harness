@@ -43,9 +43,12 @@ if [ "$count" -eq 0 ]; then
     exit 0
 fi
 
-# Merge subjects name the PR they closed: "Merge pull request #41 from ...".
-pr_list=$(git log "$range" --merges --format='%s' \
-          | sed -nE 's|^Merge pull request #([0-9]+) from .*|#\1|p' \
+# Subjects name the PR they closed two ways: a merge commit reads
+# "Merge pull request #41 from ...", a squash commit ends in "... (#41)".
+pr_list=$(git log "$range" --format='%s' \
+          | sed -nE -e 's|^Merge pull request #([0-9]+) from .*|#\1|p' \
+                    -e 's|.* \(#([0-9]+)\)$|#\1|p' \
+          | awk '!seen[$0]++' \
           | paste -sd' ' -)
 [ -n "$pr_list" ] || pr_list="(none — direct commits only)"
 
