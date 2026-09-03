@@ -12,9 +12,14 @@ just eval               # score all registered domains
 ```
 
 Output:
-- Per-domain JSON in `evals/results/YYYY-MM-DD-<domain>.json`
-- Compact snapshot in `benchmarks/scores/YYYY-MM-DD-<domain>.json`
+- Per-domain JSON in `evals/results/YYYY-MM-DDTHHMMSS-<domain>.json`
+- Compact snapshot in `benchmarks/scores/YYYY-MM-DDTHHMMSS-<domain>.json`
 - Findings printed to the terminal
+
+Filenames carry the run timestamp to the second, so a same-day rerun never
+overwrites an earlier result. The eval runs on a pinned model by default
+(`claude-sonnet-5`) so scores stay comparable; set `EVAL_MODEL` to score with a
+different model deliberately.
 
 Both directories are gitignored by default. To save a snapshot to git:
 
@@ -100,7 +105,7 @@ A common pattern is intentional layering: a global `CLAUDE.md` overrides a domai
 
 ## Reading the Output
 
-Example `evals/results/2026-05-25-mobile.json`:
+Example `evals/results/2026-05-25T103000-mobile.json`:
 
 ```json
 {
