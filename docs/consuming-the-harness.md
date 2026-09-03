@@ -68,6 +68,11 @@ check the submodule out yourself:
 
 ```yaml
 - uses: actions/checkout@v4          # no submodules: — it cannot reach the harness
+  with:
+    # The default persisted GITHUB_TOKEN header would stack with the one
+    # below — http.extraheader is multi-valued — and GitHub rejects the
+    # doubled Authorization. Turn it off; nothing later needs it.
+    persist-credentials: false
 - name: Check out the harness
   env:
     HARNESS_TOKEN: ${{ secrets.HARNESS_TOKEN }}
