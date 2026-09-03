@@ -13,6 +13,7 @@ language: "en-US"
 reviews:
   profile: "chill"
   high_level_summary: false
+  poem: false
   auto_review:
     enabled: true
     auto_incremental_review: true
