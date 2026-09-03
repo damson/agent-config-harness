@@ -1,0 +1,53 @@
+# CodeRabbit configuration — https://docs.coderabbit.ai/reference/configuration
+#
+# Two deliberate choices:
+#   - high_level_summary is OFF: the PR template's "High-level summary" section
+#     is written by a human on purpose; an auto-appended summary in the
+#     description would bury it.
+#   - base_branches lists develop: this repo runs gitflow, so nearly every PR
+#     targets develop, not the default branch — without this line CodeRabbit
+#     would review almost nothing.
+
+language: "en-US"
+
+reviews:
+  profile: "chill"
+  high_level_summary: false
+  poem: false
+  auto_review:
+    enabled: true
+    auto_incremental_review: true
+    base_branches:
+      - "develop"
+  path_filters:
+    - "!benchmarks/scores/**"   # committed data snapshots, not code
+    - "!evals/results/**"
+    - "!docs/assets/**"         # images
+  path_instructions:
+    - path: "bin/**"
+      instructions: |
+        House invariants: every script starts with `set -euo pipefail`, sources
+        lib/common.sh and uses its log_* helpers and `require` guards
+        (bin/eval-action.sh is the one deliberate exception — it is the GitHub
+        Action entry point and stays self-contained). No script may hardcode a
+        domain name or workspace path; everything reads config/domains.conf
+        through lib/common.sh. Scripts must run on stock macOS bash 3.2 and
+        Linux: no `declare -A`, no GNU-only flags without a fallback.
+    - path: "tests/**"
+      instructions: |
+        bats conventions: a `[[ ]]` assertion is inert unless it is the last
+        line of its test — flag any mid-test bare `[[ ]]`. New checks should be
+        able to fail: prefer tests whose fixtures were (or can be) verified red
+        against the unfixed code. Stubs for `gh`/`claude` on PATH are the house
+        pattern; network calls in tests are a bug.
+    - path: "workspace/**"
+      instructions: |
+        These domains are shipped examples: real structure, placeholder
+        content. Do not flag placeholder or template content as incomplete.
+        AGENTS.md files here are symlinks to CLAUDE.md by design — a change
+        that turns one into a regular file is a bug worth flagging loudly.
+    - path: "user-pers/**"
+      instructions: |
+        Sanitized identity templates. Unfilled sections are deliberate; flag
+        only additions that look like real personal data, which must never be
+        committed here.

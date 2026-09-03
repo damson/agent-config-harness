@@ -1,0 +1,15 @@
+{
+  "date": "2026-09-03T13:01:55Z",
+  "domain": "user-pers",
+  "git_hash": "d94cf32",
+  "scores": {
+    "clarity": 3,
+    "conciseness": 5,
+    "completeness": 2,
+    "consistency": 5,
+    "actionability": 2
+  },
+  "total": 17,
+  "percentage": 68,
+  "grade": "C"
+}

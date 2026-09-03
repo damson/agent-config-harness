@@ -2,7 +2,7 @@
 
 Skills used to be vendored into this repo. Any skill that is genuinely portable
 now lives in a **Claude Code marketplace** instead: one copy, versioned by its
-publisher, installable by theme. What stays here is the machinery — a registry
+publisher, installable by theme. What stays here is the machinery: a registry
 so the set is reproducible, and the checks that hold someone else's skills to the
 same standard as your own.
 
@@ -16,7 +16,7 @@ fresh machine ends up with the same skills rather than whatever was remembered.
 ```
 
 ```
-fullstack-skills = damson/fullstack-skills :: * :: https://github.com/damson/fullstack-skills
+hard-won-skills = damson/hard-won-skills :: * :: https://github.com/damson/hard-won-skills
 ```
 
 | Field | Meaning |
@@ -48,23 +48,23 @@ Worked example, from nothing to scored:
 
 ```console
 $ just marketplaces-status
-ℹ marketplace: fullstack-skills  (damson/fullstack-skills)
+ℹ marketplace: hard-won-skills  (damson/hard-won-skills)
 ⚠   not added yet — run 'just marketplaces-install'
-ℹ   docs: https://github.com/damson/fullstack-skills
+ℹ   docs: https://github.com/damson/hard-won-skills
 
 $ just marketplaces-install
-ℹ Adding marketplace fullstack-skills
+ℹ Adding marketplace hard-won-skills
 ✔   installed git-workflow
 ✔   installed agent-config
 ✔   installed verification
 ✔   installed data-safety
 ✔   installed mobile-ui
 
-$ just validate-marketplace fullstack-skills
-✔ 23 skill(s) in marketplace 'fullstack-skills' pass all structural checks
+$ just validate-marketplace hard-won-skills
+✔ 31 skill(s) in marketplace 'hard-won-skills' pass all structural checks
 
-$ just eval-marketplace fullstack-skills verification
-ℹ ── fullstack-skills/verification ──
+$ just eval-marketplace hard-won-skills verification
+ℹ ── hard-won-skills/verification ──
 ℹ Scoring skill: prove-the-check-can-fail
 ℹ   Total: 24/25  Grade: A
 ```
@@ -81,7 +81,7 @@ its own skills to any tree:
 | Check | Why it is not cosmetic |
 |---|---|
 | frontmatter `name:` matches the folder | A mismatch makes the skill unaddressable |
-| `description:` is non-empty | The description is the whole trigger — an empty one never fires |
+| `description:` is non-empty | The description is the whole trigger; an empty one never fires |
 | a `## Procedure` or `## Step N` section | Without steps it is an essay, not a skill |
 | a `## When to STOP` section | This is what stops a skill firing on work it should decline |
 | leaf names unique across groups | Skills install **flat**; a duplicate silently shadows another |
@@ -94,7 +94,7 @@ Point it anywhere:
 ```bash
 just validate-skills                          # this repo's own skills
 just validate-skills ~/some/other/skills      # any tree
-just validate-marketplace fullstack-skills    # every plugin a marketplace installed
+just validate-marketplace hard-won-skills    # every plugin a marketplace installed
 ```
 
 ## Scoring skills you did not write
@@ -107,7 +107,7 @@ SKILLS_DIR=~/.claude/plugins/cache/<marketplace>/<plugin>/<version>/skills \
 ```
 
 `just eval-marketplace` resolves that path for you. Remember the eval moves ±1–2
-on borderline scores — the same skill can come back A on one run and B on the
+on borderline scores; the same skill can come back A on one run and B on the
 next, so a single run is not a trend.
 
 ## Why status asks the CLI instead of checking a path
@@ -117,18 +117,18 @@ works. It is wrong here, and quietly:
 
 | Path | After `marketplace add` | After `install` | After `uninstall` |
 |---|---|---|---|
-| `~/.claude/plugins/marketplaces/<id>` | created | — | **survives** |
-| `~/.claude/plugins/cache/<id>/<plugin>` | — | created | **survives** |
+| `~/.claude/plugins/marketplaces/<id>` | created | | **survives** |
+| `~/.claude/plugins/cache/<id>/<plugin>` | | created | **survives** |
 
 Both outlive an uninstall (verified). A path probe would report every plugin as
-installed forever after the first install — a green that means nothing. Installed
+installed forever after the first install, a green that means nothing. Installed
 state lives in Claude Code's `settings.json`, so `marketplaces.sh` asks
 `claude plugin list` instead.
 
 ## The collision to know about
 
 If a skill exists **both** in `user-dev/skills/` and in an installed marketplace
-plugin, you get two copies in `~/.claude/skills/` under the same leaf name — one
+plugin, you get two copies in `~/.claude/skills/` under the same leaf name: one
 symlinked by `just setup`, one from the plugin. They shadow each other and which
 one wins is not something you want to reason about.
 

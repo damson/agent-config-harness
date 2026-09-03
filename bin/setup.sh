@@ -25,6 +25,47 @@ log_info "Starting AI Setup..."
 # A regular file at the destination is someone's real content: move it aside to
 # a timestamped backup and say so. A symlink (whoever it points at) is just a
 # previous wiring — replace it silently, as re-runs always have.
+# A symlink into a DIFFERENT repo means this machine's live config is a
+# consumer repo vendoring the harness. Repointing it here would silently swap
+# real config for the shipped example templates — the run must be made from
+# that repo instead (its own `just setup` is also the recovery).
+# Ownership is judged on RESOLVED paths: readlink returns the stored string,
+# which would let `$REPO_ROOT/../elsewhere` wear an owned prefix and would
+# make an owned-but-relative target look foreign. Absolutize against the
+# link's own directory and canonicalize the parent where it exists; a target
+# whose parent is gone is judged as stored (and its dot-dots refused below).
+resolve_link_target() {
+    local dest="$1" target dir
+    target="$(readlink "$dest")"
+    case "$target" in
+        /*) : ;;
+        *) target="$(dirname "$dest")/$target" ;;
+    esac
+    if dir="$(cd "$(dirname "$target")" 2>/dev/null && pwd -P)"; then
+        printf '%s/%s' "$dir" "$(basename "$target")"
+    else
+        printf '%s' "$target"
+    fi
+}
+
+OWNED_REPO_ROOT="$(cd "$REPO_ROOT" && pwd -P)"
+OWNED_HARNESS_ROOT="$(cd "$HARNESS_ROOT" && pwd -P)"
+
+refuse_foreign_link() {
+    local dest="$1" current owned=0
+    [ -L "$dest" ] || return 0
+    current="$(resolve_link_target "$dest")"
+    case "$current" in
+        # Dot-dots that survived resolution mean ownership cannot be proven.
+        *"/../"*|*"/..") : ;;
+        "$OWNED_REPO_ROOT"/*|"$OWNED_HARNESS_ROOT"/*) owned=1 ;;
+    esac
+    if [ "$owned" = 1 ]; then return 0; fi
+    [ "${AGENT_SETUP_FORCE:-}" = "1" ] || log_error \
+"$dest already links outside this repo ($current) — another config repo owns it.
+Run 'just setup' from that repo, or re-run with AGENT_SETUP_FORCE=1 to take over."
+}
+
 link_file() {
     local src="$1" dest="$2" backup
     if [ -e "$dest" ] && [ ! -L "$dest" ]; then
@@ -32,6 +73,7 @@ link_file() {
         mv "$dest" "$backup"
         log_warn "Existing $dest moved to $backup"
     fi
+    refuse_foreign_link "$dest"
     ln -sf "$src" "$dest"
 }
 
@@ -83,6 +125,7 @@ mkdir -p "$HOME/.claude/skills"
 while IFS= read -r skill_dir; do
     [ -n "$skill_dir" ] || continue
     skill_name=$(basename "$skill_dir")
+    refuse_foreign_link "$HOME/.claude/skills/$skill_name"
     ln -sfn "$skill_dir" "$HOME/.claude/skills/$skill_name"
     log_ok "Linked skill: $skill_name"
 done < <(list_skill_dirs)

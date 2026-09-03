@@ -3,8 +3,8 @@
 Standalone, the harness manages its own config: the engine and the files it
 scores are one checkout. That is the simple case and needs no configuration.
 
-A **consumer repo** keeps its own config — its registries, its workspace domains,
-its identity files — and vendors the harness to operate on them. One environment
+A **consumer repo** keeps its own config (its registries, its workspace domains,
+its identity files) and vendors the harness to operate on them. One environment
 variable makes the difference.
 
 ## The two roots
@@ -23,7 +23,7 @@ the harness would quietly manage the wrong repo's config and report success.
 
 ## Setting it up
 
-Vendor the harness — a submodule pins an exact commit, which is what you want:
+Vendor the harness: a submodule pins an exact commit, which is what you want:
 
 ```bash
 git submodule add https://github.com/<owner>/agent-config-harness .harness
@@ -54,15 +54,25 @@ workspace/<domain>/          your per-domain rules
 .harness/                    the engine, pinned
 ```
 
-## In CI, when the harness is private
+## In CI, if your harness fork is private
 
-`actions/checkout` authenticates with the job's `GITHUB_TOKEN`, which is scoped to
-the repo being built. A private harness lives in a *different* repo, so the
-submodule fetch fails no matter what `submodules:` is set to. Give the job a PAT
-with read access to the harness and check the submodule out yourself:
+The harness itself is public, so the default case is one line: `submodules:
+true` on `actions/checkout` and the pin resolves with no credentials at all.
+Skip this section unless you maintain a **private fork** of the harness.
+
+For a private fork: `actions/checkout` authenticates with the job's
+`GITHUB_TOKEN`, which is scoped to the repo being built. A private fork lives
+in a *different* repo, so the submodule fetch fails no matter what
+`submodules:` is set to. Give the job a PAT with read access to the fork and
+check the submodule out yourself:
 
 ```yaml
-- uses: actions/checkout@v4          # no submodules: — it cannot reach the harness
+- uses: actions/checkout@v4          # no submodules: line; it cannot reach the harness
+  with:
+    # The default persisted GITHUB_TOKEN header would stack with the one
+    # below (http.extraheader is multi-valued) and GitHub rejects the
+    # doubled Authorization. Turn it off; nothing later needs it.
+    persist-credentials: false
 - name: Check out the harness
   env:
     HARNESS_TOKEN: ${{ secrets.HARNESS_TOKEN }}
@@ -74,7 +84,7 @@ with read access to the harness and check the submodule out yourself:
 
 The `-c` scopes the credential to that one command on purpose. Writing it with
 `git config --global` also works, but on a self-hosted runner the global config
-persists across jobs — the auth header stays behind for whatever runs next, so
+persists across jobs: the auth header stays behind for whatever runs next, so
 that route needs an explicit `git config --global --unset` in an `if: always()`
 cleanup step.
 
@@ -102,7 +112,7 @@ read -rs TOKEN && printf '%s' "$TOKEN" | gh secret set HARNESS_TOKEN --repo <own
 ```
 
 Run interactively, `gh secret set NAME` prompts for the value. Run anywhere
-without a TTY — a script, a CI step, an agent shell — it reads **stdin instead of
+without a TTY (a script, a CI step, an agent shell) it reads **stdin instead of
 prompting**, and an empty stdin stores an **empty secret**. It exits `0` and the
 secret listing shows the name with a fresh timestamp, so the only symptom is the
 submodule checkout failing later with an ordinary `401`, indistinguishable from a
@@ -113,7 +123,7 @@ gives `gh` real stdin to read.
 
 **Diagnosing it after the fact:** print the length in the job, next to where the
 token is used. The length is not the secret and CI cannot mask it, and `0` versus
-`93` distinguishes an empty secret from a bad one in a single line — nothing else
+`93` distinguishes an empty secret from a bad one in a single line; nothing else
 does.
 
 ## What this buys, and what it costs
@@ -125,7 +135,7 @@ engine becomes a submodule bump you can review.
 The cost is a submodule, which is a real cost: a clone needs `--recurse-submodules`
 (or a later `git submodule update --init`), and a stale pin is invisible until
 something behaves oddly. If you would rather not, keeping the harness as your own
-fork and merging from upstream is a legitimate alternative — the two-root split
+fork and merging from upstream is a legitimate alternative; the two-root split
 below is what makes either work.
 
 ## Verifying the split
@@ -139,5 +149,5 @@ $ AGENT_CONFIG_ROOT=$(pwd) ./.harness/bin/check-health.sh
 ✔ domain 'your-domain' workspace: workspace/your-domain
 ```
 
-If you see the harness's example domains — `mobile`, `web-react`, `backend-node`
-— the override is not reaching the script.
+If you see the harness's example domains (`mobile`, `web-react`,
+`backend-node`), the override is not reaching the script.

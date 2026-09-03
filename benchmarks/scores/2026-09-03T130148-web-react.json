@@ -1,0 +1,15 @@
+{
+  "date": "2026-09-03T13:01:48Z",
+  "domain": "web-react",
+  "git_hash": "d94cf32",
+  "scores": {
+    "clarity": 5,
+    "conciseness": 5,
+    "completeness": 3,
+    "consistency": 5,
+    "actionability": 5
+  },
+  "total": 23,
+  "percentage": 92,
+  "grade": "A"
+}

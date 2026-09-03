@@ -1,10 +1,10 @@
 <!--
-    PORTABLE PR TEMPLATE — v1
+    PORTABLE PR TEMPLATE (v1)
 
     THIS FILE IS NOT ACTIVE. It is the master copy, kept here to be adopted
     into other repositories. The template GitHub actually uses for THIS repo
     is `.github/PULL_REQUEST_TEMPLATE.md`, which is derived from this one with
-    the local details filled in — edit that if you want to change this repo's
+    the local details filled in; edit that if you want to change this repo's
     PR form.
 
     Copy this file to `.github/PULL_REQUEST_TEMPLATE.md` in any repository,
@@ -12,18 +12,18 @@
     data pipeline, parser, CLI, infrastructure, docs.
 
     Nothing below names a language, framework, or vendor. The two places that
-    need local knowledge are marked ‹like this› — fill them once, at adoption
+    need local knowledge are marked ‹like this›; fill them once, at adoption
     time, and never again.
 
     Guide, with worked examples per stack: the README.md beside this file.
 
     DELETE THIS BANNER once copied. It is adoption instructions, not part of
-    the template — an installed `.github/PULL_REQUEST_TEMPLATE.md` should not
+    the template; an installed `.github/PULL_REQUEST_TEMPLATE.md` should not
     tell its readers to copy it somewhere.
 
     THE OMIT-WHEN-EMPTY RULE
     Two sections are conditional and marked as such. If a conditional section
-    has nothing to say, DELETE the whole section — header and all. Never leave
+    has nothing to say, DELETE the whole section, header and all. Never leave
     "N/A" or "no change": a placeholder costs a reader the same attention as
     real content and returns nothing.
 
@@ -46,13 +46,13 @@
            container, removing the hardcoded backoff."
     Good: "When a card payment failed because the bank was briefly
            unreachable, we gave up immediately and told the customer their
-           card was declined — which wasn't true. Now we retry for a few
+           card was declined, which wasn't true. Now we retry for a few
            seconds first. Customers stop seeing false declines, and support
            stops getting tickets about cards that actually work."
 -->
 
 <!--
-    ═══ CONDITIONAL — KEEP ONLY IF THIS PR CHANGES HOW THINGS FLOW ═══
+    ═══ CONDITIONAL: KEEP ONLY IF THIS PR CHANGES HOW THINGS FLOW ═══
     Delete this whole block if no box or arrow moves: data path, request
     lifecycle, screen-to-screen navigation, build/deploy stage, state machine.
     A change in behaviour inside one existing box does NOT need a diagram.
@@ -80,7 +80,7 @@
 -->
 
 <!--
-    ═══ CONDITIONAL — KEEP ONLY IF A HUMAN CAN SEE THE DIFFERENCE ═══
+    ═══ CONDITIONAL: KEEP ONLY IF A HUMAN CAN SEE THE DIFFERENCE ═══
     "Visible" is not only a browser. Keep this section for a web page, a
     mobile screen, a CLI's output, a generated report or export, an email,
     a dashboard panel, a log format someone reads on purpose.
@@ -93,7 +93,7 @@
     | ![before](url) | ![after](url) |
 
     For a terminal or text-output change, paste the two outputs in fenced
-    blocks instead of images — they diff better and survive forever.
+    blocks instead of images; they diff better and survive forever.
 
     Host images so they outlive the branch: attach them to the PR (drag into
     the comment box) or reference a committed file BY COMMIT SHA, not by
@@ -107,7 +107,7 @@
 
 <!--
     Concrete changes grouped by component or layer. One bullet per decision a
-    reviewer might question, not one bullet per file — the diff already lists
+    reviewer might question, not one bullet per file; the diff already lists
     the files.
 
     Include the reasoning for anything non-obvious, especially:
@@ -126,15 +126,15 @@
     Evidence, not intentions. Every ticked box must name something you
     actually observed.
 
-    - [ ] Automated checks pass — ‹the command this repo uses›
+    - [ ] Automated checks pass: ‹the command this repo uses›
     - [ ] New or updated tests cover the change (state the before → after count)
     - [ ] CI is green (name the jobs)
     - [ ] Verified end-to-end against real data or a running instance, not
-          only at the unit boundary — say what you drove and what you saw
+          only at the unit boundary; say what you drove and what you saw
 
     RULES
     1. Never tick a box you did not verify. An honest `[ ]` with a one-line
-       reason is worth more than a `[x]` that is aspirational — one
+       reason is worth more than a `[x]` that is aspirational; one
        fabricated tick makes every other tick unreliable.
     2. Numbers must be measured. "Improves performance" is not a test plan;
        "p95 3.2s → 0.4s over 500 requests" is.
@@ -155,22 +155,22 @@
 -->
 
 - [ ] Automated/AI review has run and its comments have been read
-- [ ] **Findings addressed or explicitly skip-justified after every push** — a
+- [ ] **Findings addressed or explicitly skip-justified after every push**: a
       new push invalidates the previous review; re-read it
-- [ ] ‹Repo-specific gate — e.g. architecture doc updated, changelog entry,
+- [ ] ‹Repo-specific gate, e.g. architecture doc updated, changelog entry,
       migration reviewed, translations added›
 
 <!--
     RESPONDING TO REVIEW
-    Reply on the PR itself, not only in a chat window — the audit trail has to
+    Reply on the PR itself, not only in a chat window; the audit trail has to
     live where the next person will look. One row per finding, with an
     unambiguous verdict:
 
-      ✅ Applied      — landed in this push (cite file:line)
-      🚫 Skipped      — will NOT be done (rationale required: false positive /
-                        out of scope / intentional)
-      ⏳ Deferred     — real, but not here (link the follow-up)
-      💬 Acknowledged — for "this looks good" notes; no action
+      ✅ Applied:      landed in this push (cite file:line)
+      🚫 Skipped:      will NOT be done (rationale required: false positive /
+                       out of scope / intentional)
+      ⏳ Deferred:     real, but not here (link the follow-up)
+      💬 Acknowledged: for "this looks good" notes; no action
 
     Verify each finding against the source before acting on it. Automated
     reviewers read a diff without context and are confidently wrong often

@@ -80,7 +80,9 @@ has_hook() {
 install_hook() {
     local proj="$1"
     log_info "Installing impeccable hook in $proj"
-    ( cd "$proj" && npx --yes impeccable@latest install )
+    # Version pinned for supply-chain safety — keep in lockstep with the
+    # impeccable entry in config/external-skills.conf.
+    ( cd "$proj" && npx --yes impeccable@3.6.1 install )
 }
 
 # ── Resolve targets ───────────────────────────────────────

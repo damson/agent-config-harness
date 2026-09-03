@@ -1,0 +1,90 @@
+name: Coverage
+
+# Measures the bats suite's line coverage of the shell sources with kcov and
+# uploads the result to Codecov, which owns the PR comment and the README
+# badge. Informational only: statuses are configured non-blocking in
+# codecov.yml, so it is deliberately NOT in the required-checks list.
+#
+# Push runs on develop upload the base coverage Codecov diffs PR runs
+# against. Fork PRs upload via OIDC too — no secret involved, so outside
+# contributors get the same report.
+permissions:
+  contents: read
+  id-token: write
+
+on:
+  pull_request:
+  push:
+    branches: [develop]
+
+concurrency:
+  group: coverage-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  coverage:
+    name: Coverage report
+    runs-on: ubuntu-latest
+    # kcov instruments every bash child the suite spawns; slow is normal,
+    # an hour is a hang.
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Install bats and jq
+        timeout-minutes: 5
+        run: .github/install-packages.sh bats jq
+
+      # Ubuntu 24.04 carries no kcov package; build a pinned release once and
+      # let the cache make every later run a no-op.
+      - name: Restore kcov from cache
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: ~/.local/kcov
+          key: kcov-43-${{ runner.os }}-noble
+
+      - name: Build kcov if the cache missed
+        timeout-minutes: 10
+        run: .github/install-kcov.sh
+
+      - name: Make scripts executable
+        run: chmod +x bin/*.sh evals/*.sh benchmarks/*.sh lib/*.sh
+
+      - name: Run the suite under kcov
+        run: |
+          set -euo pipefail
+          "$HOME/.local/kcov/bin/kcov" \
+               --include-path="$PWD/bin,$PWD/lib,$PWD/evals,$PWD/benchmarks" \
+               --bash-parse-files-in-dir="$PWD/bin" \
+               --bash-parse-files-in-dir="$PWD/lib" \
+               --bash-parse-files-in-dir="$PWD/evals" \
+               --bash-parse-files-in-dir="$PWD/benchmarks" \
+               --exclude-pattern=/tests/ \
+               coverage-out "$(command -v bats)" tests/
+          echo "── kcov output tree ──"
+          ls -la coverage-out
+          # kcov names its result dir after the traced binary and only
+          # sometimes leaves a kcov-merged; take merged when present, else
+          # whatever single result exists, and fail loudly over guessing.
+          xml="coverage-out/kcov-merged/cobertura.xml"
+          if [ ! -f "$xml" ]; then
+            xml=$(find coverage-out -maxdepth 2 -name cobertura.xml | sort | head -1)
+          fi
+          if [ -z "$xml" ] || [ ! -f "$xml" ]; then
+            echo "::error::kcov produced no cobertura.xml — tree follows"
+            find coverage-out -maxdepth 3 | head -40
+            exit 1
+          fi
+          echo "COBERTURA=$xml" >> "$GITHUB_ENV"
+          echo "Uploading coverage from: $xml"
+
+      - name: Upload to Codecov
+        uses: codecov/codecov-action@0fb7174895f61a3b6b78fc075e0cd60383518dac # v5.5.5
+        with:
+          files: ${{ env.COBERTURA }}
+          # Without this the uploader also auto-collects anything whose name
+          # matches its search patterns (kcov's side JSONs, even a bats file
+          # with "coverage" in its name) and reports them as coverage.
+          disable_search: true
+          use_oidc: true
+          fail_ci_if_error: false

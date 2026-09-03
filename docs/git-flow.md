@@ -7,7 +7,7 @@ Two long-lived branches, gitflow-style:
 | `develop` | Integration. Feature branches are cut from it and land back into it. Config work is tested here. |
 | `main` | Releases. Only ever updated by promoting `develop`. |
 
-Neither takes a direct push — every change lands via PR.
+Neither takes a direct push; every change lands via PR.
 
 ---
 
@@ -35,7 +35,7 @@ Suffix with `-2`, `-3`, etc. if the branch name already exists.
 
 ## Protection on `main` and `develop`
 
-`just setup` installs a pre-push hook in this repo that refuses direct pushes to `main` and `develop`. Find it with `git rev-parse --git-path hooks` — usually `.git/hooks/pre-push`, but from a worktree the hooks live in the common dir, so the path is not `.git/hooks` there. One hook covers the repo and every worktree of it. Re-run `just setup` after changing it in `bin/setup.sh`, since the installed copy does not update itself. To override it (rare; not recommended):
+`just setup` installs a pre-push hook in this repo that refuses direct pushes to `main` and `develop`. Find it with `git rev-parse --git-path hooks`; usually `.git/hooks/pre-push`, but from a worktree the hooks live in the common dir, so the path is not `.git/hooks` there. One hook covers the repo and every worktree of it. Re-run `just setup` after changing it in `bin/setup.sh`, since the installed copy does not update itself. To override it (rare; not recommended):
 
 ```bash
 git push --no-verify
@@ -66,24 +66,24 @@ rather than `gh … | tail -1`, which reports `tail` and "succeeds" on every 503
 ## Releasing
 
 `main` only ever moves by promoting `develop`, via a PR like any other change.
-Nothing is authored on a release branch — if a fix is needed mid-release, it
+Nothing is authored on a release branch; if a fix is needed mid-release, it
 lands on `develop` first and the release PR picks it up.
 
 **A standing release PR is kept open for you.** `.github/workflows/release-pr.yml`
 runs `bin/open-release-pr.sh` every Monday (and on demand via *Run workflow*),
 opening the PR if none is open and refreshing its inventory if one is. It never
-merges — promotion stays a human decision. Locally:
+merges; promotion stays a human decision. Locally:
 
 ```bash
 just release           # open or refresh it
 just release-preview   # print the body, touch nothing
 ```
 
-The script fills in what can be derived — commit count, the PRs in the batch,
+The script fills in what can be derived: commit count, the PRs in the batch,
 the diffstat, the oldest unreleased commit. Two sections it deliberately leaves
 blank, because they need judgement:
 
-- **the plain-words summary**, and
+- **the high-level summary**, and
 - **a before/after diagram, which a release must carry.** Individual PRs skip
   the diagram when nothing moves; across a batch something almost always has,
   and the release is the only place a reader sees where the repo ended up
@@ -94,13 +94,13 @@ blank, because they need judgement:
 Letting `develop` run ahead has a specific cost beyond a large review: GitHub
 only honours `closes #N` on a merge into the **default** branch. Every closing
 keyword written on a PR into `develop` does nothing until the next promotion, so
-a long gap leaves fixed issues sitting open — five of them, at the last count.
+a long gap leaves fixed issues sitting open; five of them, at the last count.
 
 ### After the release: bring `main` back
 
 Promotion is one-directional, so the merge commit it creates on `main` never
 reaches `develop`. The trees stay byte-identical, which is exactly why this goes
-unnoticed — nothing in a working copy looks wrong, and only a commit count
+unnoticed: nothing in a working copy looks wrong, and only a commit count
 reveals it:
 
 ```bash
@@ -119,12 +119,12 @@ just backmerge           # open or refresh it
 just backmerge-preview   # print the body, touch nothing
 ```
 
-Like the release PR it **never merges** — merging into a protected branch stays
+Like the release PR it **never merges**; merging into a protected branch stays
 a human decision. The body distinguishes the two cases, because they deserve
 different attention:
 
-- **History only** — trees identical, no file can change. A formality.
-- **Carries file changes** — something landed on `main` without going through
+- **History only:** trees identical, no file can change. A formality.
+- **Carries file changes:** something landed on `main` without going through
   `develop`, i.e. a hotfix. Review it as a normal change. Note that a PR opened
   by `GITHUB_TOKEN` does not trigger CI, so this case wants a manual run or a PAT.
 
@@ -149,7 +149,7 @@ gh api -X PUT repos/<owner>/<repo>/actions/permissions/workflow \
 ```
 
 Without it, `gh pr create` inside a workflow fails with *GitHub Actions is not
-permitted to create or approve pull requests* — a message that reads like a token
+permitted to create or approve pull requests*, a message that reads like a token
 problem and is not one.
 
 **A workflow with no `pull_request` trigger is never exercised by review.** The
@@ -192,13 +192,13 @@ If nothing differs, the command exits early with `Nothing to sync`.
 ## Merging
 
 Land a PR with `gh pr merge --merge` when its commits are each one logical
-change — squashing collapses exactly the history the one-change-per-commit rule
+change; squashing collapses exactly the history the one-change-per-commit rule
 exists to produce. Squash only where the branch is a single change plus fixups.
 
 ## PR Conventions
 
-- **Title:** `ai-config: <type> <domain> — <short summary>`
-  - e.g. `ai-config: sync mobile — pickup new ktlint rule`
+- **Title:** `ai-config: <type> <domain> - <short summary>`
+  - e.g. `ai-config: sync mobile - pickup new ktlint rule`
 - **Body:** what changed and why. Mention the source project. Include score deltas if you ran `just eval` before and after.
 - **Reviewers:** none required for personal repo, but CI must pass.
 
@@ -222,7 +222,7 @@ Inside the host repo:
 
 ```bash
 git spull          # pull with stealth handling (auto-syncs any teammate updates back into this repo)
-git scommit -m …   # commit AI rule edits — creates a branch in the host repo and opens an MR
+git scommit -m …   # commit AI rule edits: creates a branch in the host repo and opens an MR
 ```
 
 Both aliases are installed by `just setup`.

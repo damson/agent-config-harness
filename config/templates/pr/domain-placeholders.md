@@ -8,7 +8,7 @@ exactly two `‹…›` slots, filled once at adoption time:
 
 This file records sensible defaults for each registered domain so an adopter fills
 them from a known-good starting point instead of guessing. It is **not** part of the
-portable pair — it names stacks on purpose, which is why it lives here and not in the
+portable pair; it names stacks on purpose, which is why it lives here and not in the
 template or the guide (both of which must stay vendor-neutral).
 
 | Domain | ‹test command› | ‹repo-specific review gate› |
@@ -19,4 +19,4 @@ template or the guide (both of which must stay vendor-neutral).
 | `data-extraction` | `pytest && ruff check && mypy --strict` | Contract/schema tests green (schema drift fails the build); fixtures scrubbed of real tokens |
 
 Values are derived from each domain's `AGENTS.md` / `CLAUDE.md` "Build & Scripts" and
-"Testing" sections — keep this table in sync if those change.
+"Testing" sections; keep this table in sync if those change.

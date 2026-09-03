@@ -65,13 +65,13 @@ For a typical domain, "essential areas" include: language conventions, architect
 |---|---|
 | **5** | All major areas covered well. |
 | **3** | Core areas covered, notable gaps. |
-| **1** | Many areas missing — agent will frequently guess. |
+| **1** | Many areas missing; agent will frequently guess. |
 
 ### 4. Consistency
 
 **Contradictions inside the file or with other files in the stack?**
 
-A common pattern is intentional layering: a global `CLAUDE.md` overrides a domain `CLAUDE.md` rule. That's not a contradiction — the prompt should recognise it. A genuine contradiction is two rules in the same scope that can't both be true.
+A common pattern is intentional layering: a global `CLAUDE.md` overrides a domain `CLAUDE.md` rule. That's not a contradiction; the prompt should recognise it. A genuine contradiction is two rules in the same scope that can't both be true.
 
 | Score | Description |
 |---|---|

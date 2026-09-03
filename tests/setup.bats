@@ -61,9 +61,9 @@ teardown() {
     assert_contains "$output" "$backup"
 }
 
-@test "setup: replaces a pre-existing symlink without creating a backup" {
+@test "setup: replaces a pre-existing own-repo symlink without creating a backup" {
     mkdir -p "$HOME/.claude"
-    ln -s /nonexistent/old-target "$HOME/.claude/preferences.md"
+    ln -s "$REPO_ROOT/user-dev/CLAUDE.md" "$HOME/.claude/preferences.md"   # stale but ours
     run ./bin/setup.sh
     [ "$status" -eq 0 ]
     [ -L "$HOME/.claude/preferences.md" ]
@@ -71,6 +71,66 @@ teardown() {
     local leftover
     leftover=$(find "$HOME/.claude" -maxdepth 1 -name 'preferences.md.bak.*')
     [ -z "$leftover" ]
+}
+
+@test "setup: refuses to repoint a symlink owned by another config repo" {
+    mkdir -p "$HOME/.claude" "$HOME/other-config-repo/user-dev"
+    echo "the real global rules" > "$HOME/other-config-repo/user-dev/CLAUDE.md"
+    ln -s "$HOME/other-config-repo/user-dev/CLAUDE.md" "$HOME/.claude/CLAUDE.md"
+    run ./bin/setup.sh
+    [ "$status" -ne 0 ]
+    assert_contains "$output" "another config repo owns it"
+    # the foreign link survives untouched
+    [ "$(readlink "$HOME/.claude/CLAUDE.md")" = "$HOME/other-config-repo/user-dev/CLAUDE.md" ]
+}
+
+@test "setup: AGENT_SETUP_FORCE=1 takes over a foreign symlink" {
+    mkdir -p "$HOME/.claude" "$HOME/other-config-repo/user-dev"
+    ln -s "$HOME/other-config-repo/user-dev/CLAUDE.md" "$HOME/.claude/CLAUDE.md"
+    run env AGENT_SETUP_FORCE=1 ./bin/setup.sh
+    [ "$status" -eq 0 ]
+    [ "$(readlink "$HOME/.claude/CLAUDE.md")" = "$REPO_ROOT/user-dev/CLAUDE.md" ]
+}
+
+@test "setup: refuses to repoint a skill link owned by another repo" {
+    mkdir -p "$HOME/.claude/skills" "$HOME/other-config-repo/skills/refresh-domain-benchmark"
+    ln -s "$HOME/other-config-repo/skills/refresh-domain-benchmark" \
+          "$HOME/.claude/skills/refresh-domain-benchmark"
+    run ./bin/setup.sh
+    [ "$status" -ne 0 ]
+    assert_contains "$output" "another config repo owns it"
+}
+
+@test "setup: refuses a foreign target dressed in an owned prefix" {
+    # Regression: readlink returns the stored string, so a target written as
+    # $REPO_ROOT/../elsewhere used to pass the ownership prefix check.
+    mkdir -p "$HOME/.claude" "$REPO_ROOT/../setup-guard-dodge"
+    echo "not ours" > "$REPO_ROOT/../setup-guard-dodge/CLAUDE.md"
+    ln -s "$REPO_ROOT/../setup-guard-dodge/CLAUDE.md" "$HOME/.claude/CLAUDE.md"
+    run ./bin/setup.sh
+    rm -rf "$REPO_ROOT/../setup-guard-dodge"
+    [ "$status" -ne 0 ]
+    assert_contains "$output" "another config repo owns it"
+}
+
+@test "setup: refuses a dangling dot-dot target it cannot resolve" {
+    mkdir -p "$HOME/.claude"
+    ln -s "$REPO_ROOT/../no-such-dir-anywhere/CLAUDE.md" "$HOME/.claude/CLAUDE.md"
+    run ./bin/setup.sh
+    [ "$status" -ne 0 ]
+    assert_contains "$output" "another config repo owns it"
+}
+
+@test "setup: allows a link that resolves inside this repo indirectly" {
+    # The stored string looks foreign (relative, through a directory symlink)
+    # but the resolved path is ours; setup must repoint it without demanding
+    # AGENT_SETUP_FORCE.
+    mkdir -p "$HOME/.claude"
+    ln -s "$REPO_ROOT" "$HOME/repolink"
+    ln -s "../repolink/user-dev/CLAUDE.md" "$HOME/.claude/CLAUDE.md"
+    run ./bin/setup.sh
+    [ "$status" -eq 0 ]
+    [ "$(readlink "$HOME/.claude/CLAUDE.md")" = "$REPO_ROOT/user-dev/CLAUDE.md" ]
 }
 
 @test "setup: fresh install creates no backup files" {

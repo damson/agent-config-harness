@@ -10,8 +10,8 @@ both were about to drive a design decision.
 resolving against the file containing the import, nesting up to four hops. Parsing
 skips code spans and fenced blocks, so `` `@README` `` in backticks stays literal.
 
-A `.claude/rules/*.md` file does **not** expand `@path`. It looks like it should — same
-markdown, same load-at-launch behaviour — but the import is passed through as text.
+A `.claude/rules/*.md` file does **not** expand `@path`. It looks like it should (same
+markdown, same load-at-launch behaviour) but the import is passed through as text.
 
 How that was established, because "it didn't work" and "the file never loaded" look
 identical from outside:
@@ -28,7 +28,7 @@ the import specifically is what does not expand.
 ## Imports do not save context
 
 Splitting a large `CLAUDE.md` into `@` imports organises it but does not shrink what
-loads — imported files are expanded into context at launch. If the goal is a smaller
+loads: imported files are expanded into context at launch. If the goal is a smaller
 context, imports are the wrong tool.
 
 ## Path-scoped rules are the tool that does
@@ -47,7 +47,7 @@ file is also served as a project `CLAUDE.md`.
 - Files **above** the working directory load in full at launch, root-most first, so the
   nearest file is read last. Files in subdirectories load on demand.
 - `CLAUDE.local.md` is appended after `CLAUDE.md` at each level.
-- Everything loads **at session start**. A running session does not pick up an edit —
+- Everything loads **at session start**. A running session does not pick up an edit;
   restart it.
 - A project-root `CLAUDE.md` is re-injected after `/compact`. Nested files and
   path-scoped rules are not; they reload when a matching file is next read.
