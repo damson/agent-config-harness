@@ -33,8 +33,9 @@ SOURCE_FILE="$REPO_ROOT/$ws/$FILE_NAME"
 log_info "Applying stealth: $FILE_NAME (domain=$domain) → $PROJECT_PATH"
 
 cd "$PROJECT_PATH"
+git ls-files --error-unmatch "$FILE_NAME" >/dev/null 2>&1 || \
+    log_error "Refusing to replace $FILE_NAME: not tracked by the host repo, so its content could not be recovered"
 ln -sf "$SOURCE_FILE" "$FILE_NAME"
-git update-index --skip-worktree "$FILE_NAME" 2>/dev/null || \
-    log_warn "skip-worktree failed (is the file tracked by git?)"
+git update-index --skip-worktree "$FILE_NAME"
 
 log_ok "$FILE_NAME is now a stealth symlink → $SOURCE_FILE"

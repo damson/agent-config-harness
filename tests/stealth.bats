@@ -55,15 +55,16 @@ tracked_flag() {
     [ ! -L "$PROJECT/CLAUDE.md" ]
 }
 
-@test "stealth: warns (but proceeds) on an untracked target" {
-    # Pins current behavior: the symlink swap happens BEFORE the tracked
-    # check, so an untracked file's content is replaced and only a warning
-    # is emitted. See the PR discussion — a candidate for hardening.
+@test "stealth: refuses an untracked target and leaves it untouched" {
+    # An untracked file's content is not recoverable from git, so the
+    # tracked check must run before any mutation: error out, leave the
+    # file byte-identical, no symlink swap.
     printf 'untracked local rules\n' > "$PROJECT/.cursorrules"
     run "$REPO_ROOT/bin/stealth.sh" "$PROJECT" .cursorrules
-    [ "$status" -eq 0 ]
-    assert_contains "$output" "skip-worktree failed"
-    [ -L "$PROJECT/.cursorrules" ]
+    [ "$status" -ne 0 ]
+    assert_contains "$output" "not tracked"
+    [ ! -L "$PROJECT/.cursorrules" ]
+    [ "$(cat "$PROJECT/.cursorrules")" = "untracked local rules" ]
 }
 
 # ── unstealth.sh ──────────────────────────────────────────
