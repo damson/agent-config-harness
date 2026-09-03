@@ -85,6 +85,7 @@ This is the only place where the registry format is parsed. Adding a field to th
 | `eval-action.sh` | Entry point for the "score your config in CI" GitHub Action (`action.yml`) |
 | `marketplaces.sh` | Install skills from the marketplaces registered in `config/marketplaces.conf` |
 | `validate-skills.sh` | Validate the structure of any skills tree (incl. marketplace-installed) |
+| `post-coverage-comment.sh` | Upsert the sticky kcov coverage comment on a PR (driven by `coverage.yml`) |
 | `install-external-skills.sh` | Install the third-party skill bundles in `config/external-skills.conf` |
 | `impeccable-hooks.sh` | Install the impeccable design hook into frontend projects |
 
