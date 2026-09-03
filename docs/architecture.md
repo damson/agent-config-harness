@@ -4,7 +4,7 @@ The agent-config-harness repo is a four-layer pipeline for AI configuration. Eac
 
 ```mermaid
 flowchart BT
-    subgraph core["Layer 1 — Core"]
+    subgraph core["Layer 1: Core"]
         registry["config/domains.conf<br/>domain registry"]
         common["lib/common.sh<br/>the only registry parser"]
         scripts["bin/ scripts"]
@@ -12,19 +12,19 @@ flowchart BT
         common -->|sourced by| scripts
     end
 
-    subgraph verify["Layer 2 — Verification"]
+    subgraph verify["Layer 2: Verification"]
         check["check-health.sh<br/>(just check)"]
         lint["lint-secrets.sh<br/>(just lint)"]
         hook["PostToolUse hook<br/>on-config-edit.sh"]
     end
 
-    subgraph evals["Layer 3 — Evals"]
+    subgraph evals["Layer 3: Evals"]
         runeval["run-eval.sh +<br/>config-quality.md prompt"]
         out[("evals/results/ (full JSON)<br/>benchmarks/scores/ (snapshot)")]
         runeval -->|validated JSON| out
     end
 
-    subgraph bench["Layer 4 — Benchmarks"]
+    subgraph bench["Layer 4: Benchmarks"]
         report["benchmarks/report.sh<br/>(just benchmark) → trend table"]
     end
 
@@ -35,7 +35,7 @@ flowchart BT
 
 ---
 
-## Layer 1 — Core
+## Layer 1: Core
 
 The plumbing. Everything else builds on this.
 
@@ -45,7 +45,7 @@ Single source of truth for which domains exist and which files each one manages.
 
 ```ini
 # domain = workspace_subdir : files_to_manage
-# (CLAUDE.md is canonical; sibling AGENTS.md — and duplicate .cursorrules —
+# (CLAUDE.md is canonical; sibling AGENTS.md, and duplicate .cursorrules,
 #  are symlinks -> CLAUDE.md and are not listed)
 mobile          = workspace/mobile          : AGENTS.md>project/CLAUDE.md, CLAUDE.md, .cursorrules
 web-react       = workspace/web-react, workspace/web : CLAUDE.md
@@ -59,11 +59,11 @@ Adding a domain is a one-line change here plus a new workspace folder. **No scri
 
 Sourced by every script. Provides:
 
-- `REPO_ROOT`, `DOMAINS_CONF` — absolute paths resolved once
-- `log_info / log_ok / log_warn / log_error` — consistent output
-- `require <tool> [hint]` — dependency guards
-- `list_domains`, `get_domain_workspace`, `get_domain_files`, `domain_exists` — registry readers
-- `detect_domain <project_path>` — maps a path to a domain by substring match on path components
+- `REPO_ROOT`, `DOMAINS_CONF`: absolute paths resolved once
+- `log_info / log_ok / log_warn / log_error`: consistent output
+- `require <tool> [hint]`: dependency guards
+- `list_domains`, `get_domain_workspace`, `get_domain_files`, `domain_exists`: registry readers
+- `detect_domain <project_path>`: maps a path to a domain by substring match on path components
 
 This is the only place where the registry format is parsed. Adding a field to the registry means changing one function.
 
@@ -78,14 +78,14 @@ This is the only place where the registry format is parsed. Adding a field to th
 | `materialize.sh` | Stage stealth content as real file in host repo |
 | `check-health.sh` | Health-check global links and every registered domain |
 | `lint-secrets.sh` | Scan for secret value patterns (not just word matches) |
-| `on-config-edit.sh` | PostToolUse hook handler — validates + suggests audit |
+| `on-config-edit.sh` | PostToolUse hook handler: validates + suggests audit |
 | `git-stealth.sh` | Backs `git spull` / `git scommit` aliases |
 | `open-release-pr.sh` | Open or refresh the standing `develop` → `main` release PR. Never merges |
 | `open-backmerge-pr.sh` | Open or refresh the `main` → `develop` PR that closes the post-release gap. Never merges |
 | `eval-action.sh` | Entry point for the "score your config in CI" GitHub Action (`action.yml`) |
 | `marketplaces.sh` | Install skills from the marketplaces registered in `config/marketplaces.conf` |
 | `validate-skills.sh` | Validate the structure of any skills tree (incl. marketplace-installed) |
-| `post-coverage-comment.sh` | Upsert the sticky kcov coverage comment on a PR — for private consumer repos, where Codecov cannot reach; this repo's own PRs use Codecov |
+| `post-coverage-comment.sh` | Upsert the sticky kcov coverage comment on a PR: for private consumer repos, where Codecov cannot reach; this repo's own PRs use Codecov |
 | `install-external-skills.sh` | Install the third-party skill bundles in `config/external-skills.conf` |
 | `impeccable-hooks.sh` | Install the impeccable design hook into frontend projects |
 
@@ -93,7 +93,7 @@ Every script:
 - Starts with `set -euo pipefail`
 - Sources `lib/common.sh`
 - Uses the shared logging functions
-- Reads the domain registry — never hardcodes paths
+- Reads the domain registry, never hardcodes paths
 
 One deliberate exception: `bin/eval-action.sh` is the GitHub Action entry
 point and runs in a repo that vendors nothing, so it stays self-contained
@@ -101,15 +101,15 @@ rather than sourcing `lib/common.sh`.
 
 ---
 
-## Layer 2 — Verification
+## Layer 2: Verification
 
 Fast, always-on validation.
 
 ### Static Checks
 
-- `just check` runs `check-health.sh` — confirms every global symlink is valid and every domain's managed files exist.
-- `just lint` runs `lint-secrets.sh` — scans for actual secret value patterns (e.g. `API_KEY=abc123def`), avoiding false positives on the bare word "secret" in documentation.
-- `just test` runs the `bats` suite — covers detection, registry reading, sync, setup, and the hook handler.
+- `just check` runs `check-health.sh`, which confirms every global symlink is valid and every domain's managed files exist.
+- `just lint` runs `lint-secrets.sh`, which scans for actual secret value patterns (e.g. `API_KEY=abc123def`), avoiding false positives on the bare word "secret" in documentation.
+- `just test` runs the `bats` suite, which covers detection, registry reading, sync, setup, and the hook handler.
 
 ### Claude Code Hook
 
@@ -122,14 +122,14 @@ Optional. After `just setup`, copy `config/templates/claude-hooks.json` to `.cla
 
 ---
 
-## Layer 3 — Evals
+## Layer 3: Evals
 
 AI-powered quality scoring.
 
 ### Inputs
 
 - The full file stack for a domain (the `CLAUDE.md` guide and `.cursorrules`; `AGENTS.md` is a symlink to `CLAUDE.md`, so it is not scored separately).
-- The scoring prompt at `evals/prompts/config-quality.md` (which doubles as documentation — it's the spec for what "good" looks like).
+- The scoring prompt at `evals/prompts/config-quality.md` (which doubles as documentation: it's the spec for what "good" looks like).
 
 ### Output
 
@@ -144,7 +144,7 @@ See [evaluation.md](evaluation.md) for the rubric.
 
 ---
 
-## Layer 4 — Benchmarks
+## Layer 4: Benchmarks
 
 `just benchmark` reads every JSON file under `benchmarks/scores/` and renders a per-domain trend table. New score files accumulate; you can see drift over time.
 
@@ -158,7 +158,7 @@ These are non-negotiable design rules. Don't break them in PRs.
 
 1. **No script hardcodes a domain name or workspace path.** Read from the registry.
 2. **Scripts source `lib/common.sh`** and use its logging functions. The one
-   deliberate exception is `bin/eval-action.sh` — see Layer 1.
+   deliberate exception is `bin/eval-action.sh`; see Layer 1.
 3. **`main` is protected.** No direct pushes. PR required.
 4. **Tests pass before merge.** `bats tests/` and `shellcheck` both green.
 5. **Lint runs without false positives.** If lint catches legitimate doc content, fix the pattern, not the doc.

@@ -19,7 +19,7 @@
       classDef new fill:#dcfce7,stroke:#16a34a,color:#166534;
       class NodeA,NodeB new;
 
-    Draw what MOVED — a file's home, what loads what, what is scored and what
+    Draw what MOVED: a file's home, what loads what, what is scored and what
     is deliberately not. If a change genuinely moves no box (a bug fix inside
     one file, a CI timing fix), say so in a line under the diagrams rather than
     inventing nodes for it.
@@ -39,10 +39,10 @@
     - [ ] Test suite on the head of `develop` (state the count)
     - [ ] Linters clean
     - [ ] Health check passes
-    - [ ] `git diff <base> <head> --stat` reviewed — no unexpected paths
+    - [ ] `git diff <base> <head> --stat` reviewed; no unexpected paths
 -->
 
 ## 🤖 Review
 
 - [ ] Automated/AI review has run and its comments have been read
-- [ ] Nothing is authored here — a release PR only moves reviewed commits
+- [ ] Nothing is authored here; a release PR only moves reviewed commits

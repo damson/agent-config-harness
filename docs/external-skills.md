@@ -22,10 +22,10 @@ Node. The `android` CLI installs with
 curl -fsSL https://dl.google.com/android/cli/latest/darwin_arm64/install.sh | bash
 ```
 
-Both install into `~/.claude/skills/` (and any other agent harness they detect —
+Both install into `~/.claude/skills/` (and any other agent harness they detect:
 `~/.gemini/skills/`, `~/.copilot/skills/`), so they resolve in every project on
 that machine, not only in ai-setup. Plugins land elsewhere and are not
-registered — see below.
+registered; see below.
 
 ## Commands
 
@@ -37,7 +37,7 @@ just skills-install --only impeccable
 ```
 
 `just setup` reports what is missing and stops there. It never prompts and never
-installs — setup has to run unattended in CI.
+installs; setup has to run unattended in CI.
 
 **Running this without a terminal** (an agent, a script, CI): use `--yes` or
 `--only`. The bare `just skills-install` form prompts, and with no TTY it
@@ -50,7 +50,7 @@ What happens when things go wrong:
 | Vendor CLI not on `PATH` | Reported as `tool-missing`, skipped, exit 0 |
 | Install command exits non-zero | Warns with the docs URL, continues to the next provider, exit 0 |
 | `--only <unknown-id>` | Errors and exits non-zero, listing the registered ids |
-| Probe path exists | Counted as installed — **even if the install is stale or partial**. The script has no version check; repair or upgrade with the vendor CLI (see [Refreshing](#refreshing)) |
+| Probe path exists | Counted as installed, **even if the install is stale or partial**. The script has no version check; repair or upgrade with the vendor CLI (see [Refreshing](#refreshing)) |
 
 The probe is why `--yes` is safe to repeat. It is also why this script cannot add
 a *new* skill from a provider you already have: the probe path is already there,
@@ -62,17 +62,17 @@ so the provider is skipped. Run the vendor CLI directly for that.
 reason is worth knowing before you try.
 
 Installed plugins are recorded in `~/.claude/settings.json` under
-`enabledPlugins` — not on disk. The registry's `<probe>` is a path-existence
+`enabledPlugins`, not on disk. The registry's `<probe>` is a path-existence
 check (`[ -e "$probe" ]`), so it has nothing truthful to point at:
 
 | Path | After `marketplace add` | After `install` | After `uninstall` |
 |---|---|---|---|
-| `~/.claude/plugins/marketplaces/<name>` | created | — | **survives** |
-| `~/.claude/plugins/cache/<name>/<name>` | — | created | **survives** |
+| `~/.claude/plugins/marketplaces/<name>` | created | | **survives** |
+| `~/.claude/plugins/cache/<name>/<name>` | | created | **survives** |
 
 Both paths outlive an uninstall (verified 2026-08-29). A registry line would
 therefore report the plugin as installed forever after the first install, and
-`just skills-status` would show a green that means nothing — the failure mode
+`just skills-status` would show a green that means nothing: the failure mode
 this repo works hardest to avoid.
 
 Install a plugin by hand, and record it here:
@@ -96,8 +96,8 @@ The skill sets `disable-model-invocation: true`, so it only fires on
 startup/resume/clear/compact. That flag file is **not** tracked here, so a
 fresh machine will not have it.
 
-Where its rules meet this repo's own output rules — the verdict budget, the
-one-row-per-finding PR reply — the reconciliation is in `user-dev/CLAUDE.md`
+Where its rules meet this repo's own output rules (the verdict budget, the
+one-row-per-finding PR reply), the reconciliation is in `user-dev/CLAUDE.md`
 under "With `i-have-adhd` active". It lives there rather than in the skill
 because the plugin is overwritten on update, and user instructions already
 outrank skills.
@@ -142,7 +142,7 @@ Append one line to `config/external-skills.conf`.
 
 The id is split off on the first `=`; the rest splits on `::`. Whitespace around
 every separator is stripped, so align the columns however you like. A field
-cannot itself contain `::` — the install command is the only field likely to
+cannot itself contain `::`; the install command is the only field likely to
 want one, and there is no escape.
 
 A filled-in line, for the shape of each field:
@@ -154,12 +154,12 @@ impeccable = npx :: ~/.claude/skills/impeccable :: npx --yes impeccable@latest i
 | Field | Meaning |
 |---|---|
 | `<id>` | Name used by `--only` and shown in `just skills-status` |
-| `<requires>` | Command that must be on `PATH`. Absent means skip and print `<docs>` — never an error |
+| `<requires>` | Command that must be on `PATH`. Absent means skip and print `<docs>`, never an error |
 | `<probe>` | Path that exists once installed. Drives idempotence; a leading `~` expands |
 | `<install>` | Run verbatim |
 | `<docs>` | Where to read about the provider and how to get `<requires>` |
 
-Prove the line works before committing it. Closing stdin is the check — an
+Prove the line works before committing it. Closing stdin is the check: an
 installer that wants input fails here instead of hanging on someone else's
 machine, which is the one failure the registry hides until it reaches them.
 `--help` is not a safe way to probe first: `npx impeccable install --help` runs
@@ -174,7 +174,7 @@ bats tests/external-skills.bats
 ## Removing one
 
 Dropping the registry line stops ai-setup offering the provider; it does not
-uninstall anything. Remove the installed bundle with its own CLI —
+uninstall anything. Remove the installed bundle with its own CLI:
 `android skills remove <id>`, or delete `~/.claude/skills/impeccable`.
 
 Delete only what the vendor installed. `~/.claude/skills/` also holds the
@@ -211,7 +211,7 @@ domain's guide brings that domain in with no change here.
 The recipe never installs unattended: with no TTY and no `--yes` it reports and exits,
 so `just setup` and CI stay side-effect-free.
 
-`/impeccable init` still has to be run once per project **inside a session** — it is a
+`/impeccable init` still has to be run once per project **inside a session**; it is a
 slash command and writes the `PRODUCT.md` / `DESIGN.md` brief, so it cannot be
 scripted from here. The recipe says so after installing.
 
