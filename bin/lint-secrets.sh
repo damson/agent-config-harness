@@ -16,11 +16,20 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # Patterns: each entry is a regex that matches a credential VALUE, not just
 # a word. Adjust here to add more.
-PATTERNS=(
+#
+# Assignment-style patterns match the key NAME, which is case-arbitrary in the
+# wild (`API_KEY=` leaks as often as `api_key=`), so these scan with grep -i.
+PATTERNS_NOCASE=(
     # API keys assigned to a value (`API_KEY=foo`, `apiKey: "foo"`).
     '(api[_-]?key)["'\'']?\s*[:=]\s*["'\'']?[A-Za-z0-9_\-]{8,}'
     # secret/password/token assigned to a value
     '(secret|password|passwd|token)["'\'']?\s*[:=]\s*["'\'']?[A-Za-z0-9_\-]{8,}'
+)
+
+# Token-shape patterns match the secret value itself, whose case is part of
+# the shape (ghp_, AKIA, sk-ant-…) — these stay case-sensitive so lookalike
+# text in the wrong case does not fire.
+PATTERNS=(
     # Bearer tokens with an actual token after them
     'Bearer[[:space:]]+[A-Za-z0-9._\-]{16,}'
     # GitHub personal access tokens
@@ -36,6 +45,14 @@ PATTERNS=(
     # Private key headers
     '-----BEGIN (RSA |EC |OPENSSH |DSA |PGP )?PRIVATE KEY-----'
 )
+
+# Known-fake example values, filtered out AFTER matching. Documentation and
+# test stubs legitimately show what a flagged line looks like (e.g.
+# docs/architecture.md's `API_KEY=abc123def`), and the invariant is "fix the
+# pattern, not the doc". An allowlist of the specific fakes is preferred over
+# raising the length/entropy floor: it keeps the 8-char minimum intact for
+# real values and names each exemption where it can be reviewed.
+ALLOWLIST_VALUES='(abc123def|stub-key)'
 
 # Git pathspecs, not grep --exclude-dir: --exclude-dir takes a bare directory
 # NAME, so a path like 'evals/results' never matched anything. Pathspecs
@@ -56,16 +73,28 @@ git rev-parse --is-inside-work-tree >/dev/null 2>&1 ||
 log_info "Scanning tracked files for secret value patterns..."
 
 found=0
-for pattern in "${PATTERNS[@]}"; do
+
+# check_pattern <grep matcher flags> <pattern> — scan tracked files, drop
+# allowlisted fake values, report anything left and bump $found.
+check_pattern() {
+    local flags="$1" pattern="$2" matches
     # -P would be ideal but is not portable. Use -E with caveats.
     # -e keeps a pattern starting with '-' from being read as options.
     matches=$(git ls-files -z -- "${EXCLUDE_PATHSPECS[@]}" \
-        | xargs -0 grep -IHEn -e "$pattern" 2>/dev/null) || true
+        | xargs -0 grep -IHn "$flags" -e "$pattern" 2>/dev/null \
+        | grep -Ev -e "$ALLOWLIST_VALUES") || true
     if [ -n "$matches" ]; then
         log_warn "Pattern matched: $pattern"
         printf '%s\n' "$matches" >&2
         found=$((found + 1))
     fi
+}
+
+for pattern in "${PATTERNS_NOCASE[@]}"; do
+    check_pattern -Ei "$pattern"
+done
+for pattern in "${PATTERNS[@]}"; do
+    check_pattern -E "$pattern"
 done
 
 if [ "$found" -eq 0 ]; then
