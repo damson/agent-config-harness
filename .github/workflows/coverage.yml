@@ -6,8 +6,10 @@ name: Coverage
 # codecov.yml, so it is deliberately NOT in the required-checks list.
 #
 # Push runs on develop upload the base coverage Codecov diffs PR runs
-# against. Fork PRs upload via OIDC too — no secret involved, so outside
-# contributors get the same report.
+# against. A PR from a fork measures coverage but cannot upload it: GitHub
+# does not grant id-token: write to a forked pull_request run, so there is no
+# OIDC token to mint and no secret to fall back on. That run says so in its
+# log rather than reporting a silent success.
 permissions:
   contents: read
   id-token: write
@@ -19,7 +21,9 @@ on:
 
 concurrency:
   group: coverage-${{ github.ref }}
-  cancel-in-progress: true
+  # A superseded PR run is waste, but a superseded develop push takes the base
+  # upload with it and Codecov then has nothing to diff the next PR against.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   coverage:
@@ -30,6 +34,10 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          # This job runs PR-authored scripts under kcov; keep the token out
+          # of the git config it can read.
+          persist-credentials: false
 
       - name: Install bats and jq
         timeout-minutes: 5
@@ -64,11 +72,31 @@ jobs:
           echo "── kcov output tree ──"
           ls -la coverage-out
           # kcov names its result dir after the traced binary and only
-          # sometimes leaves a kcov-merged; take merged when present, else
-          # whatever single result exists, and fail loudly over guessing.
+          # sometimes leaves a kcov-merged. Merged is the whole run; a single
+          # unmerged result is the whole run too, because there was only one.
+          # Several unmerged results are per-child fragments, and uploading
+          # the alphabetically first one (bash.<pid> sorts before kcov-merged)
+          # would report one child's lines as the suite's. Fail instead.
           xml="coverage-out/kcov-merged/cobertura.xml"
           if [ ! -f "$xml" ]; then
-            xml=$(find coverage-out -maxdepth 2 -name cobertura.xml | sort | head -1)
+            # No head: it would close the pipe and SIGPIPE find under pipefail.
+            # No mapfile either, so this stays runnable on bash 3.2 and can be
+            # tested off the runner. grep -c exits 1 on no matches, hence the
+            # guard: an unguarded count would abort the step under set -e.
+            found=$(find coverage-out -maxdepth 2 -name cobertura.xml | sort)
+            count=$(printf '%s\n' "$found" | grep -c . || true)
+            if [ "$count" -eq 1 ]; then
+              xml="$found"
+            else
+              # Only say "fragment" when there are fragments; count 0 is the
+              # produced-nothing case the next block reports properly. An
+              # `[ ... ] && echo` one-liner here would exit the step under
+              # set -e every time the test was false.
+              if [ "$count" -gt 1 ]; then
+                echo "::error::kcov left $count unmerged results; refusing to upload a fragment"
+              fi
+              xml=""
+            fi
           fi
           if [ -z "$xml" ] || [ ! -f "$xml" ]; then
             echo "::error::kcov produced no cobertura.xml — tree follows"
@@ -78,7 +106,17 @@ jobs:
           echo "COBERTURA=$xml" >> "$GITHUB_ENV"
           echo "Uploading coverage from: $xml"
 
+      # A forked pull_request run has no id-token permission, so use_oidc has
+      # nothing to mint and the upload fails inside an action configured not
+      # to fail the job. Skipping it visibly beats a green check that uploaded
+      # nothing.
+      - name: Say why a fork PR cannot upload
+        if: success() && github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository
+        run: |
+          echo "::notice::Coverage measured but not uploaded: a fork PR cannot mint an OIDC token. A maintainer's run of the same commit uploads it."
+
       - name: Upload to Codecov
+        if: success() && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
         uses: codecov/codecov-action@0fb7174895f61a3b6b78fc075e0cd60383518dac # v5.5.5
         with:
           files: ${{ env.COBERTURA }}
