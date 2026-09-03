@@ -25,6 +25,24 @@ log_info "Starting AI Setup..."
 # A regular file at the destination is someone's real content: move it aside to
 # a timestamped backup and say so. A symlink (whoever it points at) is just a
 # previous wiring — replace it silently, as re-runs always have.
+# A symlink into a DIFFERENT repo means this machine's live config is a
+# consumer repo vendoring the harness. Repointing it here would silently swap
+# real config for the shipped example templates — the run must be made from
+# that repo instead (its own `just setup` is also the recovery).
+refuse_foreign_link() {
+    local dest="$1" current
+    [ -L "$dest" ] || return 0
+    current="$(readlink "$dest")"
+    case "$current" in
+        "$REPO_ROOT"/*|"$HARNESS_ROOT"/*) : ;;
+        *)
+            [ "${AGENT_SETUP_FORCE:-}" = "1" ] || log_error \
+"$dest already links outside this repo ($current) — another config repo owns it.
+Run 'just setup' from that repo, or re-run with AGENT_SETUP_FORCE=1 to take over."
+            ;;
+    esac
+}
+
 link_file() {
     local src="$1" dest="$2" backup
     if [ -e "$dest" ] && [ ! -L "$dest" ]; then
@@ -32,6 +50,7 @@ link_file() {
         mv "$dest" "$backup"
         log_warn "Existing $dest moved to $backup"
     fi
+    refuse_foreign_link "$dest"
     ln -sf "$src" "$dest"
 }
 
@@ -83,6 +102,7 @@ mkdir -p "$HOME/.claude/skills"
 while IFS= read -r skill_dir; do
     [ -n "$skill_dir" ] || continue
     skill_name=$(basename "$skill_dir")
+    refuse_foreign_link "$HOME/.claude/skills/$skill_name"
     ln -sfn "$skill_dir" "$HOME/.claude/skills/$skill_name"
     log_ok "Linked skill: $skill_name"
 done < <(list_skill_dirs)
