@@ -1,6 +1,21 @@
 # Contributing
 
-Maintained by one person. Issues and PRs are welcome and may be slow.
+Hi, and thanks for being here! 👋 Every issue and PR gets read, and small
+contributions count just as much as big ones — a sharpened sentence in a doc
+is as welcome as a new check. One honest caveat: this project is maintained by
+one person, so replies can take a few days. It's not disinterest, it's a queue.
+
+## Ways to contribute
+
+- **Report something confusing.** If a script's output or a doc left you
+  guessing, that's a bug in the project, not in you — open an issue and say
+  where you got lost.
+- **Bring a hard-won rule.** The linters and validators here grew one painful
+  lesson at a time; if a config mistake bit you somewhere else, a check that
+  catches it belongs here.
+- **Add a worked example.** The docs teach by transcript — a real run from
+  your own setup is worth more than a paragraph of theory.
+- **Fix a typo, tighten a sentence.** Genuinely welcome, no issue required.
 
 ## Before you open a PR
 

@@ -228,11 +228,11 @@ just eval-marketplace <id> [plugin]   # score them on the skill rubric
 Register one with a line in [`config/marketplaces.conf`](config/marketplaces.conf):
 
 ```
-fullstack-skills = damson/fullstack-skills :: * :: https://github.com/damson/fullstack-skills
+hard-won-skills = damson/hard-won-skills :: * :: https://github.com/damson/hard-won-skills
 ```
 
 > 🛒 **Looking for skills to install?** That example is real:
-> [**fullstack-skills**](https://github.com/damson/fullstack-skills) is this
+> [**hard-won-skills**](https://github.com/damson/hard-won-skills) is this
 > repo's sibling marketplace — hard-won habits for Claude Code, in themed
 > plugins of battle-earned skills, each extracted from a real session where
 > not having it cost something. It is also the guinea pig this harness's

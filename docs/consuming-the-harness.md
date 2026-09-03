@@ -54,12 +54,17 @@ workspace/<domain>/          your per-domain rules
 .harness/                    the engine, pinned
 ```
 
-## In CI, when the harness is private
+## In CI, if your harness fork is private
 
-`actions/checkout` authenticates with the job's `GITHUB_TOKEN`, which is scoped to
-the repo being built. A private harness lives in a *different* repo, so the
-submodule fetch fails no matter what `submodules:` is set to. Give the job a PAT
-with read access to the harness and check the submodule out yourself:
+The harness itself is public, so the default case is one line — `submodules:
+true` on `actions/checkout` and the pin resolves with no credentials at all.
+Skip this section unless you maintain a **private fork** of the harness.
+
+For a private fork: `actions/checkout` authenticates with the job's
+`GITHUB_TOKEN`, which is scoped to the repo being built. A private fork lives
+in a *different* repo, so the submodule fetch fails no matter what
+`submodules:` is set to. Give the job a PAT with read access to the fork and
+check the submodule out yourself:
 
 ```yaml
 - uses: actions/checkout@v4          # no submodules: — it cannot reach the harness
