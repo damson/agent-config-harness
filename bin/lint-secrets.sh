@@ -16,11 +16,21 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # Patterns: each entry is a regex that matches a credential VALUE, not just
 # a word. Adjust here to add more.
-PATTERNS=(
+#
+# Assignment-style patterns match the key NAME, which is case-arbitrary in the
+# wild (`API_KEY=` leaks as often as `api_key=`), so these scan with grep -i.
+PATTERNS_NOCASE=(
     # API keys assigned to a value (`API_KEY=foo`, `apiKey: "foo"`).
-    '(api[_-]?key)["'\'']?\s*[:=]\s*["'\'']?[A-Za-z0-9_\-]{8,}'
+    # [[:space:]] over \s: BSD grep is not guaranteed to expand \s in -E.
+    '(api[_-]?key)["'\'']?[[:space:]]*[:=][[:space:]]*["'\'']?[A-Za-z0-9_\-]{8,}'
     # secret/password/token assigned to a value
-    '(secret|password|passwd|token)["'\'']?\s*[:=]\s*["'\'']?[A-Za-z0-9_\-]{8,}'
+    '(secret|password|passwd|token)["'\'']?[[:space:]]*[:=][[:space:]]*["'\'']?[A-Za-z0-9_\-]{8,}'
+)
+
+# Token-shape patterns match the secret value itself, whose case is part of
+# the shape (ghp_, AKIA, sk-ant-…) — these stay case-sensitive so lookalike
+# text in the wrong case does not fire.
+PATTERNS=(
     # Bearer tokens with an actual token after them
     'Bearer[[:space:]]+[A-Za-z0-9._\-]{16,}'
     # GitHub personal access tokens
@@ -36,6 +46,15 @@ PATTERNS=(
     # Private key headers
     '-----BEGIN (RSA |EC |OPENSSH |DSA |PGP )?PRIVATE KEY-----'
 )
+
+# Known-fake example values, exempted per VALUE after matching (see
+# check_pattern) — never per line. Documentation and
+# test stubs legitimately show what a flagged line looks like (e.g.
+# docs/architecture.md's `API_KEY=abc123def`), and the invariant is "fix the
+# pattern, not the doc". An allowlist of the specific fakes is preferred over
+# raising the length/entropy floor: it keeps the 8-char minimum intact for
+# real values and names each exemption where it can be reviewed.
+ALLOWLIST_VALUES='(abc123def|stub-key)'
 
 # Git pathspecs, not grep --exclude-dir: --exclude-dir takes a bare directory
 # NAME, so a path like 'evals/results' never matched anything. Pathspecs
@@ -56,16 +75,43 @@ git rev-parse --is-inside-work-tree >/dev/null 2>&1 ||
 log_info "Scanning tracked files for secret value patterns..."
 
 found=0
-for pattern in "${PATTERNS[@]}"; do
+
+# check_pattern <grep matcher flags> <pattern> — scan tracked files, drop
+# allowlisted fake values, report anything left and bump $found.
+check_pattern() {
+    local flags="$1" pattern="$2" raw rec content scrubbed matches
     # -P would be ideal but is not portable. Use -E with caveats.
     # -e keeps a pattern starting with '-' from being read as options.
-    matches=$(git ls-files -z -- "${EXCLUDE_PATHSPECS[@]}" \
-        | xargs -0 grep -IHEn -e "$pattern" 2>/dev/null) || true
+    raw=$(git ls-files -z -- "${EXCLUDE_PATHSPECS[@]}" \
+        | xargs -0 grep -IHn "$flags" -e "$pattern" 2>/dev/null) || true
+    # The allowlist exempts whole fake VALUES, not lines: scrub each
+    # standalone fake from the matched content and keep the record if the
+    # pattern still matches what is left. A real credential sharing a line
+    # with a fake still fires, and a value that merely CONTAINS a fake is
+    # not exempted (the boundary classes block a mid-value scrub).
+    matches=""
+    while IFS= read -r rec; do
+        [ -n "$rec" ] || continue
+        content="${rec#*:*:}"
+        scrubbed=$(printf '%s' "$content" | sed -E \
+            "s/(^|[^A-Za-z0-9_-])${ALLOWLIST_VALUES}([^A-Za-z0-9_-]|\$)/\1\3/g")
+        if printf '%s\n' "$scrubbed" | grep -q "$flags" -e "$pattern"; then
+            matches+="$rec"$'\n'
+        fi
+    done <<< "$raw"
+    matches="${matches%$'\n'}"
     if [ -n "$matches" ]; then
         log_warn "Pattern matched: $pattern"
         printf '%s\n' "$matches" >&2
         found=$((found + 1))
     fi
+}
+
+for pattern in "${PATTERNS_NOCASE[@]}"; do
+    check_pattern -Ei "$pattern"
+done
+for pattern in "${PATTERNS[@]}"; do
+    check_pattern -E "$pattern"
 done
 
 if [ "$found" -eq 0 ]; then

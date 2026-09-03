@@ -34,15 +34,27 @@ run_lint() {
 # ── Each pattern fires on a planted value ─────────────────
 
 @test "lint-secrets: api key assignment fires" {
-    # NOTE: deliberately lowercase — the pattern is case-sensitive, so an
-    # uppercase API_KEY= slips through (docs/architecture.md's own example
-    # would not be caught). Flagged in the PR; widening it would flag that
-    # very doc, which is out of scope here.
     plant "config.py" 'api_key = "abcd1234efgh5678"'
     run_lint
     [ "$status" -ne 0 ]
     assert_contains "$output" "Pattern matched"
     assert_contains "$output" "config.py"
+}
+
+@test "lint-secrets: uppercase API_KEY assignment fires" {
+    # Regression: the assignment patterns were case-sensitive, so an
+    # uppercase key name slipped through entirely.
+    plant "prod.env" 'API_KEY=zX9v2kQ81LmNp4Rt'
+    run_lint
+    [ "$status" -ne 0 ]
+    assert_contains "$output" "prod.env"
+}
+
+@test "lint-secrets: uppercase SECRET_TOKEN assignment fires" {
+    plant "ci.env" 'SECRET_TOKEN="Qw8rTy2uIo5pAs1d"'
+    run_lint
+    [ "$status" -ne 0 ]
+    assert_contains "$output" "ci.env"
 }
 
 @test "lint-secrets: password assignment fires" {
@@ -110,6 +122,43 @@ like sk_test_... and webhooks live under https://hooks.slack.com/services/.
 Public keys start with -----BEGIN PUBLIC KEY-----.'
     plant "config.example" 'api_key=$FROM_ENV'
     run_lint
+    [ "$status" -eq 0 ]
+    assert_contains "$output" "No secret values detected"
+}
+
+@test "lint-secrets: allowlisted fake example values do not fire" {
+    # Documentation that illustrates the linter itself uses known-fake
+    # values; those are allowlisted rather than the doc edited. Lowercase
+    # on purpose: the pre-fix case-sensitive matcher already caught this
+    # spelling, so only the allowlist can keep the test green — an
+    # uppercase fixture would pass with no allowlist at all.
+    plant "docs/example.md" 'Set `api_key=abc123def` to authenticate.'
+    run_lint
+    [ "$status" -eq 0 ]
+    assert_contains "$output" "No secret values detected"
+}
+
+@test "lint-secrets: a real secret beside an allowlisted fake still fires" {
+    # Regression: the allowlist used to drop the whole matched LINE, so a
+    # real credential could hide behind a fake in a trailing comment.
+    plant "mixed.env" 'api_key=Qw8rTy2uIo5pAs1d  # docs show abc123def'
+    run_lint
+    [ "$status" -ne 0 ]
+    assert_contains "$output" "mixed.env"
+}
+
+@test "lint-secrets: a value merely containing an allowlisted fake still fires" {
+    plant "sneaky.env" 'api_key=xxabc123defyy'
+    run_lint
+    [ "$status" -ne 0 ]
+    assert_contains "$output" "sneaky.env"
+}
+
+@test "lint-secrets: the real repo tree lints clean" {
+    # Regression for the case-insensitivity fix: docs/architecture.md carries
+    # the literal example API_KEY=abc123def, and the invariant is "fix the
+    # pattern, not the doc" — the linter must stay green on its own repo.
+    run env -u AGENT_CONFIG_ROOT "$REPO_ROOT/bin/lint-secrets.sh"
     [ "$status" -eq 0 ]
     assert_contains "$output" "No secret values detected"
 }
