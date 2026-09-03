@@ -70,10 +70,31 @@ jobs:
 
       - name: Run the suite under kcov
         run: |
+          set -euo pipefail
           "$HOME/.local/kcov/bin/kcov" \
                --include-path="$PWD/bin,$PWD/lib,$PWD/evals,$PWD/benchmarks" \
+               --bash-parse-files-in-dir="$PWD/bin" \
+               --bash-parse-files-in-dir="$PWD/lib" \
+               --bash-parse-files-in-dir="$PWD/evals" \
+               --bash-parse-files-in-dir="$PWD/benchmarks" \
                --exclude-pattern=/tests/ \
                coverage-out "$(command -v bats)" tests/
+          echo "── kcov output tree ──"
+          ls -la coverage-out
+          # kcov names its result dir after the traced binary and only
+          # sometimes leaves a kcov-merged; take merged when present, else
+          # whatever single result exists, and fail loudly over guessing.
+          json="coverage-out/kcov-merged/coverage.json"
+          if [ ! -f "$json" ]; then
+            json=$(find coverage-out -maxdepth 2 -name coverage.json | sort | head -1)
+          fi
+          if [ -z "$json" ] || [ ! -f "$json" ]; then
+            echo "::error::kcov produced no coverage.json — tree follows"
+            find coverage-out -maxdepth 3 | head -40
+            exit 1
+          fi
+          echo "COVERAGE_DIR=$(dirname "$json")" >> "$GITHUB_ENV"
+          echo "Using coverage from: $json"
 
       # PR runs: fetch the newest baseline a develop push run published.
       # Absence (expired artifact, first ever run) degrades gracefully.
@@ -104,7 +125,7 @@ jobs:
           base=""
           [ -f baseline-dir/coverage.json ] && base="--base baseline-dir/coverage.json"
           # shellcheck disable=SC2086
-          ./bin/post-coverage-comment.sh "$PR" coverage-out/kcov-merged $base
+          ./bin/post-coverage-comment.sh "$PR" "$COVERAGE_DIR" $base
 
       - name: Note the skipped comment on fork PRs
         if: success() && github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository
@@ -116,5 +137,5 @@ jobs:
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: coverage-baseline
-          path: coverage-out/kcov-merged/coverage.json
+          path: ${{ env.COVERAGE_DIR }}/coverage.json
           retention-days: 90
