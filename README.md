@@ -1,7 +1,7 @@
 # agent-config-harness
 
 [![CI](https://github.com/damson/agent-config-harness/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/damson/agent-config-harness/actions/workflows/ci.yml)
-[![Coverage](https://codecov.io/gh/damson/agent-config-harness/graph/badge.svg)](https://codecov.io/gh/damson/agent-config-harness)
+[![Coverage](https://codecov.io/gh/damson/agent-config-harness/branch/develop/graph/badge.svg)](https://codecov.io/gh/damson/agent-config-harness/branch/develop)
 [![Release](https://img.shields.io/github/v/release/damson/agent-config-harness)](https://github.com/damson/agent-config-harness/releases)
 [![License: MIT](https://img.shields.io/github/license/damson/agent-config-harness)](LICENSE)
 [![Your CLAUDE.md](https://img.shields.io/badge/your%20CLAUDE.md-graded%20A%E2%80%93F-8A2BE2)](#-score-your-config-in-ci)
