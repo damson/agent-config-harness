@@ -5,7 +5,7 @@
 Use GitHub's private reporting: **Security → Advisories → Report a
 vulnerability** on this repository. Please don't open a public issue for
 anything exploitable. Maintained by one person, so acknowledgement may take a
-few days — but it comes.
+few days, but it comes.
 
 ## Supported versions
 
@@ -16,7 +16,7 @@ nothing is backported.
 
 What's worth reporting, and what isn't:
 
-- **The eval gate is an advisory signal, not a security control** — the README
+- **The eval gate is an advisory signal, not a security control**: the README
   says so up front. The grade comes from an LLM reading the PR author's own
   file, so "an author can steer their own grade" is a documented limitation,
   not a vulnerability.
@@ -26,4 +26,4 @@ What's worth reporting, and what isn't:
   unvalidated) and supply-chain pinning (the CLI installs at an exact version,
   never `latest`). Holes in either are exactly what to report.
 - The shell scripts run locally, with your privileges, over your own config.
-  Bugs there are ordinary issues — unless untrusted input reaches them.
+  Bugs there are ordinary issues, unless untrusted input reaches them.

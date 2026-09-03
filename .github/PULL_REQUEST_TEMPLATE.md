@@ -13,13 +13,13 @@
            container, removing the hardcoded backoff."
     Good: "When a card payment failed because the bank was briefly
            unreachable, we gave up immediately and told the customer their
-           card was declined — which wasn't true. Now we retry for a few
+           card was declined, which wasn't true. Now we retry for a few
            seconds first. Customers stop seeing false declines, and support
            stops getting tickets about cards that actually work."
 -->
 
 <!--
-    ═══ CONDITIONAL — KEEP ONLY IF THIS PR CHANGES HOW THINGS FLOW ═══
+    ═══ CONDITIONAL: KEEP ONLY IF THIS PR CHANGES HOW THINGS FLOW ═══
     Delete this whole block if no box or arrow moves: data path, request
     lifecycle, screen-to-screen navigation, build/deploy stage, state machine.
     A change in behaviour inside one existing box does NOT need a diagram.
@@ -47,7 +47,7 @@
 -->
 
 <!--
-    ═══ CONDITIONAL — KEEP ONLY IF A HUMAN CAN SEE THE DIFFERENCE ═══
+    ═══ CONDITIONAL: KEEP ONLY IF A HUMAN CAN SEE THE DIFFERENCE ═══
     "Visible" is not only a browser. Keep this section for a web page, a
     mobile screen, a CLI's output, a generated report or export, an email,
     a dashboard panel, a log format someone reads on purpose.
@@ -60,7 +60,7 @@
     | ![before](url) | ![after](url) |
 
     For a terminal or text-output change, paste the two outputs in fenced
-    blocks instead of images — they diff better and survive forever.
+    blocks instead of images; they diff better and survive forever.
 
     Host images so they outlive the branch: attach them to the PR (drag into
     the comment box) or reference a committed file BY COMMIT SHA, not by
@@ -74,7 +74,7 @@
 
 <!--
     Concrete changes grouped by component or layer. One bullet per decision a
-    reviewer might question, not one bullet per file — the diff already lists
+    reviewer might question, not one bullet per file; the diff already lists
     the files.
 
     Include the reasoning for anything non-obvious, especially:
@@ -93,15 +93,15 @@
     Evidence, not intentions. Every ticked box must name something you
     actually observed.
 
-    - [ ] Automated checks pass — `bats tests/` and `shellcheck` (both run in CI)
+    - [ ] Automated checks pass: `bats tests/` and `shellcheck` (both run in CI)
     - [ ] New or updated tests cover the change (state the before → after count)
     - [ ] CI is green (name the jobs)
     - [ ] Verified end-to-end against real data or a running instance, not
-          only at the unit boundary — say what you drove and what you saw
+          only at the unit boundary; say what you drove and what you saw
 
     RULES
     1. Never tick a box you did not verify. An honest `[ ]` with a one-line
-       reason is worth more than a `[x]` that is aspirational — one
+       reason is worth more than a `[x]` that is aspirational; one
        fabricated tick makes every other tick unreliable.
     2. Numbers must be measured. "Improves performance" is not a test plan;
        "p95 3.2s → 0.4s over 500 requests" is.
@@ -122,22 +122,22 @@
 -->
 
 - [ ] Automated/AI review has run and its comments have been read
-- [ ] **Findings addressed or explicitly skip-justified after every push** — a
+- [ ] **Findings addressed or explicitly skip-justified after every push**: a
       new push invalidates the previous review; re-read it
-- [ ] Statusline doc in sync — any change to `user-dev/statusline.sh` updates the
+- [ ] Statusline doc in sync: any change to `user-dev/statusline.sh` updates the
       "Statusline" section of `README.md` in the same PR
 
 <!--
     RESPONDING TO REVIEW
-    Reply on the PR itself, not only in a chat window — the audit trail has to
+    Reply on the PR itself, not only in a chat window; the audit trail has to
     live where the next person will look. One row per finding, with an
     unambiguous verdict:
 
-      ✅ Applied      — landed in this push (cite file:line)
-      🚫 Skipped      — will NOT be done (rationale required: false positive /
-                        out of scope / intentional)
-      ⏳ Deferred     — real, but not here (link the follow-up)
-      💬 Acknowledged — for "this looks good" notes; no action
+      ✅ Applied:      landed in this push (cite file:line)
+      🚫 Skipped:      will NOT be done (rationale required: false positive /
+                       out of scope / intentional)
+      ⏳ Deferred:     real, but not here (link the follow-up)
+      💬 Acknowledged: for "this looks good" notes; no action
 
     Verify each finding against the source before acting on it. Automated
     reviewers read a diff without context and are confidently wrong often
