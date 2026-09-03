@@ -16,6 +16,9 @@ if [ -x "$PREFIX/bin/kcov" ]; then
     exit 0
 fi
 
+# The image's package index is routinely older than the mirror, and installing
+# against it 404s on any package the mirror has since rebuilt. Refresh first.
+sudo apt-get update -qq
 sudo apt-get install -y --no-install-recommends \
     binutils-dev libdw-dev libelf-dev libcurl4-openssl-dev zlib1g-dev
 
