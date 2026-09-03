@@ -37,15 +37,16 @@ Three things make that possible, and they are the reason this exists:
 
 | | |
 |---|---|
-| 🎯 **A rubric with a number** | Config files are scored 1–5 on clarity, conciseness, completeness, consistency and actionability. Out of 25, with a letter grade and specific findings — not a vibe. |
-| 📈 **A trend, not a snapshot** | Scores are recorded per domain over time, so you can tell an improvement from a rewrite that felt productive. |
-| 🧪 **Structural tests** | A `bats` suite enforces the invariants a rubric cannot see: skill frontmatter matching its folder, required headings, unique names across a flat install namespace, no symlink silently turned back into a duplicate file. |
+| 🎯 **A rubric with a number** | Config files are scored 1–5 on clarity, conciseness, completeness, consistency and actionability. Out of 25, with a letter grade and specific findings — not a vibe. The rubric is [a readable prompt](evals/prompts/config-quality.md), so you can see exactly what "good" means. |
+| 📈 **A trend, not a snapshot** | Scores are [recorded per domain over time](docs/evaluation.md#trend-reports), so you can tell an improvement from a rewrite that felt productive. |
+| 🧪 **Structural tests** | A [`bats` suite](tests/) enforces the invariants a rubric cannot see: skill frontmatter matching its folder, required headings, unique names across a flat install namespace, no symlink silently turned back into a duplicate file. |
 
-## ⏱️ Try it in sixty seconds, no key required
+## 👀 See a real grade in sixty seconds — no key needed
 
-The eval harness shells out to the Claude CLI, so scoring needs an
-`ANTHROPIC_API_KEY`. Everything else — linking, health checks, the test suite —
-runs offline. And just *seeing* what a grade looks like needs nothing at all:
+Scoring your *own* config calls the API (the eval shells out to the Claude CLI
+and needs an `ANTHROPIC_API_KEY`), but seeing what a grade looks like costs
+nothing: two real, committed eval runs ship with the repo. Everything that
+isn't an eval — linking, health checks, the test suite — runs offline too.
 
 <details>
 <summary>🅰️ vs 🅵 — the same config, one edit apart (click me)</summary>
@@ -62,8 +63,9 @@ lists and watch the rubric name every sin.
 
 ## 🎓 Score your config in CI
 
-The rubric is also a GitHub Action — this repo doubles as one. Point it at any
-repo's `CLAUDE.md` and the build fails when config quality slips below a grade.
+The rubric is also a [GitHub Action](action.yml) — this repo doubles as one.
+Point it at any repo's `CLAUDE.md` and the build fails when config quality
+slips below a grade.
 Your instruction files get the same treatment as your code: reviewed by a
 machine with opinions.
 
@@ -119,7 +121,8 @@ worktree.
 ## 🧩 The idea: domains
 
 A **domain** is a kind of project — mobile, backend, frontend, data. Each one owns
-a config file, and the registry says where it lives and what is managed:
+a config file, and [the registry](config/domains.conf) says where it lives and
+what is managed:
 
 ```
 # config/domains.conf
@@ -128,7 +131,7 @@ web-react   = workspace/web-react, workspace/web : CLAUDE.md
 ```
 
 Adding a domain means appending one line. No script reads a hardcoded path;
-everything goes through the registry via `lib/common.sh`.
+everything goes through the registry via [`lib/common.sh`](lib/common.sh).
 
 `CLAUDE.md` is the single source of truth per domain. The `AGENTS.md` beside it is
 a **symlink**, so tools that read one or the other resolve identical content and
@@ -149,20 +152,20 @@ workspace/<d>/    per-domain rules, loaded when you work in that domain
 
 The split matters because the layers have different owners and different
 lifetimes. Your commit-message preference is not your team's architecture rule,
-and mixing them makes both harder to change.
+and mixing them makes both harder to change. The four-layer pipeline behind all
+of this is mapped in [docs/architecture.md](docs/architecture.md).
 
 ## 📊 Statusline
 
-`user-dev/statusline.sh` renders the Claude Code prompt line. `just setup` links
-it to `~/.claude/statusline.sh` and wires it into `~/.claude/settings.json` as
-the `statusLine` command. It reads the session JSON Claude Code pipes on stdin
-(requires `jq`; without it only the location line renders) and prints two lines
-— metrics first, location second:
+[`user-dev/statusline.sh`](user-dev/statusline.sh) renders the Claude Code
+prompt line. `just setup` links it to `~/.claude/statusline.sh` and wires it
+into `~/.claude/settings.json` as the `statusLine` command. It reads the
+session JSON Claude Code pipes on stdin (requires `jq`; without it only the
+location line renders) and prints two lines — metrics first, location second:
 
-```
-ctx ▕████░░░▏ 52% 104k/200k | $0.42 | api $0.40 | +156/-23 | 5h ▕██░░▏ 28% ↺ 2h11m | Opus 4.8 (1M)·high
-<dir> ⎇ <branch>*
-```
+![The statusline: context bar 52% 104k/200k, $0.42 session cost, api $128.40 org spend, +156/-23 lines, 5-hour window bar 28% resetting in 2h11m, Opus 4.8 (1M) at high effort — then my-app ⎇ main* on the location line](docs/assets/statusline.png)
+
+*(A real render of the script, fed a sample session JSON — not a mock-up.)*
 
 Line 1 segments, in order, joined by ` | `:
 
@@ -188,6 +191,8 @@ refreshed by a detached background fetch about every 15 minutes — the render
 itself never blocks on the network.
 
 ## 🧰 Commands
+
+Everything is driven through [`just`](Justfile) — run bare `just` to list these:
 
 | Command | What it does |
 |---|---|
@@ -219,11 +224,18 @@ just validate-marketplace <id>        # structural check on the skills it instal
 just eval-marketplace <id> [plugin]   # score them on the skill rubric
 ```
 
-Register one with a line in `config/marketplaces.conf`:
+Register one with a line in [`config/marketplaces.conf`](config/marketplaces.conf):
 
 ```
 fullstack-skills = damson/fullstack-skills :: * :: https://github.com/damson/fullstack-skills
 ```
+
+> 🛒 **Looking for skills to install?** That example is real:
+> [**fullstack-skills**](https://github.com/damson/fullstack-skills) is this
+> repo's sibling marketplace — hard-won habits for Claude Code, in themed
+> plugins of battle-earned skills, each extracted from a real session where
+> not having it cost something. It is also the guinea pig this harness's
+> marketplace checks were built against.
 
 `bin/validate-skills.sh` enforces, on any skills tree — yours or a marketplace's:
 frontmatter `name` matching the folder, a non-empty `description`, a `## Procedure`
@@ -258,6 +270,19 @@ Full guide with worked examples: [docs/marketplaces.md](docs/marketplaces.md).
 - [Skill marketplaces](docs/marketplaces.md) — registering, installing, validating and scoring marketplace skills
 - [External skills](docs/external-skills.md) — registering third-party bundles rather than vendoring them
 
+## 🤝 Contributing
+
+PRs and issues are welcome — the whole checklist lives in
+[CONTRIBUTING.md](CONTRIBUTING.md), and the short version is three commands:
+
+```bash
+just test && just lint && just check
+```
+
+The rules that are actually enforced (domains are one-line registry changes,
+skills need their structural headings, symlinks stay symlinks) are enforced by
+the test suite, so it will tell you before a reviewer does.
+
 ## 💬 Support
 
 Maintained by one person for one person's setup, published because the
@@ -265,6 +290,7 @@ measurement idea seemed worth sharing. Come in, poke around, run the examples �
 and if your config scores an A first try, we'd both like to see it. Issues and
 PRs are welcome and may be slow. Bug reports involving `just eval` are hard to
 reproduce without your config and your API key — include the generated JSON
-from `evals/results/` and it becomes tractable.
+from [`evals/results/`](docs/evaluation.md#reading-the-output) and it becomes
+tractable.
 
 MIT licensed. Have fun grading your robots' homework. 🤖📝
