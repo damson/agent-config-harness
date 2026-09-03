@@ -1,11 +1,21 @@
 # agent-config-harness
 
+[![CI](https://github.com/damson/agent-config-harness/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/damson/agent-config-harness/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/damson/agent-config-harness)](https://github.com/damson/agent-config-harness/releases)
+[![License: MIT](https://img.shields.io/github/license/damson/agent-config-harness)](LICENSE)
+[![Your CLAUDE.md](https://img.shields.io/badge/your%20CLAUDE.md-graded%20A%E2%80%93F-8A2BE2)](#-score-your-config-in-ci)
+
 **Agent instruction files, scored and regression-tested like code.**
+
+Hi 👋 — you know that `CLAUDE.md` you wrote six months ago? The one every agent
+session silently reads before touching your code? When did you last *measure*
+it?
 
 `CLAUDE.md`, `AGENTS.md`, `.cursorrules` and skill definitions steer how coding
 agents behave, and they are usually maintained the way prompts are maintained:
 edited by feel, never measured, quietly rotting. This repo treats them as
-something you can grade, track, and break a build over.
+something you can grade, track, and break a build over — and yes, your config
+gets a report card:
 
 ```
 $ just eval backend-node
@@ -27,22 +37,35 @@ Three things make that possible, and they are the reason this exists:
 
 | | |
 |---|---|
-| **A rubric with a number** | Config files are scored 1–5 on clarity, conciseness, completeness, consistency and actionability. Out of 25, with a letter grade and specific findings — not a vibe. |
-| **A trend, not a snapshot** | Scores are recorded per domain over time, so you can tell an improvement from a rewrite that felt productive. |
-| **Structural tests** | A `bats` suite enforces the invariants a rubric cannot see: skill frontmatter matching its folder, required headings, unique names across a flat install namespace, no symlink silently turned back into a duplicate file. |
+| 🎯 **A rubric with a number** | Config files are scored 1–5 on clarity, conciseness, completeness, consistency and actionability. Out of 25, with a letter grade and specific findings — not a vibe. |
+| 📈 **A trend, not a snapshot** | Scores are recorded per domain over time, so you can tell an improvement from a rewrite that felt productive. |
+| 🧪 **Structural tests** | A `bats` suite enforces the invariants a rubric cannot see: skill frontmatter matching its folder, required headings, unique names across a flat install namespace, no symlink silently turned back into a duplicate file. |
 
-**Requires an API key.** The eval harness shells out to the Claude CLI. Everything
-else — linking, health checks, the test suite — runs offline. If you only want the
-structure and the tests, you never need a key. And seeing the output needs
-nothing at all: [evals/examples/](evals/examples/) holds a real A and a real F
-for the same config, one edit apart.
+## ⏱️ Try it in sixty seconds, no key required
 
----
+The eval harness shells out to the Claude CLI, so scoring needs an
+`ANTHROPIC_API_KEY`. Everything else — linking, health checks, the test suite —
+runs offline. And just *seeing* what a grade looks like needs nothing at all:
 
-## Score your config in CI
+<details>
+<summary>🅰️ vs 🅵 — the same config, one edit apart (click me)</summary>
+
+[`evals/examples/`](evals/examples/) holds two real, committed eval runs:
+[`scored-A.json`](evals/examples/scored-A.json) is the shipped example config
+(24/25), and [`scored-F.json`](evals/examples/scored-F.json) is
+[`degraded.md`](evals/examples/degraded.md) — the same config plus two sections
+of familiar rot: a platitude section hiding a contradiction, and an "important
+reminders" block restating seven rules verbatim (13/25). Diff the two findings
+lists and watch the rubric name every sin.
+
+</details>
+
+## 🎓 Score your config in CI
 
 The rubric is also a GitHub Action — this repo doubles as one. Point it at any
-repo's `CLAUDE.md` and the build fails when config quality slips below a grade:
+repo's `CLAUDE.md` and the build fails when config quality slips below a grade.
+Your instruction files get the same treatment as your code: reviewed by a
+machine with opinions.
 
 ```yaml
 jobs:
@@ -71,7 +94,7 @@ comes from an LLM reading the PR author's own file, so a determined author can
 steer their grade with content addressed to the evaluator. It catches drift
 and sloppiness, not adversaries.
 
-## Install
+## 🚀 Install
 
 Prerequisites: `git`, [`just`](https://github.com/casey/just),
 [`bats`](https://github.com/bats-core/bats-core), `jq`, and the
@@ -87,12 +110,13 @@ just check      # verify every link and domain resolves
 just test       # the bats suite
 ```
 
-`just setup` is idempotent and unattended: it never prompts and never installs
-third-party software. Run it from the primary checkout, not from a git worktree —
-it points every skill symlink at the repo root, and a worktree path dies with the
+`just setup` is idempotent and unattended: it never prompts, never installs
+third-party software, and backs up any real file it would replace with a
+symlink. Run it from the primary checkout, not from a git worktree — it points
+every skill symlink at the repo root, and a worktree path dies with the
 worktree.
 
-## The idea: domains
+## 🧩 The idea: domains
 
 A **domain** is a kind of project — mobile, backend, frontend, data. Each one owns
 a config file, and the registry says where it lives and what is managed:
@@ -114,7 +138,7 @@ to tank a domain's score, and the test suite fails when it happens.
 The `A > B` syntax maps a file the project calls `A` to `B` inside this repo — for
 when a project's `AGENTS.md` is your `project/CLAUDE.md`.
 
-## Layers
+## 🥞 Layers
 
 ```
 user-pers/        identity — who you are, how the agent writes as you
@@ -127,7 +151,7 @@ The split matters because the layers have different owners and different
 lifetimes. Your commit-message preference is not your team's architecture rule,
 and mixing them makes both harder to change.
 
-## Statusline
+## 📊 Statusline
 
 `user-dev/statusline.sh` renders the Claude Code prompt line. `just setup` links
 it to `~/.claude/statusline.sh` and wires it into `~/.claude/settings.json` as
@@ -163,7 +187,7 @@ The `api $` segment stays dormant unless an Anthropic Admin key is provided via
 refreshed by a detached background fetch about every 15 minutes — the render
 itself never blocks on the network.
 
-## Commands
+## 🧰 Commands
 
 | Command | What it does |
 |---|---|
@@ -182,7 +206,7 @@ itself never blocks on the network.
 | `just eval-marketplace <id>` | Score a marketplace's skills on the rubric |
 | `just release` / `just backmerge` | Open the release and back-merge PRs. Never merges |
 
-## Skills, and marketplaces
+## 🛍️ Skills, and marketplaces
 
 Portable skills live in **Claude Code marketplaces**, not in this repo. What this
 repo provides is the part a marketplace does not: a registry so the set is
@@ -214,7 +238,7 @@ and keeping it in both places puts two copies under one name in `~/.claude/skill
 
 Full guide with worked examples: [docs/marketplaces.md](docs/marketplaces.md).
 
-## What this is not
+## 🚫 What this is not
 
 - **Not a prompt library.** It is the machinery for maintaining your own.
 - **Not a Claude-only tool**, though that is what it is tested against. The
@@ -223,7 +247,7 @@ Full guide with worked examples: [docs/marketplaces.md](docs/marketplaces.md).
   placeholder content. Replace them; the tests will tell you when you have broken
   something.
 
-## Documentation
+## 📚 Documentation
 
 - [Architecture](docs/architecture.md) — the four layers in depth
 - [Evaluation](docs/evaluation.md) — the rubric and how to read a score
@@ -234,11 +258,13 @@ Full guide with worked examples: [docs/marketplaces.md](docs/marketplaces.md).
 - [Skill marketplaces](docs/marketplaces.md) — registering, installing, validating and scoring marketplace skills
 - [External skills](docs/external-skills.md) — registering third-party bundles rather than vendoring them
 
-## Support
+## 💬 Support
 
-Maintained by one person for one person's setup, published because the measurement
-idea seemed worth sharing. Issues and PRs are welcome and may be slow. Bug reports
-involving `just eval` are hard to reproduce without your config and your API key —
-include the generated JSON from `evals/results/` and it becomes tractable.
+Maintained by one person for one person's setup, published because the
+measurement idea seemed worth sharing. Come in, poke around, run the examples —
+and if your config scores an A first try, we'd both like to see it. Issues and
+PRs are welcome and may be slow. Bug reports involving `just eval` are hard to
+reproduce without your config and your API key — include the generated JSON
+from `evals/results/` and it becomes tractable.
 
-MIT licensed.
+MIT licensed. Have fun grading your robots' homework. 🤖📝
