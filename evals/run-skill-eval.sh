@@ -4,11 +4,14 @@
 #
 # Scores every SKILL.md under the managed repo's user-dev/skills/ (or SKILLS_DIR)
 # using the harness's evals/prompts/skill-quality.md
-# and writes results to evals/results/ + benchmarks/scores/ with domain = "skill:<name>".
+# and writes results to evals/results/ + benchmarks/scores/ with domain = "skill-<name>".
 #
 # Usage:
 #   ./evals/run-skill-eval.sh                  # all skills
 #   ./evals/run-skill-eval.sh rewrite-pr-history   # one skill by name
+#
+# Env:
+#   EVAL_MODEL — model to score with (pinned default in lib/scoring.sh).
 #
 # Requires: claude (CLI), jq.
 
@@ -17,12 +20,13 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=../lib/common.sh
 . "$SCRIPT_DIR/../lib/common.sh"
+# shellcheck source=../lib/scoring.sh
+. "$HARNESS_ROOT/lib/scoring.sh"
 
 require jq    "brew install jq"
 require claude "Install Claude CLI"
 
 PROMPT="$HARNESS_ROOT/evals/prompts/skill-quality.md"
-SCHEMA="$HARNESS_ROOT/evals/eval-schema.json"
 RESULTS_DIR="$REPO_ROOT/evals/results"
 SCORES_DIR="$REPO_ROOT/benchmarks/scores"
 # Default to this repo's skills; SKILLS_DIR points it at any tree, which is how
@@ -69,54 +73,14 @@ score_skill() {
         printf 'domain: %s\n' "$domain"
         printf 'git_hash: %s\n' "$git_hash"
         printf 'date: %s\n' "$timestamp"
-        printf '\n\n### File: %s/SKILL.md\n```\n' "$rel"
-        cat "$skill_file"
-        printf '\n```\n'
     } >>"$tmp_prompt"
+    append_scored_file "$tmp_prompt" "$rel/SKILL.md" "$skill_file"
 
-    local response
-    if ! response=$(claude --print < "$tmp_prompt" 2>/dev/null); then
-        log_warn "Claude CLI invocation failed for $skill"
-        rm -f "$tmp_prompt"
-        return 1
-    fi
-    rm -f "$tmp_prompt"
-
-    # Extract the JSON object from the reply (see extract_json_object in
-    # lib/common.sh — the reply may be fenced or wrapped in prose).
-    local json
-    json=$(printf '%s' "$response" | extract_json_object)
-
-    if ! printf '%s' "$json" | jq empty >/dev/null 2>&1; then
-        log_warn "Output for $skill was not valid JSON. Saved raw response."
-        printf '%s' "$response" >"$RESULTS_DIR/${timestamp%T*}-skill-$skill-RAW.txt"
-        return 1
-    fi
-
-    if command -v ajv >/dev/null 2>&1; then
-        if ! printf '%s' "$json" | ajv validate -s "$SCHEMA" --strict=false >/dev/null 2>&1; then
-            log_warn "Output for $skill failed schema validation."
-        fi
-    fi
-
-    # Domain is the same string used on disk so benchmarks/report.sh can pattern-match.
-    local out_path score_path
-    out_path="$RESULTS_DIR/${timestamp%T*}-$domain.json"
-    score_path="$SCORES_DIR/${timestamp%T*}-$domain.json"
-    printf '%s\n' "$json" >"$out_path"
-
-    jq '{date, domain, git_hash, scores, total, percentage, grade}' \
-        <"$out_path" >"$score_path"
-
-    log_ok "Result written: $out_path"
-    log_info "  Total: $(jq -r .total <"$out_path")/25  Grade: $(jq -r .grade <"$out_path")"
-
-    local n_findings
-    n_findings=$(jq '.findings | length' <"$out_path")
-    if [ "$n_findings" -gt 0 ]; then
-        log_info "  Findings ($n_findings):"
-        jq -r '.findings[] | "    - [\(.dimension)] \(.section): \(.issue)"' <"$out_path"
-    fi
+    # The shared half of the pipeline: claude call → JSON extraction →
+    # validation → result + score records → findings summary. The domain string
+    # is the filename identity, so records land beside the domain evals'.
+    score_prompt "$skill" "$domain" "$tmp_prompt" \
+        '.findings[] | "    - [\(.dimension)] \(.section): \(.issue)"'
 }
 
 failed=0

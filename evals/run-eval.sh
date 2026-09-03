@@ -7,8 +7,11 @@
 # evals/results/ + benchmarks/scores/.
 #
 # Usage:
-#   ./evals/run-eval.sh android       # single domain
+#   ./evals/run-eval.sh mobile        # single domain
 #   ./evals/run-eval.sh all           # all registered domains
+#
+# Env:
+#   EVAL_MODEL — model to score with (pinned default in lib/scoring.sh).
 #
 # Requires: claude (CLI), jq. ajv-cli optional for schema validation.
 
@@ -17,12 +20,13 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=../lib/common.sh
 . "$SCRIPT_DIR/../lib/common.sh"
+# shellcheck source=../lib/scoring.sh
+. "$HARNESS_ROOT/lib/scoring.sh"
 
 require jq    "brew install jq"
 require claude "Install Claude CLI"
 
 PROMPT="$HARNESS_ROOT/evals/prompts/config-quality.md"
-SCHEMA="$HARNESS_ROOT/evals/eval-schema.json"
 RESULTS_DIR="$REPO_ROOT/evals/results"
 SCORES_DIR="$REPO_ROOT/benchmarks/scores"
 mkdir -p "$RESULTS_DIR" "$SCORES_DIR"
@@ -65,61 +69,14 @@ score_domain() {
         [ -n "$f" ] || continue
         local fp="$REPO_ROOT/$ws/$f"
         if [ -f "$fp" ]; then
-            {
-                printf '\n\n### File: %s/%s\n```\n' "$ws" "$f"
-                cat "$fp"
-                printf '\n```\n'
-            } >>"$tmp_prompt"
+            append_scored_file "$tmp_prompt" "$ws/$f" "$fp"
         fi
     done < <(get_domain_files "$domain")
 
-    # Call Claude CLI; expect raw JSON in the response.
-    local response
-    if ! response=$(claude --print < "$tmp_prompt" 2>/dev/null); then
-        log_warn "Claude CLI invocation failed for $domain"
-        rm -f "$tmp_prompt"
-        return 1
-    fi
-    rm -f "$tmp_prompt"
-
-    # Extract the JSON object from the reply (see extract_json_object in
-    # lib/common.sh — the reply may be fenced or wrapped in prose).
-    local json
-    json=$(printf '%s' "$response" | extract_json_object)
-
-    # Validate JSON parses
-    if ! printf '%s' "$json" | jq empty >/dev/null 2>&1; then
-        log_warn "Output for $domain was not valid JSON. Saved raw response."
-        printf '%s' "$response" >"$RESULTS_DIR/${timestamp%T*}-$domain-RAW.txt"
-        return 1
-    fi
-
-    # Validate against schema if ajv is available
-    if command -v ajv >/dev/null 2>&1; then
-        if ! printf '%s' "$json" | ajv validate -s "$SCHEMA" --strict=false >/dev/null 2>&1; then
-            log_warn "Output for $domain failed schema validation."
-        fi
-    fi
-
-    local out_path score_path
-    out_path="$RESULTS_DIR/${timestamp%T*}-$domain.json"
-    score_path="$SCORES_DIR/${timestamp%T*}-$domain.json"
-    printf '%s\n' "$json" >"$out_path"
-
-    # Write a compact score record for benchmark trending.
-    jq '{date, domain, git_hash, scores, total, percentage, grade}' \
-        <"$out_path" >"$score_path"
-
-    log_ok "Result written: $out_path"
-    log_info "  Total: $(jq -r .total <"$out_path")/25  Grade: $(jq -r .grade <"$out_path")"
-
-    # Print findings summary
-    local n_findings
-    n_findings=$(jq '.findings | length' <"$out_path")
-    if [ "$n_findings" -gt 0 ]; then
-        log_info "  Findings ($n_findings):"
-        jq -r '.findings[] | "    - [\(.dimension)] \(.file)/\(.section): \(.issue)"' <"$out_path"
-    fi
+    # The shared half of the pipeline: claude call → JSON extraction →
+    # validation → result + score records → findings summary.
+    score_prompt "$domain" "$domain" "$tmp_prompt" \
+        '.findings[] | "    - [\(.dimension)] \(.file)/\(.section): \(.issue)"'
 }
 
 # ── Run all targets ───────────────────────────────────────
