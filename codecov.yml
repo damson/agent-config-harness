@@ -1,0 +1,16 @@
+# Codecov owns the coverage PR comment and the README badge for this repo.
+# Everything is informational: coverage never blocks a merge here — the bats
+# suite in ci.yml is the gate, coverage is the trend.
+coverage:
+  status:
+    project:
+      default:
+        informational: true
+    patch:
+      default:
+        informational: true
+
+comment:
+  layout: "condensed_header, diff, files"
+  behavior: default
+  require_changes: false

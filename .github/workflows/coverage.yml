@@ -1,30 +1,24 @@
 name: Coverage
 
 # Measures the bats suite's line coverage of the shell sources with kcov and
-# upserts one sticky comment on the PR — headline, delta vs develop's stored
-# baseline, and an advisory band. Informational only: it never fails the
-# build, so it is deliberately NOT in the required-checks list.
+# uploads the result to Codecov, which owns the PR comment and the README
+# badge. Informational only: statuses are configured non-blocking in
+# codecov.yml, so it is deliberately NOT in the required-checks list.
 #
-# Push runs on develop publish the baseline artifact the PR runs diff against,
-# and refresh the README badge from the same number. A missing baseline is not
-# an error — the comment degrades to absolute figures and says so.
+# Push runs on develop upload the base coverage Codecov diffs PR runs
+# against. Fork PRs upload via OIDC too — no secret involved, so outside
+# contributors get the same report.
 permissions:
   contents: read
-  pull-requests: write
+  id-token: write
 
 on:
   pull_request:
   push:
     branches: [develop]
-  # Backfill switch: comment on an already-open PR without waiting for a push.
-  workflow_dispatch:
-    inputs:
-      pr:
-        description: "PR number to measure and comment on"
-        required: true
 
 concurrency:
-  group: coverage-${{ github.event.pull_request.number || github.event.inputs.pr || github.ref }}
+  group: coverage-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -35,19 +29,7 @@ jobs:
     # an hour is a hang.
     timeout-minutes: 30
     steps:
-      # Dispatch input reaches a checkout ref and a shell line below; refuse
-      # anything that is not a bare PR number before either sees it.
-      - name: Validate the dispatch input
-        if: github.event_name == 'workflow_dispatch'
-        env:
-          PR: ${{ github.event.inputs.pr }}
-        run: |
-          [[ "$PR" =~ ^[0-9]+$ ]] || { echo "::error::pr must be a number, got '$PR'"; exit 1; }
-
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-        with:
-          # On dispatch there is no PR context; measure the PR's merge ref.
-          ref: ${{ github.event_name == 'workflow_dispatch' && format('refs/pull/{0}/merge', github.event.inputs.pr) || '' }}
 
       - name: Install bats and jq
         timeout-minutes: 5
@@ -84,106 +66,21 @@ jobs:
           # kcov names its result dir after the traced binary and only
           # sometimes leaves a kcov-merged; take merged when present, else
           # whatever single result exists, and fail loudly over guessing.
-          json="coverage-out/kcov-merged/coverage.json"
-          if [ ! -f "$json" ]; then
-            json=$(find coverage-out -maxdepth 2 -name coverage.json | sort | head -1)
+          xml="coverage-out/kcov-merged/cobertura.xml"
+          if [ ! -f "$xml" ]; then
+            xml=$(find coverage-out -maxdepth 2 -name cobertura.xml | sort | head -1)
           fi
-          if [ -z "$json" ] || [ ! -f "$json" ]; then
-            echo "::error::kcov produced no coverage.json — tree follows"
+          if [ -z "$xml" ] || [ ! -f "$xml" ]; then
+            echo "::error::kcov produced no cobertura.xml — tree follows"
             find coverage-out -maxdepth 3 | head -40
             exit 1
           fi
-          echo "COVERAGE_DIR=$(dirname "$json")" >> "$GITHUB_ENV"
-          echo "Using coverage from: $json"
+          echo "COBERTURA=$xml" >> "$GITHUB_ENV"
+          echo "Uploading coverage from: $xml"
 
-      # PR runs: fetch the newest baseline a develop push run published.
-      # Absence (expired artifact, first ever run) degrades gracefully.
-      - name: Fetch the develop baseline
-        if: github.event_name != 'push'
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          set -euo pipefail
-          id=$(gh api --paginate "repos/$GITHUB_REPOSITORY/actions/artifacts?name=coverage-baseline" \
-                 --jq '[.artifacts[] | select(.expired | not)] | sort_by(.created_at) | last | .id // empty')
-          if [ -n "$id" ]; then
-            gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/$id/zip" > baseline.zip
-            unzip -o baseline.zip -d baseline-dir
-            echo "Baseline artifact $id restored."
-          else
-            echo "No baseline artifact found — the comment will carry absolute figures."
-          fi
-
-      - name: Post the coverage comment
-        # Explicit gate, not the implicit success() alone: a fork PR's token is
-        # read-only, so posting would fail — skip it there, visibly.
-        if: success() && github.event_name != 'push' && (github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository)
-        env:
-          GH_TOKEN: ${{ github.token }}
-          PR: ${{ github.event.pull_request.number || github.event.inputs.pr }}
-        run: |
-          base=""
-          [ -f baseline-dir/coverage.json ] && base="--base baseline-dir/coverage.json"
-          # shellcheck disable=SC2086
-          ./bin/post-coverage-comment.sh "$PR" "$COVERAGE_DIR" $base
-
-      - name: Note the skipped comment on fork PRs
-        if: success() && github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository
-        run: echo "Fork PR — token is read-only, coverage comment skipped (report is in the step above)."
-
-      # Push runs on develop: publish this run's totals as the next baseline.
-      - name: Publish the baseline artifact
-        if: success() && github.event_name == 'push'
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+      - name: Upload to Codecov
+        uses: codecov/codecov-action@0fb7174895f61a3b6b78fc075e0cd60383518dac # v5.5.5
         with:
-          name: coverage-baseline
-          path: ${{ env.COVERAGE_DIR }}/coverage.json
-          retention-days: 90
-
-  # Push runs on develop also refresh the README's coverage badge: a
-  # shields.io endpoint JSON force-pushed to the data-only `badges` branch,
-  # which img.shields.io reads through raw.githubusercontent.com. The branch
-  # carries one generated file and no history worth keeping, so the force
-  # push is the point, not a shortcut.
-  badge:
-    name: Coverage badge
-    if: github.event_name == 'push'
-    needs: coverage
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    permissions:
-      contents: write
-    steps:
-      - name: Fetch this run's coverage totals
-        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5
-        with:
-          name: coverage-baseline
-
-      - name: Render the badge JSON
-        run: |
-          set -euo pipefail
-          pct=$(jq -r '.percent_covered' coverage.json)
-          # Colour follows the same advisory band as the PR comment
-          # (bin/post-coverage-comment.sh): floor 30, target 60.
-          if awk "BEGIN{exit !($pct < 30)}"; then colour=red
-          elif awk "BEGIN{exit !($pct < 60)}"; then colour=yellow
-          else colour=brightgreen
-          fi
-          jq -n --arg msg "${pct}%" --arg colour "$colour" \
-            '{schemaVersion: 1, label: "coverage", message: $msg, color: $colour}' \
-            > badge.json
-
-      - name: Publish to the badges branch
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          set -euo pipefail
-          mkdir badge-repo && cd badge-repo
-          git init -q -b badges
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          cp ../badge.json coverage.json
-          git add coverage.json
-          git commit -q -m "Refresh the coverage badge"
-          git push -q --force \
-            "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" badges
+          files: ${{ env.COBERTURA }}
+          use_oidc: true
+          fail_ci_if_error: false
