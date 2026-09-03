@@ -272,25 +272,22 @@ Full guide with worked examples: [docs/marketplaces.md](docs/marketplaces.md).
 
 ## 🤝 Contributing
 
-PRs and issues are welcome — the whole checklist lives in
-[CONTRIBUTING.md](CONTRIBUTING.md), and the short version is three commands:
+Issues and PRs are welcome — this is maintained by one person for one person's
+setup, so responses may be slow, but they do come. The whole checklist lives in
+[CONTRIBUTING.md](CONTRIBUTING.md); the short version is three commands:
 
 ```bash
 just test && just lint && just check
 ```
 
-The rules that are actually enforced (domains are one-line registry changes,
-skills need their structural headings, symlinks stay symlinks) are enforced by
-the test suite, so it will tell you before a reviewer does.
+The rules that matter (domains are one-line registry changes, skills need their
+structural headings, symlinks stay symlinks) are enforced by the test suite, so
+it will tell you before a reviewer does. One tip for bug reports: anything
+involving `just eval` is hard to reproduce without your config and your API
+key — include the generated JSON from
+[`evals/results/`](docs/evaluation.md#reading-the-output) and it becomes
+tractable. And if your config scores an A first try, we'd both like to see it.
 
-## 💬 Support
-
-Maintained by one person for one person's setup, published because the
-measurement idea seemed worth sharing. Come in, poke around, run the examples —
-and if your config scores an A first try, we'd both like to see it. Issues and
-PRs are welcome and may be slow. Bug reports involving `just eval` are hard to
-reproduce without your config and your API key — include the generated JSON
-from [`evals/results/`](docs/evaluation.md#reading-the-output) and it becomes
-tractable.
+---
 
 MIT licensed. Have fun grading your robots' homework. 🤖📝
