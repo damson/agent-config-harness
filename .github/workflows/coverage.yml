@@ -5,9 +5,9 @@ name: Coverage
 # baseline, and an advisory band. Informational only: it never fails the
 # build, so it is deliberately NOT in the required-checks list.
 #
-# Push runs on develop publish the baseline artifact the PR runs diff against.
-# A missing baseline is not an error — the comment degrades to absolute
-# figures and says so.
+# Push runs on develop publish the baseline artifact the PR runs diff against,
+# and refresh the README badge from the same number. A missing baseline is not
+# an error — the comment degrades to absolute figures and says so.
 permissions:
   contents: read
   pull-requests: write
@@ -139,3 +139,51 @@ jobs:
           name: coverage-baseline
           path: ${{ env.COVERAGE_DIR }}/coverage.json
           retention-days: 90
+
+  # Push runs on develop also refresh the README's coverage badge: a
+  # shields.io endpoint JSON force-pushed to the data-only `badges` branch,
+  # which img.shields.io reads through raw.githubusercontent.com. The branch
+  # carries one generated file and no history worth keeping, so the force
+  # push is the point, not a shortcut.
+  badge:
+    name: Coverage badge
+    if: github.event_name == 'push'
+    needs: coverage
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    steps:
+      - name: Fetch this run's coverage totals
+        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5
+        with:
+          name: coverage-baseline
+
+      - name: Render the badge JSON
+        run: |
+          set -euo pipefail
+          pct=$(jq -r '.percent_covered' coverage.json)
+          # Colour follows the same advisory band as the PR comment
+          # (bin/post-coverage-comment.sh): floor 30, target 60.
+          if awk "BEGIN{exit !($pct < 30)}"; then colour=red
+          elif awk "BEGIN{exit !($pct < 60)}"; then colour=yellow
+          else colour=brightgreen
+          fi
+          jq -n --arg msg "${pct}%" --arg colour "$colour" \
+            '{schemaVersion: 1, label: "coverage", message: $msg, color: $colour}' \
+            > badge.json
+
+      - name: Publish to the badges branch
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir badge-repo && cd badge-repo
+          git init -q -b badges
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          cp ../badge.json coverage.json
+          git add coverage.json
+          git commit -q -m "Refresh the coverage badge"
+          git push -q --force \
+            "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" badges
