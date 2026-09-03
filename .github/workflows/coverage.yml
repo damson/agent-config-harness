@@ -1,14 +1,21 @@
 name: Coverage
 
 # Measures the bats suite's line coverage of the shell sources with kcov and
-# upserts one sticky comment on the PR. Informational only — it never fails
-# the build, so it is deliberately NOT in the required-checks list.
+# upserts one sticky comment on the PR — headline, delta vs develop's stored
+# baseline, and an advisory band. Informational only: it never fails the
+# build, so it is deliberately NOT in the required-checks list.
+#
+# Push runs on develop publish the baseline artifact the PR runs diff against.
+# A missing baseline is not an error — the comment degrades to absolute
+# figures and says so.
 permissions:
   contents: read
   pull-requests: write
 
 on:
   pull_request:
+  push:
+    branches: [develop]
   # Backfill switch: comment on an already-open PR without waiting for a push.
   workflow_dispatch:
     inputs:
@@ -17,7 +24,7 @@ on:
         required: true
 
 concurrency:
-  group: coverage-${{ github.event.pull_request.number || github.event.inputs.pr }}
+  group: coverage-${{ github.event.pull_request.number || github.event.inputs.pr || github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -42,29 +49,72 @@ jobs:
           # On dispatch there is no PR context; measure the PR's merge ref.
           ref: ${{ github.event_name == 'workflow_dispatch' && format('refs/pull/{0}/merge', github.event.inputs.pr) || '' }}
 
-      - name: Install bats, jq and kcov
+      - name: Install bats and jq
         timeout-minutes: 5
-        run: .github/install-packages.sh bats jq kcov
+        run: .github/install-packages.sh bats jq
+
+      # Ubuntu 24.04 carries no kcov package; build a pinned release once and
+      # let the cache make every later run a no-op.
+      - name: Restore kcov from cache
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: ~/.local/kcov
+          key: kcov-43-${{ runner.os }}-noble
+
+      - name: Build kcov if the cache missed
+        timeout-minutes: 10
+        run: .github/install-kcov.sh
 
       - name: Make scripts executable
         run: chmod +x bin/*.sh evals/*.sh benchmarks/*.sh lib/*.sh
 
       - name: Run the suite under kcov
         run: |
-          kcov --include-path="$PWD/bin,$PWD/lib,$PWD/evals,$PWD/benchmarks" \
+          "$HOME/.local/kcov/bin/kcov" \
+               --include-path="$PWD/bin,$PWD/lib,$PWD/evals,$PWD/benchmarks" \
                --exclude-pattern=/tests/ \
                coverage-out "$(command -v bats)" tests/
+
+      # PR runs: fetch the newest baseline a develop push run published.
+      # Absence (expired artifact, first ever run) degrades gracefully.
+      - name: Fetch the develop baseline
+        if: github.event_name != 'push'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          id=$(gh api --paginate "repos/$GITHUB_REPOSITORY/actions/artifacts?name=coverage-baseline" \
+                 --jq '[.artifacts[] | select(.expired | not)] | sort_by(.created_at) | last | .id // empty')
+          if [ -n "$id" ]; then
+            gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/$id/zip" > baseline.zip
+            unzip -o baseline.zip -d baseline-dir
+            echo "Baseline artifact $id restored."
+          else
+            echo "No baseline artifact found — the comment will carry absolute figures."
+          fi
 
       - name: Post the coverage comment
         # Explicit gate, not the implicit success() alone: a fork PR's token is
         # read-only, so posting would fail — skip it there, visibly.
-        if: success() && (github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository)
+        if: success() && github.event_name != 'push' && (github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository)
         env:
           GH_TOKEN: ${{ github.token }}
           PR: ${{ github.event.pull_request.number || github.event.inputs.pr }}
         run: |
-          ./bin/post-coverage-comment.sh "$PR" coverage-out/kcov-merged
+          base=""
+          [ -f baseline-dir/coverage.json ] && base="--base baseline-dir/coverage.json"
+          # shellcheck disable=SC2086
+          ./bin/post-coverage-comment.sh "$PR" coverage-out/kcov-merged $base
 
       - name: Note the skipped comment on fork PRs
         if: success() && github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository
         run: echo "Fork PR — token is read-only, coverage comment skipped (report is in the step above)."
+
+      # Push runs on develop: publish this run's totals as the next baseline.
+      - name: Publish the baseline artifact
+        if: success() && github.event_name == 'push'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: coverage-baseline
+          path: coverage-out/kcov-merged/coverage.json
+          retention-days: 90

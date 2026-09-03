@@ -59,14 +59,56 @@ teardown() {
     rm -rf "$COV" "$BIN"
 }
 
-@test "coverage-comment: dry run renders total, worst file first, repo-relative paths" {
+@test "coverage-comment: dry run renders headline, denominator, worst file first" {
     run "$REPO_ROOT/bin/post-coverage-comment.sh" 7 "$COV" --dry-run
     [ "$status" -eq 0 ]
-    assert_contains "$output" "81.25% (130/160 lines)"
+    assert_contains "$output" "81.25% of lines"
+    assert_contains "$output" "130/160 lines"
     assert_contains "$output" '`bin/setup.sh`'
     # worst-first ordering: common.sh's row must appear before setup.sh's
     first=$(printf '%s\n' "$output" | grep -n 'common.sh\|setup.sh' | head -1)
     assert_contains "$first" "common.sh"
+}
+
+@test "coverage-comment: no baseline says so and paints a plain bar" {
+    run "$REPO_ROOT/bin/post-coverage-comment.sh" 7 "$COV" --dry-run
+    [ "$status" -eq 0 ]
+    assert_contains "$output" "no baseline — first measured run"
+    assert_contains "$output" "🟦"
+    ! grep -q '🟩\|🟥' <<<"$output"
+}
+
+@test "coverage-comment: a lower baseline yields an up-arrow delta and green gain blocks" {
+    printf '{"percent_covered":"75.15","covered_lines":120,"total_lines":160}' > "$COV/base.json"
+    run "$REPO_ROOT/bin/post-coverage-comment.sh" 7 "$COV" --base "$COV/base.json" --dry-run
+    [ "$status" -eq 0 ]
+    assert_contains "$output" "▲ +6.1 vs develop"
+    assert_contains "$output" "🟩"
+}
+
+@test "coverage-comment: a higher baseline yields a down-arrow and red lost blocks" {
+    printf '{"percent_covered":"92.25","covered_lines":148,"total_lines":160}' > "$COV/base.json"
+    run "$REPO_ROOT/bin/post-coverage-comment.sh" 7 "$COV" --base "$COV/base.json" --dry-run
+    [ "$status" -eq 0 ]
+    assert_contains "$output" "▼ -11.0 vs develop"
+    assert_contains "$output" "🟥"
+}
+
+@test "coverage-comment: a sub-epsilon wobble prints unchanged, not an arrow" {
+    printf '{"percent_covered":"81.27","covered_lines":130,"total_lines":160}' > "$COV/base.json"
+    run "$REPO_ROOT/bin/post-coverage-comment.sh" 7 "$COV" --base "$COV/base.json" --dry-run
+    [ "$status" -eq 0 ]
+    assert_contains "$output" "— unchanged vs develop"
+    ! grep -q '▲\|▼' <<<"$output"
+}
+
+@test "coverage-comment: the band respects the configured floor and target" {
+    run env COVERAGE_FLOOR=90 COVERAGE_TARGET=95 \
+        "$REPO_ROOT/bin/post-coverage-comment.sh" 7 "$COV" --dry-run
+    [ "$status" -eq 0 ]
+    assert_contains "$output" "🔴 **Below floor**"
+    run "$REPO_ROOT/bin/post-coverage-comment.sh" 7 "$COV" --dry-run
+    assert_contains "$output" "🟢 **At target**"
 }
 
 @test "coverage-comment: no existing comment → POST to the PR" {
