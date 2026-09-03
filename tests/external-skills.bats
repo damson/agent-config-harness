@@ -111,7 +111,7 @@ path_without_vendors() {
     . lib/common.sh
     run get_external_install "impeccable"
     # The '=' and ':' inside the command must survive field splitting.
-    assert_contains "$output" "impeccable@latest install"
+    assert_contains "$output" "impeccable@3.6.1 install"
     assert_contains "$output" "--global"
     assert_contains "$output" "--yes"
 }
