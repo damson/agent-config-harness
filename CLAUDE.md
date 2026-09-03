@@ -57,10 +57,10 @@ domain registry and what this repo is for. Don't duplicate that here.
   checkout.
 - **Never push to `main` or `develop`.** A pre-push hook blocks both. Branch off
   `develop` and PR back into it; `main` moves only by promoting `develop`.
-- **CodeRabbit reads `.coderabbit.yaml` from the PR head branch, else the
-  *default* branch (`main`)** — a config change merged to `develop` governs
-  nothing until a release promotes it; until then it applies only to branches
-  cut (or updated) after the merge.
+- **CodeRabbit reads `.coderabbit.yaml` from the PR head branch** — the only
+  resolution its docs establish. A config change merged to `develop` affects a
+  review only once the PR's head contains that commit, i.e. branches cut or
+  updated after the merge; older branches keep the config they carry.
 - **The domains under `workspace/` are examples.** They carry real structure and
   placeholder content so the test suite and the eval harness have something to
   work on. Improving them as examples is fine; treating them as one person's

@@ -29,18 +29,41 @@ log_info "Starting AI Setup..."
 # consumer repo vendoring the harness. Repointing it here would silently swap
 # real config for the shipped example templates — the run must be made from
 # that repo instead (its own `just setup` is also the recovery).
+# Ownership is judged on RESOLVED paths: readlink returns the stored string,
+# which would let `$REPO_ROOT/../elsewhere` wear an owned prefix and would
+# make an owned-but-relative target look foreign. Absolutize against the
+# link's own directory and canonicalize the parent where it exists; a target
+# whose parent is gone is judged as stored (and its dot-dots refused below).
+resolve_link_target() {
+    local dest="$1" target dir
+    target="$(readlink "$dest")"
+    case "$target" in
+        /*) : ;;
+        *) target="$(dirname "$dest")/$target" ;;
+    esac
+    if dir="$(cd "$(dirname "$target")" 2>/dev/null && pwd -P)"; then
+        printf '%s/%s' "$dir" "$(basename "$target")"
+    else
+        printf '%s' "$target"
+    fi
+}
+
+OWNED_REPO_ROOT="$(cd "$REPO_ROOT" && pwd -P)"
+OWNED_HARNESS_ROOT="$(cd "$HARNESS_ROOT" && pwd -P)"
+
 refuse_foreign_link() {
-    local dest="$1" current
+    local dest="$1" current owned=0
     [ -L "$dest" ] || return 0
-    current="$(readlink "$dest")"
+    current="$(resolve_link_target "$dest")"
     case "$current" in
-        "$REPO_ROOT"/*|"$HARNESS_ROOT"/*) : ;;
-        *)
-            [ "${AGENT_SETUP_FORCE:-}" = "1" ] || log_error \
+        # Dot-dots that survived resolution mean ownership cannot be proven.
+        *"/../"*|*"/..") : ;;
+        "$OWNED_REPO_ROOT"/*|"$OWNED_HARNESS_ROOT"/*) owned=1 ;;
+    esac
+    if [ "$owned" = 1 ]; then return 0; fi
+    [ "${AGENT_SETUP_FORCE:-}" = "1" ] || log_error \
 "$dest already links outside this repo ($current) — another config repo owns it.
 Run 'just setup' from that repo, or re-run with AGENT_SETUP_FORCE=1 to take over."
-            ;;
-    esac
 }
 
 link_file() {

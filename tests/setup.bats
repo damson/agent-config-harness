@@ -101,6 +101,38 @@ teardown() {
     assert_contains "$output" "another config repo owns it"
 }
 
+@test "setup: refuses a foreign target dressed in an owned prefix" {
+    # Regression: readlink returns the stored string, so a target written as
+    # $REPO_ROOT/../elsewhere used to pass the ownership prefix check.
+    mkdir -p "$HOME/.claude" "$REPO_ROOT/../setup-guard-dodge"
+    echo "not ours" > "$REPO_ROOT/../setup-guard-dodge/CLAUDE.md"
+    ln -s "$REPO_ROOT/../setup-guard-dodge/CLAUDE.md" "$HOME/.claude/CLAUDE.md"
+    run ./bin/setup.sh
+    rm -rf "$REPO_ROOT/../setup-guard-dodge"
+    [ "$status" -ne 0 ]
+    assert_contains "$output" "another config repo owns it"
+}
+
+@test "setup: refuses a dangling dot-dot target it cannot resolve" {
+    mkdir -p "$HOME/.claude"
+    ln -s "$REPO_ROOT/../no-such-dir-anywhere/CLAUDE.md" "$HOME/.claude/CLAUDE.md"
+    run ./bin/setup.sh
+    [ "$status" -ne 0 ]
+    assert_contains "$output" "another config repo owns it"
+}
+
+@test "setup: allows a link that resolves inside this repo indirectly" {
+    # The stored string looks foreign (relative, through a directory symlink)
+    # but the resolved path is ours; setup must repoint it without demanding
+    # AGENT_SETUP_FORCE.
+    mkdir -p "$HOME/.claude"
+    ln -s "$REPO_ROOT" "$HOME/repolink"
+    ln -s "../repolink/user-dev/CLAUDE.md" "$HOME/.claude/CLAUDE.md"
+    run ./bin/setup.sh
+    [ "$status" -eq 0 ]
+    [ "$(readlink "$HOME/.claude/CLAUDE.md")" = "$REPO_ROOT/user-dev/CLAUDE.md" ]
+}
+
 @test "setup: fresh install creates no backup files" {
     ./bin/setup.sh >/dev/null 2>&1
     local leftover
