@@ -13,4 +13,4 @@ body:
     id: proposal
     attributes:
       label: Proposal
-      description: How you'd expect it to work: a registry line, a command, a check?
+      description: How you'd expect it to work. A registry line, a command, a check?

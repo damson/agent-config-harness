@@ -1,6 +1,6 @@
 ---
 name: Tone of voice
-description: How the assistant writes AS you: for messages, posts and replies sent under your name. Distinct from custom_instructions.md, which is how it talks TO you.
+description: How the assistant writes AS you, in messages, posts and replies sent under your name. Distinct from custom_instructions.md, which is how it talks TO you.
 type: user
 ---
 

@@ -1,5 +1,5 @@
 name: Bug report
-description: Something misbehaves: a script, a test, the eval, the Action.
+description: Something misbehaves in a script, a test, the eval or the Action.
 labels: [bug]
 body:
   - type: markdown
