@@ -6,7 +6,7 @@
     and are picked up automatically when you are working in that domain.
 
     Replace everything below with your own. What is here is a skeleton showing
-    the shape that scores well — see docs/evaluation.md for the rubric.
+    the shape that scores well. See docs/evaluation.md for the rubric.
 
     THE ONE RULE WORTH KEEPING: this file loads EVERY session. Keep it under
     ~100 lines. Procedures, command references and rationale belong in docs/;
@@ -32,5 +32,5 @@ the workflow, a task → doc routing table, and the rules that cause damage befo
 you would think to open a doc.
 
 `@path` imports work in `CLAUDE.md` but **not** in `.claude/rules/` files, and
-they do not reduce context — an imported file is expanded at launch. To share a
+they do not reduce context: an imported file is expanded at launch. To share a
 rule between locations, symlink it. Tested with controls: `docs/claude-md-loading.md`.

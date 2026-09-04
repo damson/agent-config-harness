@@ -7,7 +7,7 @@ type: user
 # Custom instructions
 
 <!--
-    EXAMPLE / TEMPLATE. This is the personal identity layer — who you are and how
+    EXAMPLE / TEMPLATE. This is the personal identity layer: who you are and how
     you want to be addressed. Replace it with your own, or delete the `user-pers`
     domain from config/domains.conf if you do not want one.
 

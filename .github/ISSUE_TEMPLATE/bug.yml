@@ -1,11 +1,11 @@
 name: Bug report
-description: Something misbehaves — a script, a test, the eval, the Action.
+description: Something misbehaves in a script, a test, the eval or the Action.
 labels: [bug]
 body:
   - type: markdown
     attributes:
       value: >-
-        ⚠️ **Exploitable vulnerability?** Don't file it here — this form is
+        ⚠️ **Exploitable vulnerability?** Don't file it here: this form is
         public. Use *Security → Advisories → Report a vulnerability* instead
         (details in [SECURITY.md](../blob/main/SECURITY.md)).
   - type: textarea
@@ -23,13 +23,13 @@ body:
   - type: textarea
     id: eval-json
     attributes:
-      label: Eval result JSON — if this involves `just eval`
+      label: Eval result JSON, if this involves `just eval`
       description: >-
         Anything involving `just eval` is hard to reproduce without your config
-        and your API key — paste the generated JSON from `evals/results/` and
+        and your API key. Paste the generated JSON from `evals/results/` and
         it becomes tractable. Remember the score moves ±1–2 on borderline runs.
         Redact first: the JSON quotes your config, so strip API keys and
-        anything else secret before posting — issues are public.
+        anything else secret before posting: issues are public.
       render: json
   - type: input
     id: env
