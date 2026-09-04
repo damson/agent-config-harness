@@ -167,6 +167,23 @@ push_branches() {
     ' "$REPO_ROOT/.github/workflows/coverage.yml"
 }
 
+@test "coverage workflow: the back-merge PR does not run coverage" {
+    # A back-merge PR carries an empty diff and is merged as soon as it is
+    # green. The merge deletes the PR's merge ref while the 10-minute run is
+    # still going, and GitHub reports that as a failed run with no jobs, which
+    # is an artifact nobody can act on. main's own push run measures the same
+    # commit anyway.
+    command -v python3 >/dev/null 2>&1 || skip "python3 unavailable"
+    python3 -c 'import yaml' 2>/dev/null || skip "PyYAML unavailable"
+    run python3 -c '
+import sys, yaml
+d = yaml.safe_load(open(sys.argv[1]))
+cond = d["jobs"]["coverage"].get("if", "")
+sys.exit(0 if "head_ref" in cond and "main" in cond else 1)
+' "$REPO_ROOT/.github/workflows/coverage.yml"
+    [ "$status" -eq 0 ]
+}
+
 @test "coverage badge: the README names a branch the workflow measures" {
     # A badge pointing at an unmeasured branch renders "unknown" and nobody
     # notices, because the README is not what CI looks at. Pin the pair
