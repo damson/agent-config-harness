@@ -89,6 +89,12 @@ blank, because they need judgement:
   and the release is the only place a reader sees where the repo ended up
   rather than one step of the journey.
 
+**Refreshing regenerates the body.** Running the script against an existing
+release PR rewrites the description from the template, discarding the summary,
+diagram and test plan already written into it. Nothing warns you, and the
+inventory table below them looks freshly updated either way. Re-apply the
+written sections after a refresh, and read the body before merging.
+
 ### Why cadence matters here
 
 Letting `develop` run ahead has a specific cost beyond a large review: GitHub
