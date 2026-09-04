@@ -73,7 +73,7 @@ teardown() {
 @test "coverage-comment: no baseline says so and paints a plain bar" {
     run "$REPO_ROOT/bin/post-coverage-comment.sh" 7 "$COV" --dry-run
     [ "$status" -eq 0 ]
-    assert_contains "$output" "no baseline — first measured run"
+    assert_contains "$output" "no baseline, first measured run"
     assert_contains "$output" "🟦"
     ! grep -q '🟩\|🟥' <<<"$output"
 }
@@ -98,7 +98,7 @@ teardown() {
     printf '{"percent_covered":"81.27","covered_lines":130,"total_lines":160}' > "$COV/base.json"
     run "$REPO_ROOT/bin/post-coverage-comment.sh" 7 "$COV" --base "$COV/base.json" --dry-run
     [ "$status" -eq 0 ]
-    assert_contains "$output" "— unchanged vs develop"
+    assert_contains "$output" "unchanged vs develop"
     ! grep -q '▲\|▼' <<<"$output"
 }
 

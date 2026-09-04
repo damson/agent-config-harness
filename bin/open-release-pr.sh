@@ -50,7 +50,7 @@ pr_list=$(git log "$range" --format='%s' \
                     -e 's|.* \(#([0-9]+)\)$|#\1|p' \
           | awk '!seen[$0]++' \
           | paste -sd' ' -)
-[ -n "$pr_list" ] || pr_list="(none — direct commits only)"
+[ -n "$pr_list" ] || pr_list="(none, direct commits only)"
 
 subjects=$(git log "$range" --no-merges --format='- %s' | head -40)
 stat=$(git diff --shortstat "origin/$BASE" "origin/$HEAD")
@@ -67,7 +67,7 @@ $(cat "$template")
 
 ## 📦 What is in this batch
 
-*Assembled by \`bin/open-release-pr.sh\`. The sections above need a human — this
+*Assembled by \`bin/open-release-pr.sh\`. The sections above need a human; this
 one does not.*
 
 | | |
