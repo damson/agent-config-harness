@@ -80,7 +80,8 @@ teardown() {
 
 @test "coverage-comment: a lower baseline yields an up-arrow delta and green gain blocks" {
     printf '{"percent_covered":"75.15","covered_lines":120,"total_lines":160}' > "$COV/base.json"
-    run "$REPO_ROOT/bin/post-coverage-comment.sh" 7 "$COV" --base "$COV/base.json" --dry-run
+    run env GITHUB_BASE_REF=develop \
+        "$REPO_ROOT/bin/post-coverage-comment.sh" 7 "$COV" --base "$COV/base.json" --dry-run
     [ "$status" -eq 0 ]
     assert_contains "$output" "▲ +6.1 vs develop"
     assert_contains "$output" "🟩"
@@ -88,7 +89,8 @@ teardown() {
 
 @test "coverage-comment: a higher baseline yields a down-arrow and red lost blocks" {
     printf '{"percent_covered":"92.25","covered_lines":148,"total_lines":160}' > "$COV/base.json"
-    run "$REPO_ROOT/bin/post-coverage-comment.sh" 7 "$COV" --base "$COV/base.json" --dry-run
+    run env GITHUB_BASE_REF=develop \
+        "$REPO_ROOT/bin/post-coverage-comment.sh" 7 "$COV" --base "$COV/base.json" --dry-run
     [ "$status" -eq 0 ]
     assert_contains "$output" "▼ -11.0 vs develop"
     assert_contains "$output" "🟥"
@@ -96,10 +98,34 @@ teardown() {
 
 @test "coverage-comment: a sub-epsilon wobble prints unchanged, not an arrow" {
     printf '{"percent_covered":"81.27","covered_lines":130,"total_lines":160}' > "$COV/base.json"
-    run "$REPO_ROOT/bin/post-coverage-comment.sh" 7 "$COV" --base "$COV/base.json" --dry-run
+    run env GITHUB_BASE_REF=develop \
+        "$REPO_ROOT/bin/post-coverage-comment.sh" 7 "$COV" --base "$COV/base.json" --dry-run
     [ "$status" -eq 0 ]
     assert_contains "$output" "unchanged vs develop"
     ! grep -q '▲\|▼' <<<"$output"
+}
+
+@test "coverage-comment: the delta names the base branch it was measured against" {
+    # The release pull request's base is main, not develop. The figure is
+    # already measured against whatever baseline the caller passed; this
+    # asserts the caption follows it instead of naming develop by habit.
+    printf '{"percent_covered":"75.15","covered_lines":120,"total_lines":160}' > "$COV/base.json"
+    run env GITHUB_BASE_REF=main \
+        "$REPO_ROOT/bin/post-coverage-comment.sh" 7 "$COV" --base "$COV/base.json" --dry-run
+    [ "$status" -eq 0 ]
+    assert_contains "$output" "▲ +6.1 vs main"
+    assert_not_contains "$output" "vs develop"
+}
+
+@test "coverage-comment: with no base ref in the environment the delta names no branch" {
+    # Run outside a pull request there is no base to name. Better to say so
+    # than to assert a branch that may not be the one measured.
+    printf '{"percent_covered":"75.15","covered_lines":120,"total_lines":160}' > "$COV/base.json"
+    run env -u GITHUB_BASE_REF \
+        "$REPO_ROOT/bin/post-coverage-comment.sh" 7 "$COV" --base "$COV/base.json" --dry-run
+    [ "$status" -eq 0 ]
+    assert_contains "$output" "▲ +6.1 vs the base branch"
+    assert_not_contains "$output" "vs develop"
 }
 
 @test "coverage-comment: the band respects the configured floor and target" {
