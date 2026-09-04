@@ -78,3 +78,19 @@ assert_not_starts_with() {
         *) return 0 ;;
     esac
 }
+
+# Guard a test that needs python3 + PyYAML to parse a config file.
+#
+# A skip is the right answer on a contributor's machine and the wrong one in
+# CI: there, a skipped test reports "ok" and the check it was written to make
+# silently stops happening. So skip locally, fail loudly under CI.
+require_python_yaml() {
+    if command -v python3 >/dev/null 2>&1 && python3 -c 'import yaml' 2>/dev/null; then
+        return 0
+    fi
+    if [ -n "${CI:-}" ]; then
+        printf 'PyYAML is required in CI: this check cannot be allowed to skip\n' >&2
+        return 1
+    fi
+    skip "python3 with PyYAML unavailable"
+}
