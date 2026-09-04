@@ -32,6 +32,15 @@ concurrency:
 jobs:
   coverage:
     name: Coverage report
+    # Skip the back-merge PR (main -> develop). It carries an empty diff by
+    # construction, so it measures the commit main's own push run just
+    # measured, and it is merged the moment it goes green: the merge deletes
+    # the PR's merge ref out from under a 10-minute run, which GitHub then
+    # reports as a failed run with no jobs and a "workflow file issue". That
+    # red X is an artifact of the merge, not a real failure, and one nobody
+    # can act on. No success() here on purpose: this job has no `needs`, so
+    # there is no prior status to gate on.
+    if: github.event_name != 'pull_request' || github.head_ref != 'main'
     runs-on: ubuntu-latest
     # kcov instruments every bash child the suite spawns; slow is normal,
     # an hour is a hang.
@@ -69,6 +78,10 @@ jobs:
           # lives beside the scripts (score records, eval results, example
           # configs) gets counted as 0%-covered "code" unless excluded.
           #
+          # Not reproducible on macOS: kcov there traces no bash at all and
+          # leaves an empty kcov-merged, so a local run tells you nothing about
+          # a coverage question. Diagnose on a throwaway branch that prints
+          # what you need from the runner.
           # The output dir MUST be absolute. kcov hands it to every traced
           # child as given, so a relative one is re-resolved against whatever
           # cwd that child has: a test that cd's into a temp fixture writes
