@@ -97,7 +97,7 @@ if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
     # injected finding cannot render HTML/markdown that turns the job summary
     # into a phishing or exfiltration lure.
     {
-        printf '## Config eval: %s/25 — grade %s\n\n' "$total" "$grade"
+        printf '## Config eval: %s/25, grade %s\n\n' "$total" "$grade"
         jq -r '.findings[]? | "- **\(.dimension)** \(.file)/\(.section): \(.issue)" | gsub("\\p{Cc}"; " ")' "$result" \
             | sed 's/</\&lt;/g'
     } >> "$GITHUB_STEP_SUMMARY"
