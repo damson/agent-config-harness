@@ -151,6 +151,18 @@ teardown() {
     [ "$status" -ne 0 ]
 }
 
+@test "coverage badge: the README names a branch the workflow measures" {
+    # A badge pointing at an unmeasured branch renders "unknown" and nobody
+    # notices, because the README is not what CI looks at. Pin the pair
+    # rather than the literal branch: what matters is that they agree.
+    local wf="$REPO_ROOT/.github/workflows/coverage.yml" branch measured
+    branch=$(grep -oE 'codecov\.io/gh/[^)]*/branch/[a-zA-Z0-9._/-]+/graph' "$REPO_ROOT/README.md" \
+        | head -1 | sed -E 's|.*/branch/([^/]+)/graph|\1|')
+    [ -n "$branch" ]
+    measured=$(grep -E '^\s+branches: \[' "$wf" | head -1)
+    printf '%s' "$measured" | grep -q "$branch"
+}
+
 @test "coverage workflow: both long-lived branches are measured on push" {
     # Codecov diffs a PR against a report for its BASE commit. develop is the
     # base of every feature PR; main is the base of the release PR, and with
