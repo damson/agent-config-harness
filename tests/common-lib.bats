@@ -176,3 +176,25 @@ setup() {
     run bash -c 'printf "%s\n" "I could not evaluate that." | { . lib/common.sh; extract_json_object; }'
     [ "$status" -ne 0 ]
 }
+
+@test "require: a missing tool fails with the install hint when given one" {
+    run bash -c ". lib/common.sh; require definitely-not-a-real-tool 'brew install nothing'"
+    [ "$status" -ne 0 ]
+    assert_contains "$output" "definitely-not-a-real-tool"
+    assert_contains "$output" "brew install nothing"
+}
+
+@test "require: a missing tool without a hint still names the tool" {
+    # The hintless branch is the one every caller that omits the second
+    # argument takes, and it must not print an empty "Install:" tail.
+    run bash -c ". lib/common.sh; require definitely-not-a-real-tool"
+    [ "$status" -ne 0 ]
+    assert_contains "$output" "not found in PATH"
+    assert_not_contains "$output" "Install:"
+}
+
+@test "require: a present tool is silent and does not exit" {
+    run bash -c ". lib/common.sh; require sh; echo reached-the-end"
+    [ "$status" -eq 0 ]
+    assert_contains "$output" "reached-the-end"
+}

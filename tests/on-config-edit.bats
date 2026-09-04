@@ -56,3 +56,64 @@ teardown() {
     assert_contains "$output" "validation passed"
     assert_contains "$output" "agent-config-audit"
 }
+
+@test "on-config-edit: an in-repo file that is not managed exits silently" {
+    if ! command -v jq >/dev/null 2>&1; then skip "jq not installed"; fi
+    # README.md lives in the repo but is not a config file, so the hook must
+    # not spend a health check and a lint on it.
+    payload="{\"tool_input\":{\"file_path\":\"$REPO_ROOT/README.md\"}}"
+    run bash -c "printf '%s' '$payload' | ./bin/on-config-edit.sh"
+    [ "$status" -eq 0 ]
+    [ -z "$output" ]
+}
+
+@test "on-config-edit: a failing health check blocks with the failure" {
+    if ! command -v jq >/dev/null 2>&1; then skip "jq not installed"; fi
+    # The hook's whole point is stopping Claude when a config edit broke
+    # something. Break one global link the fixture just made.
+    rm "$HOME/.claude/preferences.md"
+    payload="{\"tool_input\":{\"file_path\":\"$REPO_ROOT/user-dev/CLAUDE.md\"}}"
+    run bash -c "printf '%s' '$payload' | ./bin/on-config-edit.sh"
+    [ "$status" -eq 1 ]
+    assert_contains "$output" "Health check failed"
+    # The child's own diagnosis is passed through, not swallowed.
+    assert_contains "$output" "preferences.md"
+    assert_not_contains "$output" "validation passed"
+}
+
+@test "on-config-edit: a failing secret lint blocks with the failure" {
+    if ! command -v jq >/dev/null 2>&1; then skip "jq not installed"; fi
+    # Consumer mode against a local clone, so the planted secret is tracked
+    # somewhere real without touching this checkout. The clone carries the
+    # same domains and workspace files, so the health check still passes and
+    # the lint branch is the one under test.
+    local clone="$TEST_HOME/clone"
+    git clone -q --local "$REPO_ROOT" "$clone"
+    # Assembled from parts: written literally, this line would be a tracked
+    # secret in THIS repo and would fail the real `just lint`.
+    local key="api" val="Qw8rTy2uIo5pAs1d"
+    printf '%s_key = "%s"\n' "$key" "$val" > "$clone/planted.env"
+    git -C "$clone" add planted.env
+    git -C "$clone" -c user.email=t@example.com -c user.name=t commit -qm "plant"
+
+    payload="{\"tool_input\":{\"file_path\":\"$clone/user-dev/CLAUDE.md\"}}"
+    run bash -c "printf '%s' '$payload' | AGENT_CONFIG_ROOT='$clone' ./bin/on-config-edit.sh"
+    [ "$status" -eq 1 ]
+    assert_contains "$output" "Secret lint failed"
+    assert_contains "$output" "planted.env"
+}
+
+@test "on-config-edit: exits silently when jq is unavailable" {
+    # jq parses the hook's stdin. Without it the hook cannot tell a config
+    # edit from any other, and must get out of the way rather than guess.
+    local tb="$TEST_HOME/toolbox"
+    mkdir -p "$tb"
+    local t
+    for t in bash cat dirname basename printf; do
+        [ -e "$(command -v "$t")" ] && ln -sf "$(command -v "$t")" "$tb/$t"
+    done
+    payload="{\"tool_input\":{\"file_path\":\"$REPO_ROOT/user-dev/CLAUDE.md\"}}"
+    run env PATH="$tb" bash -c "printf '%s' '$payload' | ./bin/on-config-edit.sh"
+    [ "$status" -eq 0 ]
+    [ -z "$output" ]
+}
