@@ -151,16 +151,33 @@ teardown() {
     [ "$status" -ne 0 ]
 }
 
+# The coverage workflow's push.branches, comma-separated. Scoped to the push
+# mapping: a file-wide grep for "branches:" would be satisfied by a line under
+# another event while push itself had lost a branch.
+push_branches() {
+    awk '
+        /^on:[[:space:]]*$/            { in_on = 1; next }
+        in_on && /^[^[:space:]#]/      { in_on = 0 }
+        in_on && /^[[:space:]]+push:/  { in_push = 1; next }
+        in_push && /^[[:space:]]{2}[^[:space:]#]/ { in_push = 0 }
+        in_push && /branches:/ {
+            sub(/^[^[]*\[/, ""); sub(/\].*$/, ""); gsub(/[[:space:]]/, "")
+            print; exit
+        }
+    ' "$REPO_ROOT/.github/workflows/coverage.yml"
+}
+
 @test "coverage badge: the README names a branch the workflow measures" {
     # A badge pointing at an unmeasured branch renders "unknown" and nobody
     # notices, because the README is not what CI looks at. Pin the pair
     # rather than the literal branch: what matters is that they agree.
-    local wf="$REPO_ROOT/.github/workflows/coverage.yml" branch measured
+    local branch measured
     branch=$(grep -oE 'codecov\.io/gh/[^)]*/branch/[a-zA-Z0-9._/-]+/graph' "$REPO_ROOT/README.md" \
         | head -1 | sed -E 's|.*/branch/([^/]+)/graph|\1|')
     [ -n "$branch" ]
-    measured=$(grep -E '^\s+branches: \[' "$wf" | head -1)
-    printf '%s' "$measured" | grep -q "$branch"
+    measured=$(push_branches)
+    [ -n "$measured" ]
+    printf '%s\n' "$measured" | tr ',' '\n' | grep -qx "$branch"
 }
 
 @test "coverage workflow: both long-lived branches are measured on push" {
@@ -168,7 +185,8 @@ teardown() {
     # base of every feature PR; main is the base of the release PR, and with
     # no report there the release comment reads "Coverage ? -> nn%" with no
     # delta, on the one PR where the delta matters most.
-    local wf="$REPO_ROOT/.github/workflows/coverage.yml"
-    run grep -E '^\s+branches: \[develop, main\]' "$wf"
-    [ "$status" -eq 0 ]
+    local measured
+    measured=$(push_branches)
+    printf '%s\n' "$measured" | tr ',' '\n' | grep -qx develop
+    printf '%s\n' "$measured" | tr ',' '\n' | grep -qx main
 }
