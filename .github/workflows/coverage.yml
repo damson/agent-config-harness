@@ -78,6 +78,10 @@ jobs:
           # lives beside the scripts (score records, eval results, example
           # configs) gets counted as 0%-covered "code" unless excluded.
           #
+          # Not reproducible on macOS: kcov there traces no bash at all and
+          # leaves an empty kcov-merged, so a local run tells you nothing about
+          # a coverage question. Diagnose on a throwaway branch that prints
+          # what you need from the runner.
           # The output dir MUST be absolute. kcov hands it to every traced
           # child as given, so a relative one is re-resolved against whatever
           # cwd that child has: a test that cd's into a temp fixture writes

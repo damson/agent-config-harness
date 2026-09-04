@@ -50,6 +50,11 @@ domain registry and what this repo is for. Don't duplicate that here.
   `plugins/marketplaces/<id>` and `plugins/cache/<id>/<plugin>` survive an
   uninstall, so a probe reports installed forever. Ask `claude plugin list`.
   See [docs/marketplaces.md](docs/marketplaces.md).
+- **A fixture that must trip `lint-secrets.sh` cannot be written literally**
+  outside the two files the linter excludes: it becomes a tracked secret here
+  and fails `just lint`, taking an unrelated test down with it and giving no
+  hint why. Assemble the value at runtime; the linter is line-based, so a split
+  assignment does not match.
 - **Never run `bin/setup.sh` from a worktree.** It points every
   `~/.claude/skills/*` symlink at `$REPO_ROOT`, so a worktree run repoints them
   all at a path that dies with the worktree. Verify setup.sh edits with
