@@ -86,6 +86,7 @@ This is the only place where the registry format is parsed. Adding a field to th
 | `marketplaces.sh` | Install skills from the marketplaces registered in `config/marketplaces.conf` |
 | `validate-skills.sh` | Validate the structure of any skills tree (incl. marketplace-installed) |
 | `post-coverage-comment.sh` | Upsert the sticky kcov coverage comment on a PR: for private consumer repos, where Codecov cannot reach; this repo's own PRs use Codecov, except a fork PR, which measures coverage but cannot upload it |
+| `install-claude-cli.sh` | The Action's install step: puts the pinned Claude CLI on PATH, or fails |
 | `install-external-skills.sh` | Install the third-party skill bundles in `config/external-skills.conf` |
 | `impeccable-hooks.sh` | Install the impeccable design hook into frontend projects |
 
