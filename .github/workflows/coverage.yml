@@ -62,31 +62,16 @@ jobs:
         run: |
           set -uo pipefail
           K="$HOME/.local/kcov/bin/kcov"
-          run_one() {
-            rm -rf "dbg-$1"
-            $K --include-path="$PWD/bin,$PWD/lib" \
-               --bash-parse-files-in-dir="$PWD/bin" \
-               --exclude-pattern=/tests/ \
-               "dbg-$1" "$(command -v bats)" "$2" >/dev/null 2>&1
-            xml=$(find "dbg-$1" -maxdepth 2 -name cobertura.xml | head -1)
-            echo "── $1 ($2) → $xml"
-            [ -n "$xml" ] && python3 - "$xml" <<'PY'
-          import sys, xml.etree.ElementTree as ET
-          for c in ET.parse(sys.argv[1]).iter('class'):
-              lines = [(int(l.get('number')), int(l.get('hits'))) for l in c.iter('line')]
-              hit = sorted(n for n, h in lines if h)
-              if 'stealth' in c.get('filename', ''):
-                  print(f"  {c.get('filename')}: {len(hit)}/{len(lines)} hit={hit}")
-          PY
-          }
-          # 1. the whole file, 2. only the error tests, 3. only one pull test
-          run_one all tests/git-stealth.bats
-          sed -n '1,60p;76,95p' tests/git-stealth.bats > /tmp/pull-only.bats
-          run_one pullonly /tmp/pull-only.bats
-          echo "── does the pull test's script run leave markers?"
-          BATS_TEST_FILTER='pull round-trips' $K --include-path="$PWD/bin" \
-            --bash-parse-files-in-dir="$PWD/bin" dbg-marker "$(command -v bats)" \
-            tests/git-stealth.bats 2>&1 | grep -c 'kcov@.*git-stealth' || echo "0 markers"
+          echo "===== bats WITHOUT kcov ====="
+          bats tests/git-stealth.bats; echo "exit=$?"
+          echo "===== bats UNDER kcov ====="
+          $K --include-path="$PWD/bin,$PWD/lib" \
+             --bash-parse-files-in-dir="$PWD/bin" \
+             --exclude-pattern=/tests/ \
+             dbg-out "$(command -v bats)" tests/git-stealth.bats; echo "exit=$?"
+          echo "===== per-file result ====="
+          find dbg-out -maxdepth 2 -name cobertura.xml -print
+          exit 0
 
       - name: Run the suite under kcov
         run: |
