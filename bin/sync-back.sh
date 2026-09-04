@@ -136,7 +136,7 @@ if [ -n "$pr_tool" ] && [ "${AI_SETUP_SKIP_EVAL:-0}" != "1" ] && command -v clau
 
     comment_body=$(mktemp)
     {
-        printf '## Benchmark — full domain scores\n\n'
+        printf '## Benchmark: full domain scores\n\n'
         printf 'Refreshed after this PR. See `evals/results/` for full findings per domain.\n\n'
         printf '```\n'
         "$HARNESS_ROOT/benchmarks/report.sh"

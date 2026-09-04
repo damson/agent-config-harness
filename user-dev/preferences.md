@@ -15,5 +15,5 @@
 ## Reference tables
 
 Material you consult rather than material the agent must obey. An estimation
-scale, a naming cheat-sheet, a mapping you look up — anything whose absence from
+scale, a naming cheat-sheet, a mapping you look up: anything whose absence from
 the agent's context costs nothing.

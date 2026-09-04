@@ -55,9 +55,11 @@ score_domain() {
     log_info "Scoring domain: $domain"
 
     # Assemble the prompt + file stack
-    local tmp_prompt
+    local tmp_prompt nonce
     tmp_prompt=$(mktemp)
+    nonce=$(scored_nonce)
     cat "$PROMPT" >"$tmp_prompt"
+    scored_content_preamble "$nonce" >>"$tmp_prompt"
     {
         printf '\n\n### Domain context\n'
         printf 'domain: %s\n' "$domain"
@@ -69,7 +71,7 @@ score_domain() {
         [ -n "$f" ] || continue
         local fp="$REPO_ROOT/$ws/$f"
         if [ -f "$fp" ]; then
-            append_scored_file "$tmp_prompt" "$ws/$f" "$fp"
+            append_scored_file "$tmp_prompt" "$ws/$f" "$fp" "$nonce"
         fi
     done < <(get_domain_files "$domain")
 

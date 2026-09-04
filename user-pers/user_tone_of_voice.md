@@ -1,6 +1,6 @@
 ---
 name: Tone of voice
-description: How the assistant writes AS you — for messages, posts and replies sent under your name. Distinct from custom_instructions.md, which is how it talks TO you.
+description: How the assistant writes AS you, in messages, posts and replies sent under your name. Distinct from custom_instructions.md, which is how it talks TO you.
 type: user
 ---
 
@@ -12,7 +12,7 @@ type: user
     getting the assistant's own register wrong, which is why it is a separate file.
 
     Replace with your own. The most useful thing you can put here is not
-    adjectives but SAMPLES — a few sentences you actually wrote.
+    adjectives but SAMPLES: a few sentences you actually wrote.
 -->
 
 ## Register

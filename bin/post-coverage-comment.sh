@@ -92,10 +92,10 @@ bar() {
 # to ignore the arrow.
 delta() {
     local head="$1" base="$2"
-    [ -z "$base" ] && { printf 'no baseline — first measured run'; return; }
+    [ -z "$base" ] && { printf 'no baseline, first measured run'; return; }
     awk -v h="$head" -v b="$base" 'BEGIN{
         d = h - b
-        if (d < 0.05 && d > -0.05) { printf "— unchanged vs develop"; exit }
+        if (d < 0.05 && d > -0.05) { printf "unchanged vs develop"; exit }
         printf "%s %+.1f vs develop", (d > 0 ? "▲" : "▼"), d
     }'
 }
@@ -103,9 +103,9 @@ delta() {
 band() {
     local p="$1"
     awk -v p="$p" -v f="$FLOOR" -v t="$TARGET" 'BEGIN{
-        if (p < f)      printf "🔴 **Below floor** — %.1f points under the %s%% line floor", f - p, f
-        else if (p < t) printf "🟡 **Approaching target** — %.1f points below the %s%% line target", t - p, t
-        else            printf "🟢 **At target** — the %s%% line target is met", t
+        if (p < f)      printf "🔴 **Below floor**: %.1f points under the %s%% line floor", f - p, f
+        else if (p < t) printf "🟡 **Approaching target**: %.1f points below the %s%% line target", t - p, t
+        else            printf "🟢 **At target**: the %s%% line target is met", t
     }'
 }
 
@@ -126,7 +126,7 @@ trap 'rm -f "$body_file"' EXIT
         | "| `\(.file | sub("^" + $root; ""))` | \(.percent_covered)% | \(.covered_lines)/\(.total_lines) |"
     ' "$json"
     printf '\n</details>\n'
-    printf '\n<sub>🔴 below %s · 🟡 below %s · 🟢 at target — advisory, no gate: kcov under one suite on one OS undercounts by construction, so regressions are the reviewer'"'"'s call. Measured by kcov over the bats suite.</sub>\n' "$FLOOR" "$TARGET"
+    printf '\n<sub>🔴 below %s · 🟡 below %s · 🟢 at target. Advisory, no gate: kcov under one suite on one OS undercounts by construction, so regressions are the reviewer'"'"'s call. Measured by kcov over the bats suite.</sub>\n' "$FLOOR" "$TARGET"
 } > "$body_file"
 
 if [ -n "$dry" ]; then

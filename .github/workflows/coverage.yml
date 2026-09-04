@@ -61,14 +61,25 @@ jobs:
       - name: Run the suite under kcov
         run: |
           set -euo pipefail
+          # --bash-parse-files-in-dir sweeps whole trees, so the data that
+          # lives beside the scripts (score records, eval results, example
+          # configs) gets counted as 0%-covered "code" unless excluded.
+          #
+          # The output dir MUST be absolute. kcov hands it to every traced
+          # child as given, so a relative one is re-resolved against whatever
+          # cwd that child has: a test that cd's into a temp fixture writes
+          # its fragments inside the fixture, and teardown deletes them. The
+          # tests still pass, the lines just never arrive. Measured on
+          # tests/git-stealth.bats, whose three behavioural tests cd first:
+          # 10/81 lines relative, 77/81 absolute.
           "$HOME/.local/kcov/bin/kcov" \
                --include-path="$PWD/bin,$PWD/lib,$PWD/evals,$PWD/benchmarks" \
                --bash-parse-files-in-dir="$PWD/bin" \
                --bash-parse-files-in-dir="$PWD/lib" \
                --bash-parse-files-in-dir="$PWD/evals" \
                --bash-parse-files-in-dir="$PWD/benchmarks" \
-               --exclude-pattern=/tests/ \
-               coverage-out "$(command -v bats)" tests/
+               --exclude-pattern=/tests/,/benchmarks/scores/,/evals/results/,/evals/examples/ \
+               "$PWD/coverage-out" "$(command -v bats)" tests/
           echo "── kcov output tree ──"
           ls -la coverage-out
           # kcov names its result dir after the traced binary and only

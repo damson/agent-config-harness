@@ -46,7 +46,7 @@ For each target domain, invoke the Bash tool with `run_in_background: true` on:
 ./evals/run-eval.sh <domain>
 ```
 
-Each call returns a task ID and an output file path — remember both. Do **not**
+Each call returns a task ID and an output file path. Remember both. Do **not**
 poll the output files in a loop. The harness fires a `task-notification` event
 when each background job exits; act on those notifications instead.
 
@@ -87,7 +87,7 @@ inside an open-PR context AND the user confirmed). Format:
 gh pr comment <N> --body-file <markdown-table-file>
 ```
 
-Never post without confirmation — comments are visible to others and not
+Never post without confirmation: comments are visible to others and not
 cleanly revertable.
 
 ## When to STOP

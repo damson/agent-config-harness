@@ -99,9 +99,23 @@ and sloppiness, not adversaries.
 
 ## 🚀 Install
 
+> 🚦 **Setting up your own config?** Start from
+> [`agent-config-starter`](https://github.com/damson/agent-config-starter)
+> instead: a template repo with this harness vendored as a pinned submodule
+> and every file you would edit pre-wired. One command with the
+> [GitHub CLI](https://cli.github.com) and you are under management in five
+> minutes:
+>
+> ```bash
+> gh repo create my-agent-config --template damson/agent-config-starter --private --clone
+> ```
+>
+> The clone below is for working on the harness itself.
+
 Prerequisites: `git`, [`just`](https://github.com/casey/just),
 [`bats`](https://github.com/bats-core/bats-core), `jq`, and the
-[`claude` CLI](https://docs.anthropic.com/en/docs/claude-code). Only the eval
+[`claude` CLI](https://docs.anthropic.com/en/docs/claude-code), plus
+[`gh`](https://cli.github.com) if you took the starter path above. Only the eval
 commands call the API and need an `ANTHROPIC_API_KEY`; everything else runs
 offline.
 
@@ -258,7 +272,9 @@ Full guide with worked examples: [docs/marketplaces.md](docs/marketplaces.md).
   symlinked `AGENTS.md` layer exists so other harnesses resolve the same content.
 - **Not turnkey.** The domains shipped here are examples with real structure and
   placeholder content. Replace them; the tests will tell you when you have broken
-  something.
+  something. The turnkey version is
+  [`agent-config-starter`](https://github.com/damson/agent-config-starter),
+  which ships this machinery pre-wired around config that is yours.
 
 ## 📚 Documentation
 

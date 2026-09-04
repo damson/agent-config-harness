@@ -23,9 +23,10 @@ inputs:
     default: C
   claude-version:
     description: >-
-      Exact version of @anthropic-ai/claude-code to install when the runner has
-      no claude CLI. Pinned (never `latest`) so a compromised or breaking npm
-      release cannot walk into a job that holds an API key.
+      Exact version of @anthropic-ai/claude-code the job runs. Pinned (never
+      `latest`) so a compromised or breaking npm release cannot walk into a job
+      that holds an API key. A runner's pre-installed CLI is used only when it
+      is already this version; anything else is installed over.
     required: false
     default: "2.1.259"
 
@@ -44,13 +45,7 @@ runs:
       shell: bash
       env:
         CLAUDE_VERSION: ${{ inputs.claude-version }}
-      run: |
-        command -v jq >/dev/null || { echo "::error::jq is required"; exit 1; }
-        if ! command -v claude >/dev/null; then
-          [[ "$CLAUDE_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] \
-            || { echo "::error::claude-version must be an exact x.y.z version"; exit 1; }
-          npm install -g "@anthropic-ai/claude-code@${CLAUDE_VERSION}"
-        fi
+      run: bash "${{ github.action_path }}/bin/install-claude-cli.sh"
 
     - name: Score
       id: score

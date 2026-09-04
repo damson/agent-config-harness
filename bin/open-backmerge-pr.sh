@@ -51,15 +51,15 @@ subjects=$(git log "$range" --format='- %s' | head -40)
 # something landed on $HEAD directly — a hotfix — and the diff is real.
 stat=$(git diff --shortstat "origin/$BASE" "origin/$HEAD")
 if [ -n "$stat" ]; then
-    nature="**Carries file changes** — \`$stat\`. Something landed on \`$HEAD\` without going through \`$BASE\`; review this as a normal change, not as a formality."
+    nature="**Carries file changes**: \`$stat\`. Something landed on \`$HEAD\` without going through \`$BASE\`; review this as a normal change, not as a formality."
 else
-    nature="**History only.** \`git diff origin/$BASE origin/$HEAD\` is empty — the trees are byte-identical and no file can change. This PR carries merge commits and nothing else."
+    nature="**History only.** \`git diff origin/$BASE origin/$HEAD\` is empty: the trees are byte-identical and no file can change. This PR carries merge commits and nothing else."
 fi
 
 body=$(cat <<BODY
 ## 👥 High-level summary
 
-Releases move code one way, from the integration branch to the release branch. Each one leaves a merge commit behind on the release branch that the integration branch never receives. Nothing about the files differs, so nothing looks wrong, but the two branches drift a commit further apart every time — and tools that ask whether a branch is behind start answering yes about a branch that is missing nothing.
+Releases move code one way, from the integration branch to the release branch. Each one leaves a merge commit behind on the release branch that the integration branch never receives. Nothing about the files differs, so nothing looks wrong, but the two branches drift a commit further apart every time, and tools that ask whether a branch is behind start answering yes about a branch that is missing nothing.
 
 This brings them level again.
 
@@ -82,12 +82,12 @@ $subjects
     suite run proves nothing a diff has not already proven.
 -->
 
-- [ ] \`git diff origin/$BASE origin/$HEAD\` reviewed — empty for a routine back-merge
+- [ ] \`git diff origin/$BASE origin/$HEAD\` reviewed: empty for a routine back-merge
 - [ ] If it carries file changes: suite run on the merge result
 
 ## 🤖 Review
 
-- [ ] Nothing is authored here — this PR moves existing commits only
+- [ ] Nothing is authored here; this PR moves existing commits only
 
 ---
 
