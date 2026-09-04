@@ -111,3 +111,25 @@ teardown() {
     [ "$status" -eq 0 ]
     [ ! -s "$GH_CALLS" ]
 }
+
+@test "back-merge: the review-skip keyword matches the title the script generates" {
+    # The keyword and the title live in two files that no build step relates.
+    # Rename the PR title and CodeRabbit silently starts reviewing back-merges
+    # again; nothing goes red, the noise just comes back.
+    require_python_yaml
+    local title keyword
+    # Render the script's own title format with its documented defaults.
+    title=$(grep -oE -- '--title "[^"]+"' "$REPO_ROOT/bin/open-backmerge-pr.sh" \
+        | head -1 | sed -E 's/--title "(.*)"/\1/; s/\$HEAD/main/; s/\$BASE/develop/')
+    [ -n "$title" ]
+    keyword=$(python3 -c '
+import sys, yaml
+kws = yaml.safe_load(open(sys.argv[1]))["reviews"]["auto_review"]["ignore_title_keywords"]
+print(kws[0])
+' "$REPO_ROOT/.coderabbit.yaml")
+    [ -n "$keyword" ]
+    case "$title" in
+        *"$keyword"*) : ;;
+        *) printf 'title %s does not contain the skip keyword %s\n' "$title" "$keyword" >&2; return 1 ;;
+    esac
+}
