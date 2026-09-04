@@ -136,3 +136,17 @@ teardown() {
     run "$REPO_ROOT/bin/post-coverage-comment.sh" "abc" "$COV"
     [ "$status" -ne 0 ]
 }
+
+@test "coverage workflow: kcov's output directory is absolute" {
+    # kcov passes the output dir to every traced child exactly as given, so a
+    # relative one is re-resolved against that child's cwd. Tests that cd into
+    # a temp fixture then write their coverage fragments inside the fixture,
+    # and teardown deletes them: the tests still pass while their lines never
+    # arrive. Measured on tests/git-stealth.bats — 10/81 lines relative,
+    # 77/81 absolute.
+    local wf="$REPO_ROOT/.github/workflows/coverage.yml"
+    grep -qE '"\$PWD/coverage-out"' "$wf"
+    # And no bare relative form survives as the kcov argument.
+    run grep -nE '^[[:space:]]+coverage-out ' "$wf"
+    [ "$status" -ne 0 ]
+}
