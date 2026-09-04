@@ -102,10 +102,15 @@ and sloppiness, not adversaries.
 > 🚦 **Setting up your own config?** Start from
 > [`agent-config-starter`](https://github.com/damson/agent-config-starter)
 > instead: a template repo with this harness vendored as a pinned submodule
-> and every file you would edit pre-wired. One
-> `gh repo create --template damson/agent-config-starter` (needs the
-> [GitHub CLI](https://cli.github.com)) and you are under management in five
-> minutes. The clone below is for working on the harness itself.
+> and every file you would edit pre-wired. One command with the
+> [GitHub CLI](https://cli.github.com) and you are under management in five
+> minutes:
+>
+> ```bash
+> gh repo create my-agent-config --template damson/agent-config-starter --private --clone
+> ```
+>
+> The clone below is for working on the harness itself.
 
 Prerequisites: `git`, [`just`](https://github.com/casey/just),
 [`bats`](https://github.com/bats-core/bats-core), `jq`, and the
