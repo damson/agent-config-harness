@@ -62,3 +62,19 @@ setup() {
     [ "$status" -eq 0 ]
     [ "$output" = "web-react" ]
 }
+
+@test "detect-domain: a path matching two domains is ambiguous, not a guess" {
+    # One component per domain: whichever the detector picked would be wrong
+    # half the time, so it must refuse instead.
+    run ./bin/detect-domain.sh "/Users/x/workspace/mobile/web-react-port"
+    [ "$status" -ne 0 ]
+    assert_contains "$output" "ambiguous"
+}
+
+@test "detect-domain: two aliases of one domain are not a conflict" {
+    # "web" (alias) and "web-react" (domain name) both match; they collapse
+    # to the same owner and must resolve, not report ambiguity.
+    run ./bin/detect-domain.sh "/Users/x/workspace/web/web-react-app"
+    [ "$status" -eq 0 ]
+    [ "$output" = "web-react" ]
+}

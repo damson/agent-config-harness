@@ -203,3 +203,14 @@ Public keys start with -----BEGIN PUBLIC KEY-----.'
     [ "$status" -ne 0 ]
     assert_contains "$output" "run-eval.env"
 }
+
+@test "lint-secrets: refuses to run outside a git repository" {
+    # The linter scans tracked files, so "no repo" must be an error, not a
+    # vacuous pass over nothing.
+    local d
+    d=$(mktemp -d)
+    run env AGENT_CONFIG_ROOT="$d" ./bin/lint-secrets.sh
+    rm -rf "$d"
+    [ "$status" -ne 0 ]
+    assert_contains "$output" "Not a git repository"
+}

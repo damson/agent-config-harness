@@ -61,13 +61,16 @@ jobs:
       - name: Run the suite under kcov
         run: |
           set -euo pipefail
+          # --bash-parse-files-in-dir sweeps whole trees, so the data that
+          # lives beside the scripts (score records, eval results, example
+          # configs) gets counted as 0%-covered "code" unless excluded.
           "$HOME/.local/kcov/bin/kcov" \
                --include-path="$PWD/bin,$PWD/lib,$PWD/evals,$PWD/benchmarks" \
                --bash-parse-files-in-dir="$PWD/bin" \
                --bash-parse-files-in-dir="$PWD/lib" \
                --bash-parse-files-in-dir="$PWD/evals" \
                --bash-parse-files-in-dir="$PWD/benchmarks" \
-               --exclude-pattern=/tests/ \
+               --exclude-pattern=/tests/,/benchmarks/scores/,/evals/results/,/evals/examples/ \
                coverage-out "$(command -v bats)" tests/
           echo "── kcov output tree ──"
           ls -la coverage-out
