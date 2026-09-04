@@ -7,6 +7,13 @@
 #   - base_branches lists develop: this repo runs gitflow, so nearly every PR
 #     targets develop, not the default branch — without this line CodeRabbit
 #     would review almost nothing.
+#   - ignore_title_keywords skips the back-merge PR, whose title
+#     bin/open-backmerge-pr.sh generates as "Bring main back into develop". It
+#     authors nothing, its diff between the two branches is empty, and it is
+#     merged as soon as it is green: there is nothing to review and no time to
+#     review it in. NOTE: CodeRabbit reads this file from the PR's HEAD branch,
+#     and a back-merge PR's head is main, so this takes effect only once main
+#     carries it, i.e. after the next release.
 
 language: "en-US"
 
@@ -19,6 +26,8 @@ reviews:
     auto_incremental_review: true
     base_branches:
       - "develop"
+    ignore_title_keywords:
+      - "back into develop"
   path_filters:
     - "!benchmarks/scores/**"   # committed data snapshots, not code
     - "!evals/results/**"
