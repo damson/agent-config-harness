@@ -58,19 +58,28 @@ jobs:
       - name: Make scripts executable
         run: chmod +x bin/*.sh evals/*.sh benchmarks/*.sh lib/*.sh
 
-      - name: DEBUG kcov trace of git-stealth only
+      - name: DEBUG relative vs absolute kcov output dir
         run: |
           set -uo pipefail
           K="$HOME/.local/kcov/bin/kcov"
-          echo "===== bats WITHOUT kcov ====="
-          bats tests/git-stealth.bats; echo "exit=$?"
-          echo "===== bats UNDER kcov ====="
-          $K --include-path="$PWD/bin,$PWD/lib" \
-             --bash-parse-files-in-dir="$PWD/bin" \
-             --exclude-pattern=/tests/ \
-             dbg-out "$(command -v bats)" tests/git-stealth.bats; echo "exit=$?"
-          echo "===== per-file result ====="
-          find dbg-out -maxdepth 2 -name cobertura.xml -print
+          probe() {
+            $K --include-path="$PWD/bin,$PWD/lib" \
+               --bash-parse-files-in-dir="$PWD/bin" \
+               --exclude-pattern=/tests/ \
+               "$1" "$(command -v bats)" tests/git-stealth.bats >/dev/null 2>&1
+            for x in "$2"/*/cobertura.xml; do
+              [ -f "$x" ] || continue
+              # The git-stealth <class> block ends at the next </class>.
+              blk=$(awk '/filename="bin\/git-stealth.sh"/,/<\/class>/' "$x")
+              tot=$(printf '%s' "$blk" | grep -c 'hits="')
+              hit=$(printf '%s' "$blk" | grep -o 'hits="[0-9]*"' | grep -vc 'hits="0"')
+              echo "  $x → $hit/$tot lines hit"
+            done
+          }
+          echo "===== RELATIVE output dir (what CI does today) ====="
+          rm -rf dbg-rel; probe dbg-rel dbg-rel
+          echo "===== ABSOLUTE output dir ====="
+          rm -rf dbg-abs; probe "$PWD/dbg-abs" "$PWD/dbg-abs"
           exit 0
 
       - name: Run the suite under kcov
