@@ -71,3 +71,54 @@ make_frontend_project() {
     run ./bin/impeccable-hooks.sh /nope/not/here
     [ "$status" -ne 0 ]
 }
+
+@test "impeccable-hooks: --help prints the usage block" {
+    run ./bin/impeccable-hooks.sh --help
+    [ "$status" -eq 0 ]
+    assert_contains "$output" "Usage:"
+}
+
+@test "impeccable-hooks: an unknown flag errors instead of being swallowed" {
+    run ./bin/impeccable-hooks.sh --frobnicate
+    [ "$status" -ne 0 ]
+    assert_contains "$output" "Unknown argument"
+}
+
+@test "impeccable-hooks: --yes installs via npx into explicit paths only" {
+    local proj wired stub
+    proj=$(make_frontend_project "target-site")
+    wired=$(make_frontend_project "already-wired")
+    mkdir -p "$wired/.claude"
+    printf '{"hooks":"npx impeccable detect"}\n' > "$wired/.claude/settings.local.json"
+
+    # Stub npx: record where it ran; the pinned install must never hit npm.
+    stub=$(mktemp -d)
+    printf '#!/bin/sh\npwd >> "%s/npx.calls"\necho "$@" >> "%s/npx.calls"\n' \
+        "$stub" "$stub" > "$stub/npx"
+    chmod +x "$stub/npx"
+
+    run env PATH="$stub:$PATH" ./bin/impeccable-hooks.sh --yes "$proj" "$wired"
+    rc=$status
+    calls=$(cat "$stub/npx.calls" 2>/dev/null || true)
+    rm -rf "$stub"
+    [ "$rc" -eq 0 ]
+    assert_contains "$output" "target-site: hook installed"
+    assert_contains "$output" "already-wired: hook already present"
+    assert_contains "$output" "/impeccable init"
+    # npx ran in the un-wired project, with the pinned version.
+    assert_contains "$calls" "target-site"
+    assert_contains "$calls" "impeccable@3.6.1 install"
+    assert_not_contains "$calls" "already-wired"
+}
+
+@test "impeccable-hooks: a failing npx install warns without aborting" {
+    local proj stub
+    proj=$(make_frontend_project "broken-site")
+    stub=$(mktemp -d)
+    printf '#!/bin/sh\nexit 1\n' > "$stub/npx"
+    chmod +x "$stub/npx"
+    run env PATH="$stub:$PATH" ./bin/impeccable-hooks.sh --yes "$proj"
+    rm -rf "$stub"
+    [ "$status" -eq 0 ]
+    assert_contains "$output" "install failed"
+}

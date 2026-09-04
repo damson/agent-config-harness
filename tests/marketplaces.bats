@@ -106,6 +106,84 @@ teardown() {
     assert_contains "$output" "delta"
 }
 
+@test "marketplaces: status without the claude CLI still lists the registry" {
+    # jq is symlinked into a curated dir because on a dev machine it lives in
+    # a prefix that also holds `claude` — a subtractive PATH cannot separate
+    # the two.
+    mkdir -p "$TREE/tb"
+    ln -s "$(command -v jq)" "$TREE/tb/jq"
+    run env PATH="$TREE/tb:/usr/bin:/bin" ./bin/marketplaces.sh status
+    [ "$status" -eq 0 ]
+    assert_contains "$output" "marketplace: demo"
+    assert_contains "$output" "cannot report plugin state"
+}
+
+@test "marketplaces: install demands the claude CLI only after the id resolves" {
+    mkdir -p "$TREE/tb"
+    ln -s "$(command -v jq)" "$TREE/tb/jq"
+    run env PATH="$TREE/tb:/usr/bin:/bin" ./bin/marketplaces.sh install demo
+    [ "$status" -ne 0 ]
+    assert_contains "$output" "not on PATH"
+}
+
+# A stub `claude` for the install flow: records argv, reports `alpha@demo` as
+# the one installed plugin, and fails `plugin install` when a flag file says so.
+make_claude_stub() {
+    mkdir -p "$TREE/stub"
+    cat > "$TREE/stub/claude" <<EOF
+#!/bin/sh
+echo "\$*" >> "$TREE/stub/claude.args"
+case "\$1 \$2" in
+    "plugin list")    echo "alpha@demo" ;;
+    "plugin install") [ ! -f "$TREE/stub/fail-install" ] ;;
+esac
+EOF
+    chmod +x "$TREE/stub/claude"
+}
+
+@test "marketplaces: install adds the marketplace and installs only what is missing" {
+    make_claude_stub
+    run env PATH="$TREE/stub:$PATH" ./bin/marketplaces.sh install demo
+    [ "$status" -eq 0 ]
+    assert_contains "$(cat "$TREE/stub/claude.args")" "plugin marketplace add owner/demo-repo"
+    assert_contains "$output" "alpha already installed"
+    assert_contains "$output" "installed beta"
+}
+
+@test "marketplaces: a plugin that fails to install warns without aborting the run" {
+    make_claude_stub
+    touch "$TREE/stub/fail-install"
+    run env PATH="$TREE/stub:$PATH" ./bin/marketplaces.sh install demo
+    [ "$status" -eq 0 ]
+    assert_contains "$output" "failed to install beta"
+}
+
+@test "marketplaces: validate needs an id and routes to the skills validator" {
+    run ./bin/marketplaces.sh validate
+    [ "$status" -ne 0 ]
+    assert_contains "$output" "validate needs a marketplace id"
+
+    mkdir -p "$TREE/cfg/plugins/cache/demo/alpha/1.0.0"
+    make_skill "$TREE/cfg/plugins/cache/demo/alpha/1.0.0/skills" market-skill
+    run env CLAUDE_CONFIG_DIR="$TREE/cfg" ./bin/marketplaces.sh validate demo
+    [ "$status" -eq 0 ]
+    assert_contains "$output" "pass all structural checks"
+    assert_contains "$output" "marketplace 'demo'"
+}
+
+@test "marketplaces: eval without an id errors before touching any cache" {
+    run ./bin/marketplaces.sh eval
+    [ "$status" -ne 0 ]
+    assert_contains "$output" "eval needs a marketplace id"
+}
+
+@test "marketplaces: --help prints the usage block" {
+    run ./bin/marketplaces.sh --help
+    [ "$status" -eq 0 ]
+    assert_contains "$output" "Usage:"
+    assert_contains "$output" "marketplaces.sh status"
+}
+
 # ── validator ─────────────────────────────────────────────
 
 @test "validate-skills: a well-formed tree passes" {
@@ -179,6 +257,30 @@ teardown() {
     [ "$status" -ne 0 ]
     # A validator that stops at the first failure makes you run it once per problem.
     assert_contains "$output" "2 problem(s)"
+}
+
+@test "validate-skills: frontmatter without a name at all fails" {
+    make_skill "$TREE" good-skill
+    mkdir -p "$TREE/anon"
+    printf -- '---\ndescription: x\n---\n\n## Procedure\n\n1. y\n\n## When to STOP\n\n- z\n' \
+        > "$TREE/anon/SKILL.md"
+    run ./bin/validate-skills.sh "$TREE"
+    [ "$status" -ne 0 ]
+    assert_contains "$output" "no 'name:'"
+}
+
+@test "validate-skills: no argument validates the repo's own skills tree" {
+    local consumer="$TREE/consumer"
+    make_skill "$consumer/user-dev/skills" own-skill
+    run env AGENT_CONFIG_ROOT="$consumer" ./bin/validate-skills.sh
+    [ "$status" -eq 0 ]
+    assert_contains "$output" "user-dev/skills"
+}
+
+@test "validate-skills: --help prints the usage block" {
+    run ./bin/validate-skills.sh --help
+    [ "$status" -eq 0 ]
+    assert_contains "$output" "Usage:"
 }
 
 @test "validate-skills: an unknown marketplace fails rather than passing vacuously" {
