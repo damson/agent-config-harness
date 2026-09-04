@@ -1,4 +1,4 @@
-# Mobile — project layer (example)
+# Mobile project layer (example)
 
 <!-- EXAMPLE DOMAIN. Replace with your project's real rules, or delete the
      domain from config/domains.conf. This layer holds what the TEAM agrees;
@@ -19,7 +19,7 @@ Kotlin / Android, Gradle with version catalogs, Hilt for injection.
 ## Architecture
 
 - Feature modules depend on `:core`, never on each other. **A cross-feature
-  import means the code moves to `:core` before the PR opens** — do the move,
+  import means the code moves to `:core` before the PR opens**: do the move,
   do not raise it as a comment.
 - Every interface-backed use case needs a `@Binds` entry in its feature module.
   A missing binding **compiles locally and fails only the full graph in CI**, so
@@ -28,7 +28,7 @@ Kotlin / Android, Gradle with version catalogs, Hilt for injection.
 ## Testing
 
 - Every screen has a screenshot test covering its main states, capturing the
-  `@Preview` functions rather than rebuilding the composables — a preview cannot
+  `@Preview` functions rather than rebuilding the composables: a preview cannot
   then go stale without a baseline changing with it.
 - Unit tests do not touch the network. Anything that does is an integration test
   and runs in its own Gradle task.

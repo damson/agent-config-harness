@@ -1,4 +1,4 @@
-# Data Extraction — agent guide
+# Data Extraction agent guide
 
 <!-- Single source of truth for this domain. AGENTS.md here is a symlink to this file; edit this one. -->
 
@@ -15,16 +15,16 @@ fetch  →  parse  →  validate  →  transform  →  load
 
 ## Validation
 
-- Every record is a Pydantic (v2) model — no raw dicts past the parse stage.
+- Every record is a Pydantic (v2) model: no raw dicts past the parse stage.
 - Validation errors are recorded, not raised: bad records go to a quarantine output, not the main sink.
-- Schema drift is a hard failure — raise `SchemaDriftError` naming the added/removed fields. Never silently drop unknown fields.
+- Schema drift is a hard failure: raise `SchemaDriftError` naming the added/removed fields. Never silently drop unknown fields.
 - Contract tests re-run schema validation against a sample of real responses on a schedule; drift there fails the build.
 
 ## Idempotency
 
 - Re-running an extraction over the same window yields the same result.
 - IDs are deterministic, derived from source + business key. Not generated UUIDs.
-- Cursors / watermarks live in a state table — not in code, not on the filesystem.
+- Cursors / watermarks live in a state table, not in code, not on the filesystem.
 
 ## Politeness
 
