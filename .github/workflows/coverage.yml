@@ -5,8 +5,11 @@ name: Coverage
 # badge. Informational only: statuses are configured non-blocking in
 # codecov.yml, so it is deliberately NOT in the required-checks list.
 #
-# Push runs on develop upload the base coverage Codecov diffs PR runs
-# against. A PR from a fork measures coverage but cannot upload it: GitHub
+# Push runs upload the base coverage Codecov diffs PR runs against, on BOTH
+# long-lived branches. develop is the base of every feature PR; main is the
+# base of the release PR, and without a report there its comment reads
+# "Coverage ? -> nn%" with no delta, which is the one PR where the delta
+# matters most. A PR from a fork measures coverage but cannot upload it: GitHub
 # does not grant id-token: write to a forked pull_request run, so there is no
 # OIDC token to mint and no secret to fall back on. That run says so in its
 # log rather than reporting a silent success.
@@ -17,12 +20,13 @@ permissions:
 on:
   pull_request:
   push:
-    branches: [develop]
+    branches: [develop, main]
 
 concurrency:
   group: coverage-${{ github.ref }}
-  # A superseded PR run is waste, but a superseded develop push takes the base
-  # upload with it and Codecov then has nothing to diff the next PR against.
+  # A superseded PR run is waste, but a superseded push to a long-lived branch
+  # takes the base upload with it and Codecov then has nothing to diff the next
+  # PR against.
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:

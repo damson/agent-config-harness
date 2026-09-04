@@ -150,3 +150,13 @@ teardown() {
     run grep -nE '^[[:space:]]+coverage-out ' "$wf"
     [ "$status" -ne 0 ]
 }
+
+@test "coverage workflow: both long-lived branches are measured on push" {
+    # Codecov diffs a PR against a report for its BASE commit. develop is the
+    # base of every feature PR; main is the base of the release PR, and with
+    # no report there the release comment reads "Coverage ? -> nn%" with no
+    # delta, on the one PR where the delta matters most.
+    local wf="$REPO_ROOT/.github/workflows/coverage.yml"
+    run grep -E '^\s+branches: \[develop, main\]' "$wf"
+    [ "$status" -eq 0 ]
+}
