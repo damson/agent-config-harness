@@ -96,9 +96,12 @@ Every script:
 - Uses the shared logging functions
 - Reads the domain registry, never hardcodes paths
 
-One deliberate exception: `bin/eval-action.sh` is the GitHub Action entry
-point and runs in a repo that vendors nothing, so it stays self-contained
-rather than sourcing `lib/common.sh`.
+One deliberate exception, covering both GitHub Action entry points
+(`bin/eval-action.sh` and `bin/install-claude-cli.sh`): they run inside a
+consumer's checkout, under a runner, where `::error::` and `::notice::`
+annotations are what surfaces in the run UI and the shared library's terminal
+logging does not. They stay self-contained rather than sourcing
+`lib/common.sh`.
 
 ---
 
@@ -159,7 +162,7 @@ These are non-negotiable design rules. Don't break them in PRs.
 
 1. **No script hardcodes a domain name or workspace path.** Read from the registry.
 2. **Scripts source `lib/common.sh`** and use its logging functions. The one
-   deliberate exception is `bin/eval-action.sh`; see Layer 1.
+   deliberate exceptions are the two Action entry points; see Layer 1.
 3. **`main` is protected.** No direct pushes. PR required.
 4. **Tests pass before merge.** `bats tests/` and `shellcheck` both green.
 5. **Lint runs without false positives.** If lint catches legitimate doc content, fix the pattern, not the doc.

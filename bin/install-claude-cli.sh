@@ -2,9 +2,12 @@
 #
 # AI Setup — install the Claude CLI at the pinned version, for action.yml.
 #
-# Standalone on purpose: this runs first, inside somebody else's repository,
-# where lib/common.sh would resolve REPO_ROOT against a tree that has no
-# domain registry. Messages use ::error::/::notice:: so they annotate the run.
+# Standalone on purpose, like the other Action entry point (bin/eval-action.sh):
+# this runs first, inside somebody else's repository, where lib/common.sh would
+# resolve REPO_ROOT against a tree that has no domain registry, and where
+# ::error:: / ::notice:: annotations are what surfaces in the run UI rather than
+# the shared library's terminal logging. Registered as such in
+# docs/architecture.md; do not "fix" it by sourcing lib/common.sh.
 #
 # Usage:
 #   CLAUDE_VERSION=2.1.259 ./bin/install-claude-cli.sh

@@ -28,8 +28,10 @@ reviews:
       instructions: |
         House invariants: every script starts with `set -euo pipefail`, sources
         lib/common.sh and uses its log_* helpers and `require` guards
-        (bin/eval-action.sh is the one deliberate exception — it is the GitHub
-        Action entry point and stays self-contained). No script may hardcode a
+        (the two GitHub Action entry points, bin/eval-action.sh and
+        bin/install-claude-cli.sh, are the deliberate exceptions: they run on a
+        runner where ::error:: annotations are the right output, and stay
+        self-contained). No script may hardcode a
         domain name or workspace path; everything reads config/domains.conf
         through lib/common.sh. Scripts must run on stock macOS bash 3.2 and
         Linux: no `declare -A`, no GNU-only flags without a fallback.
