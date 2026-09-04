@@ -114,7 +114,8 @@ and sloppiness, not adversaries.
 
 Prerequisites: `git`, [`just`](https://github.com/casey/just),
 [`bats`](https://github.com/bats-core/bats-core), `jq`, and the
-[`claude` CLI](https://docs.anthropic.com/en/docs/claude-code). Only the eval
+[`claude` CLI](https://docs.anthropic.com/en/docs/claude-code), plus
+[`gh`](https://cli.github.com) if you took the starter path above. Only the eval
 commands call the API and need an `ANTHROPIC_API_KEY`; everything else runs
 offline.
 
