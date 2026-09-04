@@ -204,8 +204,7 @@ SKILLEOF
     # Regression: a prose edit to an unquoted description put a ": " in a
     # plain scalar, which YAML reads as a nested mapping — the issue forms
     # then fail to load, silently and only on github.com.
-    command -v python3 >/dev/null 2>&1 || skip "python3 unavailable"
-    python3 -c 'import yaml' 2>/dev/null || skip "PyYAML unavailable"
+    require_python_yaml
     python3 - "$REPO_ROOT" <<'PY'
 import glob, os, sys, yaml
 root = sys.argv[1]
