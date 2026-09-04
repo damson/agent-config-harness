@@ -65,16 +65,18 @@ score_skill() {
     local domain="skill-$skill"
     log_info "Scoring skill: $skill"
 
-    local tmp_prompt
+    local tmp_prompt nonce
     tmp_prompt=$(mktemp)
+    nonce=$(scored_nonce)
     cat "$PROMPT" >"$tmp_prompt"
+    scored_content_preamble "$nonce" >>"$tmp_prompt"
     {
         printf '\n\n### Context\n'
         printf 'domain: %s\n' "$domain"
         printf 'git_hash: %s\n' "$git_hash"
         printf 'date: %s\n' "$timestamp"
     } >>"$tmp_prompt"
-    append_scored_file "$tmp_prompt" "$rel/SKILL.md" "$skill_file"
+    append_scored_file "$tmp_prompt" "$rel/SKILL.md" "$skill_file" "$nonce"
 
     # The shared half of the pipeline: claude call → JSON extraction →
     # validation → result + score records → findings summary. The domain string
