@@ -202,6 +202,29 @@ teardown() {
     assert_contains "$output" "Coverage: 81.25%"
 }
 
+@test "coverage-comment: a report deeper than one level down is a clear miss, not a silent one" {
+    # The search is bounded on purpose: sweeping a whole checkout can match an
+    # unrelated coverage.json and turn "not found" into a puzzling "several
+    # found". What matters is that the boundary is stated rather than silent.
+    local outer
+    outer=$(mktemp -d)
+    make_coverage_json "$outer/a/b/c"
+    run env PATH="$BIN:$PATH" "$REPO_ROOT/bin/post-coverage-comment.sh" 7 "$outer" --dry-run
+    rm -rf "$outer"
+    [ "$status" -ne 0 ]
+    assert_contains "$output" "one level below"
+}
+
+@test "coverage-comment: a directory named coverage.json is not mistaken for a report" {
+    local outer
+    outer=$(mktemp -d)
+    mkdir -p "$outer/kcov-merged/coverage.json"
+    run env PATH="$BIN:$PATH" "$REPO_ROOT/bin/post-coverage-comment.sh" 7 "$outer" --dry-run
+    rm -rf "$outer"
+    [ "$status" -ne 0 ]
+    assert_contains "$output" "coverage.json"
+}
+
 @test "coverage-comment: several coverage.json files are refused, not guessed between" {
     # Picking one would report a single traced child's lines as the whole run.
     local outer
@@ -327,9 +350,13 @@ sys.exit(0 if (not fires("pull_request", "main")     # the back-merge: skipped
     local wf="$REPO_ROOT/.github/workflows/coverage.yml"
     grep -q -- '--exclude-region=kcov-ignore-start:kcov-ignore-end' "$wf"
 
+    # One region per embedded program in the file: the delta and band awk
+    # programs, the per-file jq program, and the awk that derives the path
+    # prefix. An exact count rather than a floor, so removing a region fails
+    # here instead of quietly restoring the phantom lines.
     local marked
     marked=$(grep -c 'kcov-ignore-start' "$REPO_ROOT/bin/post-coverage-comment.sh")
-    [ "$marked" -eq 3 ]
+    [ "$marked" -eq 4 ]
     assert_equal_count "$REPO_ROOT/bin/post-coverage-comment.sh"
 }
 

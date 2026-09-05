@@ -53,10 +53,18 @@ if [ ! -f "$json" ]; then
     # kcov names its result directory after the traced binary and only
     # sometimes also leaves a kcov-merged, so a caller that points at the
     # merged path can be correct and still find nothing there. Accept exactly
-    # one coverage.json below $dir. Several means per-child fragments, and
+    # one coverage.json one level down. Several means per-child fragments, and
     # picking one would report a single traced child's lines as the whole
     # run's, so refuse rather than guess.
-    found=$(find "$dir" -maxdepth 2 -name coverage.json 2>/dev/null | sort)
+    #
+    # The depth is bounded on purpose rather than sweeping the whole tree: an
+    # unbounded search under a large checkout can match an unrelated
+    # coverage.json and turn a clear "not found" into a puzzling "several
+    # found". kcov puts its output one level under the directory it is given,
+    # so one level is where it is. -type f because a directory of that name is
+    # not a report. -maxdepth is a BSD primary as well as a GNU one and works
+    # on stock macOS find as long as it precedes the tests, which it does.
+    found=$(find "$dir" -maxdepth 2 -type f -name coverage.json 2>/dev/null | sort)
     # grep -c exits 1 on no matches, which would abort the script under set -e.
     count=$(printf '%s\n' "$found" | grep -c . || true)
     if [ "$count" -eq 1 ]; then
@@ -67,7 +75,7 @@ if [ ! -f "$json" ]; then
 $found"
     fi
 fi
-[ -f "$json" ] || log_error "No coverage.json in '$dir' — did the kcov run produce output?"
+[ -f "$json" ] || log_error "No coverage.json in '$dir' or one level below it — did the kcov run produce output?"
 
 # kcov roots the paths in its report at the checkout it measured. That is not
 # necessarily $REPO_ROOT: under AGENT_CONFIG_ROOT that variable points at the
@@ -75,6 +83,7 @@ fi
 # silently no-opped and every row rendered a full absolute path. Derive the
 # prefix from the report itself, which is right by construction.
 strip_root=$(jq -r '.files[].file' "$json" | awk '
+    # kcov-ignore-start
     NR == 1 { p = $0; next }
     {
         # Shrink the candidate prefix a path component at a time until it is
@@ -91,6 +100,7 @@ strip_root=$(jq -r '.files[].file' "$json" | awk '
         print p
     }
 ')
+# kcov-ignore-end
 
 repo="${GITHUB_REPOSITORY:-$(gh repo view --json nameWithOwner --jq .nameWithOwner)}"
 
