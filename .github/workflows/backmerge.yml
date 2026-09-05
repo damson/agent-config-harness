@@ -1,0 +1,50 @@
+name: Back-merge
+
+# Brings develop level with main whenever main moves, so the two do not drift.
+# Every release merge leaves a commit on main that develop never sees; the trees
+# stay identical, so nothing looks wrong and the gap goes unnoticed until
+# something asks whether develop is behind. Five releases had gone by before
+# anyone did.
+#
+# This is a fast-forward, not a pull request. Every back-merge this repo has
+# ever done was a pure fast-forward with an empty diff, and delivering that
+# through a pull request meant one nobody could review, plus two workflow runs
+# per release that GitHub held for approval (a PR opened with GITHUB_TOKEN does
+# not trigger workflows), never ran, and recorded as failures.
+#
+# bin/backmerge.sh still opens a pull request in the one case that needs one:
+# develop has moved on since the release, so levelling the two requires a merge
+# commit somebody has to author.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read       # the deploy key does the writing, not this token
+  pull-requests: write # for the fallback path only
+
+concurrency:
+  group: backmerge
+  cancel-in-progress: false
+
+jobs:
+  backmerge:
+    name: Bring develop level with main
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0   # the script counts commits across develop..main
+          # develop's ruleset requires a pull request, and a deploy key is the
+          # only identity it can be told to let through: GitHub rejects the
+          # Actions app as a bypass actor outside an organisation. The key is
+          # write-scoped to this repository alone, which is narrower than a
+          # personal access token would be.
+          ssh-key: ${{ secrets.BACKMERGE_DEPLOY_KEY }}
+
+      - name: Fast-forward develop, or open a PR if it cannot be one
+        run: ./bin/backmerge.sh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

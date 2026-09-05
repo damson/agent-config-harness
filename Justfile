@@ -75,11 +75,11 @@ release-preview:
 
 # Open (or refresh) the PR bringing main back into develop after a release. Never merges.
 backmerge:
-    @./bin/open-backmerge-pr.sh
+    @./bin/backmerge.sh
 
-# Print the back-merge PR body without touching GitHub.
+# Say what the back-merge would do, without pushing or opening anything.
 backmerge-preview:
-    @./bin/open-backmerge-pr.sh --dry-run
+    @./bin/backmerge.sh --dry-run
 
 # ── Evaluation ────────────────────────────────────────────
 

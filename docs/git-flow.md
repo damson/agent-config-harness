@@ -117,28 +117,46 @@ git rev-list --count origin/develop..origin/main   # 5
 That was the real state after five releases: `develop` reported as five commits
 behind a branch it was missing nothing from.
 
-`.github/workflows/backmerge-pr.yml` now opens the PR on every push to `main`,
-running `bin/open-backmerge-pr.sh`. By hand:
+`.github/workflows/backmerge.yml` repairs it on every push to `main`, running
+`bin/backmerge.sh`. By hand:
 
 ```bash
-just backmerge           # open or refresh it
-just backmerge-preview   # print the body, touch nothing
+just backmerge           # bring develop level with main
+just backmerge-preview   # say what it would do, touch nothing
 ```
 
-Like the release PR it **never merges**; merging into a protected branch stays
-a human decision. The body distinguishes the two cases, because they deserve
-different attention:
+**It is a fast-forward, not a pull request.** `develop` is an ancestor of `main`
+at that moment, so advancing it discards nothing and decides nothing. Every
+back-merge this repo has done was that shape, and delivering it through a pull
+request produced one nobody could review, a merge commit on `develop` per
+release, and two workflow runs per release held for approval that never ran and
+were finally recorded as failures. See *Three things that make a PR-opening
+workflow fail* below for that last one, which cost three separate misdiagnoses.
 
-- **History only:** trees identical, no file can change. A formality.
-- **Carries file changes:** something landed on `main` without going through
-  `develop`, i.e. a hotfix. Review it as a normal change. Note that a PR opened
-  by `GITHUB_TOKEN` does not trigger CI, so this case wants a manual run or a PAT.
+The push needs an identity `develop`'s ruleset lets past its pull-request rule.
+That is a **deploy key**, write-scoped to this repository, stored as
+`BACKMERGE_DEPLOY_KEY` and named as a bypass actor on the ruleset. It is not the
+Actions app, because GitHub only accepts that as a bypass actor inside an
+organisation, and it is not a personal access token, because a deploy key is
+narrower. Running `just backmerge` from a laptop will be rejected by the same
+rule; that is expected, and `just backmerge-preview` is the local answer.
+
+**One case still opens a pull request:** `develop` has moved on since the
+release, so it is no longer an ancestor of `main` and levelling the two needs a
+merge commit somebody authors. That is a real change and gets a real review. A
+hotfix that landed on `main` rides in either path, and the body says which:
+
+- **History only:** nothing on `main` is original work; the merge commit exists
+  only to record containment.
+- **Carries file changes:** a hotfix coming home. Review it as a normal change,
+  and approve its held workflow runs, because unlike a routine back-merge this
+  one has something to test.
 
 ---
 
-## Two things that make a PR-opening workflow fail
+## Three things that make a PR-opening workflow fail
 
-Both bit the automation here, and neither is visible from the workflow file.
+All three bit the automation here, and none is visible from the workflow file.
 
 **A job-level `permissions: pull-requests: write` is not sufficient.** The
 repository must also allow it:
@@ -166,6 +184,23 @@ When relocating a script, grep **every** workflow, not just the one CI runs:
 ```bash
 grep -rn 'run: \./' .github/workflows/
 ```
+
+**A PR the workflow opens leaves runs that look like failures.** GitHub holds
+the `pull_request` runs of a PR opened with `GITHUB_TOKEN` in an
+approval-required state instead of starting them, which is what stops a workflow
+triggering itself in a loop. The runs are still recorded: zero jobs,
+`actor: github-actions[bot]`, reading `action_required` and settling to
+`failure`. Approving is not re-running, and only approving starts them.
+
+```bash
+gh api "repos/<owner>/<repo>/actions/runs/<id>" --jq '{conclusion, actor: .actor.login}'
+gh api "repos/<owner>/<repo>/actions/runs/<id>/jobs" --jq .total_count
+```
+
+`github-actions[bot]` with `0` jobs is this, and it cost three separate
+misdiagnoses before anyone read the actor. It is why the routine back-merge is a
+fast-forward and no longer opens a PR at all; the fallback PR can still hit it,
+and that one wants approving.
 
 ---
 
