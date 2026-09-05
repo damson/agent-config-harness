@@ -280,35 +280,16 @@ push_branches() {
     ' "$REPO_ROOT/.github/workflows/coverage.yml"
 }
 
-@test "coverage workflow: the back-merge PR does not run coverage" {
-    # A back-merge PR carries an empty diff and is merged as soon as it is
-    # green. The merge deletes the PR's merge ref while the 10-minute run is
-    # still going, and GitHub reports that as a failed run with no jobs, which
-    # is an artifact nobody can act on. main's own push run measures the same
-    # commit anyway.
+@test "coverage workflow: no back-merge special case survives" {
+    # The routine back-merge is a fast-forward now and opens no pull request,
+    # so there is nothing to skip. A leftover head_ref condition here would
+    # silently stop measuring some other PR, so assert the job carries no
+    # branch-specific gate at all.
     require_python_yaml
-    # Assert what the predicate DOES, for the three input combinations that
-    # matter, rather than what it says. A substring check passes for the
-    # inverted `head_ref == 'main'`, which skips coverage everywhere except
-    # the back-merge: the exact opposite of the intent.
     run python3 -c '
 import sys, yaml
-cond = yaml.safe_load(open(sys.argv[1]))["jobs"]["coverage"].get("if", "")
-if not cond:
-    sys.exit(1)
-
-def fires(event, head):
-    """Does the job run for this (event, head branch) pair?"""
-    expr = (cond.replace("github.event_name", repr(event))
-                .replace("github.head_ref", repr(head))
-                .replace("||", " or ").replace("&&", " and ").replace("!", " not "))
-    expr = expr.replace(" not =", " !=")   # undo the ! we just mangled in !=
-    return bool(eval(expr))
-
-sys.exit(0 if (not fires("pull_request", "main")     # the back-merge: skipped
-               and fires("pull_request", "feature/x")  # every other PR: runs
-               and fires("push", "main")               # main push: runs
-               and fires("push", "develop")) else 1)   # develop push: runs
+job = yaml.safe_load(open(sys.argv[1]))["jobs"]["coverage"]
+sys.exit(1 if "head_ref" in str(job.get("if", "")) else 0)
 ' "$REPO_ROOT/.github/workflows/coverage.yml"
     [ "$status" -eq 0 ]
 }

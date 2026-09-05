@@ -81,7 +81,7 @@ This is the only place where the registry format is parsed. Adding a field to th
 | `on-config-edit.sh` | PostToolUse hook handler: validates + suggests audit |
 | `git-stealth.sh` | Backs `git spull` / `git scommit` aliases |
 | `open-release-pr.sh` | Open or refresh the standing `develop` → `main` release PR. Never merges |
-| `open-backmerge-pr.sh` | Open or refresh the `main` → `develop` PR that closes the post-release gap. Never merges |
+| `backmerge.sh` | Fast-forward `develop` to `main` after a release; opens a PR only when a fast-forward is impossible |
 | `eval-action.sh` | Entry point for the "score your config in CI" GitHub Action (`action.yml`) |
 | `marketplaces.sh` | Install skills from the marketplaces registered in `config/marketplaces.conf` |
 | `validate-skills.sh` | Validate the structure of any skills tree (incl. marketplace-installed) |
