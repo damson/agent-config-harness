@@ -167,14 +167,25 @@ When relocating a script, grep **every** workflow, not just the one CI runs:
 grep -rn 'run: \./' .github/workflows/
 ```
 
-**A PR the workflow opens leaves dead runs that look like failures.** GitHub does
-not run workflows for a pull request opened with `GITHUB_TOKEN`, which stops a
+**A PR the workflow opens leaves dead runs that look like failures.** A pull
+request opened with `GITHUB_TOKEN` produces `pull_request` runs that GitHub holds
+in an **approval-required** state instead of starting, which is what stops a
 workflow from triggering itself in a loop. The runs are still *recorded*: every
 back-merge PR leaves a `CI` and a `Coverage` run against its head SHA with zero
-jobs, reading `action_required` at first and settling to `failure`.
+jobs, reading `action_required`, the awaiting-approval state, and settling to
+`failure` once nothing approves them.
 
-They are not failures, and re-running them cannot make them pass. Read the actor
-to tell this apart from a real problem:
+They are not failures. **Approving is not the same as re-running**, and only
+approving would start them: a re-run of a run that never started lands in the
+same held state. Approval is the merge-box *Approve workflows to run* button, or
+`gh api -X POST repos/<owner>/<repo>/actions/runs/<id>/approve`.
+
+**Routine back-merge runs are deliberately left unapproved.** The head SHA is
+already tested by `main`'s own push run, so approving buys a second run of an
+identical tree. The exception is a back-merge that carries file changes, i.e. a
+hotfix landed on `main`; its PR body says so, and that one wants approving.
+
+Read the actor to tell this apart from a real problem:
 
 ```bash
 gh api "repos/<owner>/<repo>/actions/runs/<id>" \

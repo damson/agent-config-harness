@@ -32,17 +32,22 @@ concurrency:
 jobs:
   coverage:
     name: Coverage report
-    # Skip the back-merge PR (main -> develop). Its diff against develop is
-    # empty by construction, so it would spend ten minutes measuring the exact
-    # commit main's own push run just measured. Pure duplication, and the
-    # figure it uploads is the one already stored.
+    # Skip any PR whose SOURCE branch is main. Read the condition as what it
+    # says: it is a head-branch check, not a back-merge check. In this repo the
+    # only PR that ever has main as its head is the back-merge, so the two
+    # coincide today, but a hotfix PR cut from main would be skipped by this
+    # too, and that is worth knowing before writing one.
+    #
+    # The reason for the skip is duplication: a back-merge PR's diff against
+    # develop is empty by construction, so this would spend ten minutes
+    # measuring the exact commit main's own push run just measured, and upload
+    # the figure already stored.
     #
     # This only ever fires for a back-merge PR a human opened by hand. The
     # automated one is opened by bin/open-backmerge-pr.sh running under
-    # GITHUB_TOKEN, and GitHub does not run workflows for a PR that token
-    # opened: the run is recorded and never authorised to start, so a
-    # job-level `if:` like this one is never reached. See the GH_TOKEN comment
-    # in backmerge-pr.yml for what that looks like from the outside.
+    # GITHUB_TOKEN, which puts the run in an approval-required state instead of
+    # starting it, so a job-level `if:` like this one is never reached. See the
+    # GH_TOKEN comment in backmerge-pr.yml for the full signature.
     #
     # No success() here on purpose: this job has no `needs`, so there is no
     # prior status to gate on.

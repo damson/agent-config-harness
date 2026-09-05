@@ -41,18 +41,36 @@ jobs:
           # "Carries file changes" in that case, and that one wants a real run.
           # Swap in a PAT if hotfixes onto main become normal.
           #
+          # More precisely: GitHub holds those runs in an APPROVAL-REQUIRED
+          # state rather than declining them outright. A PR opened with
+          # GITHUB_TOKEN produces pull_request runs that a user with write
+          # access must approve before any job starts, which is what stops a
+          # workflow triggering itself in a loop.
+          #
           # What this looks like from the outside, because it has now been
           # misdiagnosed three times (see issue #26): each back-merge PR leaves
           # two runs in the Actions tab, CI and Coverage, against the PR's head
           # SHA, with `total_count: 0` jobs and `actor: github-actions[bot]`.
-          # They read `action_required` at first and settle to `failure`. They
-          # are not failures and cannot be made to pass by re-running: the run
-          # was recorded and never authorised to start.
+          # They read `action_required`, the awaiting-approval state, and
+          # settle to `failure` once nothing approves them.
           #
-          # Two things make them harmless. A run with zero jobs contributes no
-          # check runs, so nothing red appears on the PR itself; and the same
-          # SHA is genuinely tested by main's own push run, which is where the
-          # green checks on the PR come from. Tell this apart from a real
-          # startup race or a merge cancelling a run by reading the actor: a
-          # human-opened PR's runs execute normally.
+          # Approving is not re-running, and only approving would help: a
+          # re-run of a run that never started reproduces the same held state,
+          # which is why these cannot be cleared by hitting re-run. Approval is
+          # the merge-box "Approve workflows to run" button, or:
+          #
+          #   gh api -X POST repos/<owner>/<repo>/actions/runs/<id>/approve
+          #
+          # Routine back-merge runs are deliberately left UNAPPROVED. The head
+          # SHA is already tested by main's own push run, so approving them
+          # buys a second run of the identical tree. The exception is the case
+          # the comment above names: if main ever carries a hotfix, the PR body
+          # says "Carries file changes", and that one wants approving or a PAT.
+          #
+          # Two things keep the unapproved state harmless. A run with zero jobs
+          # contributes no check runs, so nothing red appears on the PR itself;
+          # and the green checks the PR does show come from main's push run on
+          # the same SHA. Tell this apart from a real startup race or a merge
+          # cancelling a run by reading the actor: a human-opened PR's runs are
+          # not held, and execute normally.
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
