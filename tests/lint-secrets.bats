@@ -154,6 +154,28 @@ Public keys start with -----BEGIN PUBLIC KEY-----.'
     assert_contains "$output" "sneaky.env"
 }
 
+@test "lint-secrets: two adjacent allowlisted fakes are both exempted" {
+    # Regression: the scrub consumed the boundary character into its capture
+    # groups, and sed -g resumes scanning after what it consumed. Two fakes
+    # separated by exactly one character left the second one in place, the
+    # token pattern's [[:space:]]* bridged the gap, and a pure-docs change
+    # failed the CI gate.
+    plant "docs/adjacent.md" 'TOKEN=abc123def stub-key'
+    run_lint
+    [ "$status" -eq 0 ]
+    assert_contains "$output" "No secret values detected"
+}
+
+@test "lint-secrets: an uppercase allowlisted fake is exempted" {
+    # Regression: the assignment patterns scan with grep -Ei, but the scrub
+    # was case-sensitive, so the uppercase spelling of an allowlisted value
+    # matched the scan and was never exempted.
+    plant "docs/upper.md" 'API_KEY=ABC123DEF'
+    run_lint
+    [ "$status" -eq 0 ]
+    assert_contains "$output" "No secret values detected"
+}
+
 @test "lint-secrets: the real repo tree lints clean" {
     # Regression for the case-insensitivity fix: docs/architecture.md carries
     # the literal example API_KEY=abc123def, and the invariant is "fix the

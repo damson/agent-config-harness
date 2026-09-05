@@ -76,10 +76,41 @@ log_info "Scanning tracked files for secret value patterns..."
 
 found=0
 
+# scrub_allowlisted <content> <sed case flag> — remove standalone allowlisted
+# fake values from one line of matched content.
+#
+# Substitutes one occurrence per pass and repeats until the text stops
+# changing, rather than using sed's /g. The boundary characters are part of
+# the match, and /g resumes scanning after what it consumed, so two fakes
+# separated by exactly one character left the second with no boundary left to
+# match against and it survived. Each pass strictly shortens the string, so
+# the loop terminates.
+scrub_allowlisted() {
+    local s="$1" icase="$2" prev
+    while :; do
+        prev="$s"
+        s=$(printf '%s' "$s" | sed -E \
+            "s/(^|[^A-Za-z0-9_-])${ALLOWLIST_VALUES}([^A-Za-z0-9_-]|\$)/\1\3/${icase}")
+        # Not `[ ... ] && break`: as the last command in the loop body, a false
+        # test would return non-zero and kill the script under set -e.
+        if [ "$s" = "$prev" ]; then
+            break
+        fi
+    done
+    printf '%s' "$s"
+}
+
 # check_pattern <grep matcher flags> <pattern> — scan tracked files, drop
 # allowlisted fake values, report anything left and bump $found.
 check_pattern() {
-    local flags="$1" pattern="$2" raw rec content scrubbed matches
+    local flags="$1" pattern="$2" raw rec content scrubbed matches icase
+    # The scrub has to be as case-blind as the scan that produced the match:
+    # the assignment patterns run under grep -Ei, so API_KEY=ABC123DEF matched
+    # while a case-sensitive scrub left the allowlisted value untouched.
+    icase=""
+    case "$flags" in
+        *i*) icase="I" ;;
+    esac
     # -P would be ideal but is not portable. Use -E with caveats.
     # -e keeps a pattern starting with '-' from being read as options.
     raw=$(git ls-files -z -- "${EXCLUDE_PATHSPECS[@]}" \
@@ -93,8 +124,7 @@ check_pattern() {
     while IFS= read -r rec; do
         [ -n "$rec" ] || continue
         content="${rec#*:*:}"
-        scrubbed=$(printf '%s' "$content" | sed -E \
-            "s/(^|[^A-Za-z0-9_-])${ALLOWLIST_VALUES}([^A-Za-z0-9_-]|\$)/\1\3/g")
+        scrubbed=$(scrub_allowlisted "$content" "$icase")
         if printf '%s\n' "$scrubbed" | grep -q "$flags" -e "$pattern"; then
             matches+="$rec"$'\n'
         fi
