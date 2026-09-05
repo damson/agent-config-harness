@@ -141,6 +141,20 @@ organisation, and it is not a personal access token, because a deploy key is
 narrower. Running `just backmerge` from a laptop will be rejected by the same
 rule; that is expected, and `just backmerge-preview` is the local answer.
 
+**The bypass is granted to deploy keys, not to one deploy key.** GitHub stores
+the entry with `actor_id: null`, so it reads as *any* write-capable deploy key on
+this repository, whatever it was named when it was added:
+
+```bash
+gh api repos/<owner>/<repo>/rulesets/<id> --jq '[.bypass_actors[] | {actor_id, actor_type}]'
+gh api repos/<owner>/<repo>/keys --jq '.[] | "\(.id) read_only=\(.read_only) \(.title)"'
+```
+
+Today that set is exactly one key, the one this workflow uses. Adding a second
+write-capable deploy key would silently hand it the same ability to push to
+`develop` without a pull request, so add read-only keys unless a key genuinely
+needs to write, and check the list above when granting one.
+
 **One case still opens a pull request:** `develop` has moved on since the
 release, so it is no longer an ancestor of `main` and levelling the two needs a
 merge commit somebody authors. That is a real change and gets a real review. A
