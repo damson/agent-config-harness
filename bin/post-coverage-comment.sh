@@ -90,23 +90,34 @@ bar() {
 
 # Epsilon on the delta: a 0.02-point wobble printing "▼ -0.0" teaches readers
 # to ignore the arrow.
+# The baseline belongs to whichever branch the pull request merges into, and
+# that is not always develop: a release pull request's base is main. Naming
+# develop unconditionally is the failure this guards against, because the
+# label is the part a reviewer reads: a figure correctly measured against main
+# and captioned "vs develop" is a wrong answer wearing a right one's clothes.
+# GITHUB_BASE_REF carries the base on every pull_request event. Outside one
+# there is no base to name, so say that rather than assert a branch.
 delta() {
-    local head="$1" base="$2"
+    local head="$1" base="$2" label="${GITHUB_BASE_REF:-the base branch}"
     [ -z "$base" ] && { printf 'no baseline, first measured run'; return; }
-    awk -v h="$head" -v b="$base" 'BEGIN{
+    awk -v h="$head" -v b="$base" -v l="$label" 'BEGIN{
+        # kcov-ignore-start
         d = h - b
-        if (d < 0.05 && d > -0.05) { printf "unchanged vs develop"; exit }
-        printf "%s %+.1f vs develop", (d > 0 ? "▲" : "▼"), d
+        if (d < 0.05 && d > -0.05) { printf "unchanged vs %s", l; exit }
+        printf "%s %+.1f vs %s", (d > 0 ? "▲" : "▼"), d, l
     }'
+    # kcov-ignore-end
 }
 
 band() {
     local p="$1"
     awk -v p="$p" -v f="$FLOOR" -v t="$TARGET" 'BEGIN{
+        # kcov-ignore-start
         if (p < f)      printf "🔴 **Below floor**: %.1f points under the %s%% line floor", f - p, f
         else if (p < t) printf "🟡 **Approaching target**: %.1f points below the %s%% line target", t - p, t
         else            printf "🟢 **At target**: the %s%% line target is met", t
     }'
+    # kcov-ignore-end
 }
 
 body_file="$(mktemp)"
@@ -120,11 +131,13 @@ trap 'rm -f "$body_file"' EXIT
     printf '<details>\n<summary>Per-file coverage (worst first)</summary>\n\n'
     printf '| File | Coverage | Lines |\n|---|---:|---:|\n'
     jq -r --arg root "$REPO_ROOT/" '
+        # kcov-ignore-start
         .files
         | map(.percent_covered |= tonumber)
         | sort_by(.percent_covered)[]
         | "| `\(.file | sub("^" + $root; ""))` | \(.percent_covered)% | \(.covered_lines)/\(.total_lines) |"
     ' "$json"
+    # kcov-ignore-end
     printf '\n</details>\n'
     printf '\n<sub>🔴 below %s · 🟡 below %s · 🟢 at target. Advisory, no gate: kcov under one suite on one OS undercounts by construction, so regressions are the reviewer'"'"'s call. Measured by kcov over the bats suite.</sub>\n' "$FLOOR" "$TARGET"
 } > "$body_file"

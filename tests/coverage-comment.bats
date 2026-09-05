@@ -80,7 +80,8 @@ teardown() {
 
 @test "coverage-comment: a lower baseline yields an up-arrow delta and green gain blocks" {
     printf '{"percent_covered":"75.15","covered_lines":120,"total_lines":160}' > "$COV/base.json"
-    run "$REPO_ROOT/bin/post-coverage-comment.sh" 7 "$COV" --base "$COV/base.json" --dry-run
+    run env GITHUB_BASE_REF=develop \
+        "$REPO_ROOT/bin/post-coverage-comment.sh" 7 "$COV" --base "$COV/base.json" --dry-run
     [ "$status" -eq 0 ]
     assert_contains "$output" "▲ +6.1 vs develop"
     assert_contains "$output" "🟩"
@@ -88,7 +89,8 @@ teardown() {
 
 @test "coverage-comment: a higher baseline yields a down-arrow and red lost blocks" {
     printf '{"percent_covered":"92.25","covered_lines":148,"total_lines":160}' > "$COV/base.json"
-    run "$REPO_ROOT/bin/post-coverage-comment.sh" 7 "$COV" --base "$COV/base.json" --dry-run
+    run env GITHUB_BASE_REF=develop \
+        "$REPO_ROOT/bin/post-coverage-comment.sh" 7 "$COV" --base "$COV/base.json" --dry-run
     [ "$status" -eq 0 ]
     assert_contains "$output" "▼ -11.0 vs develop"
     assert_contains "$output" "🟥"
@@ -96,10 +98,34 @@ teardown() {
 
 @test "coverage-comment: a sub-epsilon wobble prints unchanged, not an arrow" {
     printf '{"percent_covered":"81.27","covered_lines":130,"total_lines":160}' > "$COV/base.json"
-    run "$REPO_ROOT/bin/post-coverage-comment.sh" 7 "$COV" --base "$COV/base.json" --dry-run
+    run env GITHUB_BASE_REF=develop \
+        "$REPO_ROOT/bin/post-coverage-comment.sh" 7 "$COV" --base "$COV/base.json" --dry-run
     [ "$status" -eq 0 ]
     assert_contains "$output" "unchanged vs develop"
     ! grep -q '▲\|▼' <<<"$output"
+}
+
+@test "coverage-comment: the delta names the base branch it was measured against" {
+    # The release pull request's base is main, not develop. The figure is
+    # already measured against whatever baseline the caller passed; this
+    # asserts the caption follows it instead of naming develop by habit.
+    printf '{"percent_covered":"75.15","covered_lines":120,"total_lines":160}' > "$COV/base.json"
+    run env GITHUB_BASE_REF=main \
+        "$REPO_ROOT/bin/post-coverage-comment.sh" 7 "$COV" --base "$COV/base.json" --dry-run
+    [ "$status" -eq 0 ]
+    assert_contains "$output" "▲ +6.1 vs main"
+    assert_not_contains "$output" "vs develop"
+}
+
+@test "coverage-comment: with no base ref in the environment the delta names no branch" {
+    # Run outside a pull request there is no base to name. Better to say so
+    # than to assert a branch that may not be the one measured.
+    printf '{"percent_covered":"75.15","covered_lines":120,"total_lines":160}' > "$COV/base.json"
+    run env -u GITHUB_BASE_REF \
+        "$REPO_ROOT/bin/post-coverage-comment.sh" 7 "$COV" --base "$COV/base.json" --dry-run
+    [ "$status" -eq 0 ]
+    assert_contains "$output" "▲ +6.1 vs the base branch"
+    assert_not_contains "$output" "vs develop"
 }
 
 @test "coverage-comment: the band respects the configured floor and target" {
@@ -222,4 +248,33 @@ sys.exit(0 if (not fires("pull_request", "main")     # the back-merge: skipped
     measured=$(push_branches)
     printf '%s\n' "$measured" | tr ',' '\n' | grep -qx develop
     printf '%s\n' "$measured" | tr ',' '\n' | grep -qx main
+}
+
+@test "coverage workflow: the lines inside quoted programs are excluded from measurement" {
+    # kcov's bash parser counts the body of a multi-line awk or jq program as
+    # bash lines, and they can never be hit: they are awk and jq source, run by
+    # a different interpreter. Left in, they report as permanently uncovered
+    # code that no test can reach, which understates the figure and puts a
+    # patch-coverage failure on any PR that touches one.
+    #
+    # The exclusion is what makes the kcov-ignore markers in the sources mean
+    # anything. Without the flag they are inert comments and the phantom lines
+    # come straight back, so assert the flag and the markers together.
+    local wf="$REPO_ROOT/.github/workflows/coverage.yml"
+    grep -q -- '--exclude-region=kcov-ignore-start:kcov-ignore-end' "$wf"
+
+    local marked
+    marked=$(grep -c 'kcov-ignore-start' "$REPO_ROOT/bin/post-coverage-comment.sh")
+    [ "$marked" -eq 3 ]
+    assert_equal_count "$REPO_ROOT/bin/post-coverage-comment.sh"
+}
+
+# Every opened region must be closed, or kcov swallows the rest of the file
+# silently: the run stays green and the coverage simply drops lines nobody
+# asked it to drop.
+assert_equal_count() {
+    local f="$1" starts ends
+    starts=$(grep -c 'kcov-ignore-start' "$f")
+    ends=$(grep -c 'kcov-ignore-end' "$f")
+    [ "$starts" -eq "$ends" ]
 }
