@@ -280,16 +280,42 @@ push_branches() {
     ' "$REPO_ROOT/.github/workflows/coverage.yml"
 }
 
-@test "coverage workflow: no back-merge special case survives" {
+@test "coverage workflow: coverage runs for every event and branch that matters" {
     # The routine back-merge is a fast-forward now and opens no pull request,
-    # so there is nothing to skip. A leftover head_ref condition here would
-    # silently stop measuring some other PR, so assert the job carries no
-    # branch-specific gate at all.
+    # so there is nothing left to skip. Asserting merely that "head_ref" is
+    # absent from the condition is too weak: `github.event_name == 'push'`
+    # satisfies it while silently skipping coverage on EVERY pull request,
+    # which is worse than the special case being removed.
+    #
+    # So evaluate the condition for the pairs that matter, including the
+    # divergent back-merge PR, which is the one back-merge that still opens a
+    # pull request and the one with something to measure. No condition at all
+    # is the current state and passes.
     require_python_yaml
     run python3 -c '
 import sys, yaml
-job = yaml.safe_load(open(sys.argv[1]))["jobs"]["coverage"]
-sys.exit(1 if "head_ref" in str(job.get("if", "")) else 0)
+cond = yaml.safe_load(open(sys.argv[1]))["jobs"]["coverage"].get("if")
+if cond is None:
+    sys.exit(0)
+
+def fires(event, head):
+    """Does the job run for this (event, head branch) pair?
+
+    eval on the repo own workflow file, in a test, is the point: the thing
+    under test IS the expression, and a parser that only pattern-matched it
+    would reproduce the weakness this test exists to close. The input is a
+    tracked file in this repository, not anything a PR author supplies.
+    """
+    expr = (str(cond).replace("github.event_name", repr(event))
+                     .replace("github.head_ref", repr(head))
+                     .replace("||", " or ").replace("&&", " and ").replace("!", " not "))
+    expr = expr.replace(" not =", " !=")   # undo the ! we just mangled in !=
+    return bool(eval(expr))
+
+sys.exit(0 if (fires("pull_request", "feature/x")   # an ordinary PR
+               and fires("pull_request", "main")    # the divergent back-merge PR
+               and fires("push", "main")
+               and fires("push", "develop")) else 1)
 ' "$REPO_ROOT/.github/workflows/coverage.yml"
     [ "$status" -eq 0 ]
 }
