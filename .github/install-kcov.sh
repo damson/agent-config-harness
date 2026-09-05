@@ -1,35 +1,92 @@
 #!/usr/bin/env bash
 #
-# Build kcov into ~/.local/kcov — Ubuntu 24.04 (noble) dropped the package, so
+# Build kcov into ~/.local/kcov. Ubuntu 24.04 (noble) dropped the package, so
 # `apt-get install kcov` answers "unable to locate" on current runners. A
-# pinned release built once and restored from the Actions cache costs seconds
-# per run; the checksum keeps the tarball a build input, not a trust decision.
+# pinned build restored from the Actions cache costs seconds per run.
+#
+# Usage:
+#   .github/install-kcov.sh              build, or accept a cache hit that works
+#   .github/install-kcov.sh --cache-key  print the Actions cache key and exit
+#
+# The cache key lives here, beside the version it pins and the image it is
+# built against. Held in the workflow it was a hand-written literal, "noble",
+# which stops describing the runner the moment ubuntu-latest rolls forward:
+# the key would be unchanged, so a binary built against one libdw would be
+# restored onto an image carrying another and die at load.
 
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
 KCOV_VERSION="${KCOV_VERSION:-43}"
-KCOV_SHA256="${KCOV_SHA256:-4cbba86af11f72de0c7514e09d59c7927ed25df7cebdad087f6d3623213b95bf}"
+# The commit tag v43 points at. Pinned as a COMMIT rather than as a checksum of
+# GitHub's /archive/refs/tags tarball: that tarball is generated on demand and
+# is not guaranteed byte-stable, so a regeneration turns every cache-miss run
+# red against a constant nobody touched. A commit id is content-addressed, and
+# checking it still catches the case the checksum was really there for, a tag
+# moved to different code.
+KCOV_COMMIT="${KCOV_COMMIT:-a39874f938ce13f7a65f253120d1ec946b349ffe}"
 PREFIX="${KCOV_PREFIX:-$HOME/.local/kcov}"
 
-if [ -x "$PREFIX/bin/kcov" ]; then
-    echo "Already present (cache hit): $("$PREFIX/bin/kcov" --version)"
+# Only needed when a build is needed. A cache hit that RUNS has its libraries
+# by definition, and one that does not run is rebuilt below rather than
+# patched up.
+BUILD_DEPS=(binutils-dev libdw-dev libelf-dev libcurl4-openssl-dev zlib1g-dev)
+
+image_codename() {
+    local codename=unknown
+    if [ -r /etc/os-release ]; then
+        # shellcheck disable=SC1091
+        codename=$(. /etc/os-release && printf '%s' "${VERSION_CODENAME:-unknown}")
+    fi
+    printf '%s' "$codename"
+}
+
+# The commit is in the key, not just the version. Correcting a stale pin, or
+# following a tag that moved, changes KCOV_COMMIT while KCOV_VERSION stays put:
+# with the commit absent from the key the cache would still hit, the old binary
+# would answer --version happily, and the script would exit before ever
+# reaching the commit check. The job would then measure coverage with an
+# artifact built from the commit we had just decided not to trust.
+if [ "${1:-}" = "--cache-key" ]; then
+    printf 'kcov-%s-%s-%s-%s\n' \
+        "$KCOV_VERSION" "${KCOV_COMMIT:0:12}" "$(uname -s)" "$(image_codename)"
     exit 0
 fi
 
-# The image's package index is routinely older than the mirror, and installing
-# against it 404s on any package the mirror has since rebuilt. Refresh first.
-sudo apt-get update -qq
-sudo apt-get install -y --no-install-recommends \
-    binutils-dev libdw-dev libelf-dev libcurl4-openssl-dev zlib1g-dev
+# A cache hit is a claim, not a fact. The previous check tested only that the
+# file was executable and printed `kcov --version` inside an echo argument,
+# where a non-zero exit is discarded: a binary whose libraries had moved
+# reported a cache hit, printed an empty version, exited 0, and left the
+# coverage step to fail somewhere with no connection to the cause.
+if [ -x "$PREFIX/bin/kcov" ]; then
+    if version=$("$PREFIX/bin/kcov" --version 2>&1); then
+        echo "Already present (cache hit): $version"
+        exit 0
+    fi
+    echo "Cached kcov will not run, rebuilding. It said:"
+    printf '%s\n' "$version"
+    rm -rf "$PREFIX"
+fi
+
+# Through the wrapper rather than a bare apt-get: it bounds every network wait,
+# which is what stops a stalled mirror from holding the step open until its
+# timeout. Its header records two 25-minute hangs that came from not doing this.
+"$SCRIPT_DIR/install-packages.sh" "${BUILD_DEPS[@]}"
 
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
-curl -fsSL -o "$tmp/kcov.tar.gz" \
-    "https://github.com/SimonKagstrom/kcov/archive/refs/tags/v${KCOV_VERSION}.tar.gz"
-echo "$KCOV_SHA256  $tmp/kcov.tar.gz" | sha256sum -c -
 
-tar -xzf "$tmp/kcov.tar.gz" -C "$tmp"
-cmake -S "$tmp/kcov-$KCOV_VERSION" -B "$tmp/build" \
+git clone --quiet --depth 1 --branch "v${KCOV_VERSION}" \
+    https://github.com/SimonKagstrom/kcov.git "$tmp/kcov"
+got=$(git -C "$tmp/kcov" rev-parse HEAD)
+if [ "$got" != "$KCOV_COMMIT" ]; then
+    echo "kcov v${KCOV_VERSION} resolves to $got, expected $KCOV_COMMIT" >&2
+    echo "Either the tag moved or the pin is stale. Verify before updating." >&2
+    exit 1
+fi
+
+cmake -S "$tmp/kcov" -B "$tmp/build" \
     -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX="$PREFIX" >/dev/null
 make -C "$tmp/build" -j"$(nproc)" >/dev/null
 make -C "$tmp/build" install >/dev/null

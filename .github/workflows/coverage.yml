@@ -58,11 +58,27 @@ jobs:
 
       # Ubuntu 24.04 carries no kcov package; build a pinned release once and
       # let the cache make every later run a no-op.
+      #
+      # The key comes from the install script rather than being written here.
+      # It used to end in a literal "noble", which is not something runner.os
+      # reports and not something that changes when ubuntu-latest rolls to the
+      # next LTS: the key would still match, and a binary built against noble's
+      # libdw would be restored onto an image that no longer has it.
+      - name: Compute the kcov cache key
+        id: kcov
+        run: |
+          set -euo pipefail
+          # Captured first: `echo "key=$(...)"` would report the echo, and a
+          # failed script would quietly become an empty key.
+          key=$(.github/install-kcov.sh --cache-key)
+          echo "key=$key" >> "$GITHUB_OUTPUT"
+          echo "kcov cache key: $key"
+
       - name: Restore kcov from cache
         uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
           path: ~/.local/kcov
-          key: kcov-43-${{ runner.os }}-noble
+          key: ${{ steps.kcov.outputs.key }}
 
       - name: Build kcov if the cache missed
         timeout-minutes: 10
