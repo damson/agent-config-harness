@@ -236,3 +236,28 @@ Public keys start with -----BEGIN PUBLIC KEY-----.'
     [ "$status" -ne 0 ]
     assert_contains "$output" "Not a git repository"
 }
+
+@test "lint-secrets: three adjacent fakes are all exempted" {
+    # Exercises the scrub past its second pass. Two adjacent fakes was the
+    # reported bug; three confirms the loop runs to a fixed point rather than
+    # having been widened by exactly one.
+    plant "docs/three.md" 'TOKEN=abc123def stub-key abc123def'
+    run_lint
+    [ "$status" -eq 0 ]
+    assert_contains "$output" "No secret values detected"
+}
+
+@test "lint-secrets: a real token beside a fake still fires under a case-sensitive pattern" {
+    # The allowlist tests all use api_key, which scans case-insensitively. The
+    # token-shape patterns are case-sensitive and take the other branch of the
+    # scrub, which nothing reached: a fake on the line must not exempt a real
+    # credential there either.
+    plant "tokens.env" 'ghp_ABCDEFGHIJKLMNOPQRSTU stub-key'
+    run_lint
+    [ "$status" -ne 0 ]
+    assert_contains "$output" "tokens.env"
+    # Naming the file only proves something fired on that line. The point is
+    # that the case-sensitive ghp_ detector is what fired, so assert the
+    # pattern the linter echoes with its warning.
+    assert_contains "$output" 'ghp_[A-Za-z0-9]{20,}'
+}
