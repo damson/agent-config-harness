@@ -64,4 +64,8 @@ jobs:
 
       - name: Lint shell scripts
         run: |
-          shellcheck -x -S warning -e SC1091 bin/*.sh evals/*.sh benchmarks/*.sh lib/*.sh
+          # .github/*.sh included: install-kcov.sh and install-packages.sh are
+          # shell like any other, and were the only scripts in the repo that
+          # nothing linted. They run on every coverage job.
+          shellcheck -x -S warning -e SC1091 \
+            bin/*.sh evals/*.sh benchmarks/*.sh lib/*.sh .github/*.sh
