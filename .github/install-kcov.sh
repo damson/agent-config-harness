@@ -42,8 +42,15 @@ image_codename() {
     printf '%s' "$codename"
 }
 
+# The commit is in the key, not just the version. Correcting a stale pin, or
+# following a tag that moved, changes KCOV_COMMIT while KCOV_VERSION stays put:
+# with the commit absent from the key the cache would still hit, the old binary
+# would answer --version happily, and the script would exit before ever
+# reaching the commit check. The job would then measure coverage with an
+# artifact built from the commit we had just decided not to trust.
 if [ "${1:-}" = "--cache-key" ]; then
-    printf 'kcov-%s-%s-%s\n' "$KCOV_VERSION" "$(uname -s)" "$(image_codename)"
+    printf 'kcov-%s-%s-%s-%s\n' \
+        "$KCOV_VERSION" "${KCOV_COMMIT:0:12}" "$(uname -s)" "$(image_codename)"
     exit 0
 fi
 

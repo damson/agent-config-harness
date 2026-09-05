@@ -84,8 +84,22 @@ run_kcov() {
     # (this suite runs on macOS and on a Linux runner).
     run_kcov --cache-key
     [ "$status" -eq 0 ]
-    # kcov-<version>-<uname>-<codename>: four fields, none empty.
-    printf '%s' "$output" | grep -qE '^kcov-[^-]+-[^-]+-[^-]+$'
+    # kcov-<version>-<commit>-<uname>-<codename>: five fields, none empty.
+    printf '%s' "$output" | grep -qE '^kcov-[^-]+-[^-]+-[^-]+-[^-]+$'
+}
+
+@test "install-kcov: --cache-key changes when only the pinned commit changes" {
+    # Correcting a stale pin, or following a moved tag, leaves KCOV_VERSION
+    # alone. With the commit out of the key the cache would still hit, the old
+    # binary would answer --version, and the script would exit before reaching
+    # the commit check: the job would measure with the artifact just rejected.
+    run_kcov --cache-key
+    [ "$status" -eq 0 ]
+    local before="$output"
+    run env -i PATH="$BIN" HOME="$HOME" KCOV_PREFIX="$PREFIX" \
+        KCOV_COMMIT=0123456789abcdef0123456789abcdef01234567 bash "$SCRIPT" --cache-key
+    [ "$status" -eq 0 ]
+    [ "$output" != "$before" ]
 }
 
 @test "install-kcov: --cache-key touches nothing" {
