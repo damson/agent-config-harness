@@ -147,8 +147,14 @@ this repository, whatever it was named when it was added:
 
 ```bash
 gh api repos/<owner>/<repo>/rulesets/<id> --jq '[.bypass_actors[] | {actor_id, actor_type}]'
-gh api repos/<owner>/<repo>/keys --jq '.[] | "\(.id) read_only=\(.read_only) \(.title)"'
+gh api repos/<owner>/<repo>/keys --paginate \
+  --jq '.[] | select(.read_only | not) | "\(.id) \(.title)"'
 ```
+
+The second command filters to the write-capable keys, which are the ones that
+matter, and pages: `/keys` returns 30 per response, so without `--paginate` a
+writable key sitting past the first page is invisible to the very inventory
+meant to find it.
 
 Today that set is exactly one key, the one this workflow uses. Adding a second
 write-capable deploy key would silently hand it the same ability to push to
