@@ -51,16 +51,30 @@ resolve_link_target() {
 OWNED_REPO_ROOT="$(cd "$REPO_ROOT" && pwd -P)"
 OWNED_HARNESS_ROOT="$(cd "$HARNESS_ROOT" && pwd -P)"
 
-refuse_foreign_link() {
-    local dest="$1" current owned=0
-    [ -L "$dest" ] || return 0
+# link_is_owned <path> — true when <path> is a symlink whose RESOLVED target
+# lies inside a tree this run owns. The single ownership predicate: every
+# caller that decides whether it may write over, or delete, a link asks this,
+# so the write path and the prune path can no longer disagree about what
+# "ours" means.
+link_is_owned() {
+    local dest="$1" current
+    [ -L "$dest" ] || return 1
     current="$(resolve_link_target "$dest")"
     case "$current" in
         # Dot-dots that survived resolution mean ownership cannot be proven.
-        *"/../"*|*"/..") : ;;
-        "$OWNED_REPO_ROOT"/*|"$OWNED_HARNESS_ROOT"/*) owned=1 ;;
+        *"/../"*|*"/..") return 1 ;;
+        "$OWNED_REPO_ROOT"/*|"$OWNED_HARNESS_ROOT"/*) return 0 ;;
     esac
-    if [ "$owned" = 1 ]; then return 0; fi
+    return 1
+}
+
+refuse_foreign_link() {
+    local dest="$1" current
+    [ -L "$dest" ] || return 0
+    # Not `link_is_owned "$dest" && return 0`: when the test is false the
+    # AND-list is what fails, and it would take the script down under set -e.
+    if link_is_owned "$dest"; then return 0; fi
+    current="$(resolve_link_target "$dest")"
     [ "${AGENT_SETUP_FORCE:-}" = "1" ] || log_error \
 "$dest already links outside this repo ($current) — another config repo owns it.
 Run 'just setup' from that repo, or re-run with AGENT_SETUP_FORCE=1 to take over."
@@ -132,17 +146,22 @@ done < <(list_skill_dirs)
 
 # Prune links left by a skill that was renamed or deleted here. Without this a
 # rename leaves the old name behind pointing at a path that no longer exists,
-# and the agent still lists it. Only dangling links INTO this repo's skills tree
-# are removed — anything pointing elsewhere is the user's own.
+# and the agent still lists it. Only dangling links into a tree this run owns
+# are removed; anything pointing elsewhere is the user's own.
+#
+# Judged with link_is_owned, the same predicate the write path uses. Matching
+# readlink's raw string instead, as this loop used to, missed every link that
+# resolves into the owned tree without being spelled that way: one stored
+# relative, or reaching it through an intermediate symlink. Those are exactly
+# the shapes the write path accepts, so the two ends disagreed and a stale
+# link survived every run.
 for skill_link in "$HOME/.claude/skills"/*; do
     [ -L "$skill_link" ] || continue
     [ -e "$skill_link" ] && continue
-    case "$(readlink "$skill_link")" in
-        "$REPO_ROOT/user-dev/skills"/*)
-            rm -f "$skill_link"
-            log_ok "Pruned stale skill link: $(basename "$skill_link")"
-            ;;
-    esac
+    if link_is_owned "$skill_link"; then
+        rm -f "$skill_link"
+        log_ok "Pruned stale skill link: $(basename "$skill_link")"
+    fi
 done
 
 # ── 2b. External skills (third-party, vendor-installed) ───

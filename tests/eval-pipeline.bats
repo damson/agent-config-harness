@@ -176,6 +176,36 @@ INJECT
     assert_contains "$(cat "$STUB/prompt")" "markers for THIS run carry the token \`$nonce\`"
 }
 
+@test "eval pipeline: the prompt does not send the evaluator the wrong way for the token" {
+    # The sentence explaining the markers used to say the token was "stated
+    # above". The prompt body is written first and the token line appended
+    # after it, so it was below. Nothing scored wrongly, because the model sees
+    # one message either way, but this is the load-bearing sentence of the
+    # injection defence: it is how the evaluator tells the harness's marker
+    # from one a scored file wrote for itself, and it read as correct to anyone
+    # checking the prompt without also reading the assembly order.
+    #
+    # Rather than banning a word, check the claim against the assembled prompt.
+    # A direction is allowed if it is true, and either fix to the ordering
+    # keeps this test honest.
+    run_eval
+    [ "$status" -eq 0 ]
+
+    local p expl tok line
+    p="$STUB/prompt"
+    expl=$(grep -n 'where the token is' "$p" | head -1 | cut -d: -f1)
+    tok=$(grep -n 'markers for THIS run carry the token' "$p" | head -1 | cut -d: -f1)
+    [ -n "$expl" ]
+    [ -n "$tok" ]
+
+    line=$(sed -n "${expl}p" "$p")
+    case "$line" in
+        *above*) [ "$tok" -lt "$expl" ] ;;   # claims above: must BE above
+        *below*) [ "$tok" -gt "$expl" ] ;;   # claims below: must BE below
+        *)       : ;;                        # claims no direction: nothing to contradict
+    esac
+}
+
 @test "report: a domain never inherits rows from a domain it suffixes" {
     # skill-web's filename stem ends in "-web.json", so a filename glob for the
     # "web" domain would swallow it; web-react guards the other direction.

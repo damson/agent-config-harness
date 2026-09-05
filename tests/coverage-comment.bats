@@ -23,23 +23,26 @@ make_coverage_json() {
 JSON
 }
 
-# `gh` that records argv and answers the comment-list call with $GH_COMMENTS.
+# `gh` that records argv and answers the comment-list call with real JSON.
+#
+# It answers in PAGES, the way `gh api --paginate` does: one page holding a
+# decoy that must never be selected, then one page per id in $GH_COMMENT_IDS
+# (or the single $GH_COMMENT_ID). Pages matter here, because the bug being
+# guarded against only appears when matches fall on different ones.
 make_gh_stub() {
     local bin="$1"
     mkdir -p "$bin"
     cat > "$bin/gh" <<'STUB'
 #!/usr/bin/env bash
 printf '%s\n' "$*" >> "$GH_CALLS"
-for a in "$@"; do
-    case "$a" in repos/*/issues/*/comments)
-        if [ "$1" = "api" ] && [ "$2" != "-X" ]; then
-            # the list call pipes through --jq inside the script; emulate the
-            # post-jq answer directly
-            printf '%s' "${GH_COMMENT_ID:-}"
-            exit 0
-        fi
-    esac
-done
+if [ "$1" = "api" ] && [ "$2" != "-X" ]; then
+    printf '[{"id":1,"body":"unrelated comment, must not be selected"}]\n'
+    ids="${GH_COMMENT_IDS:-${GH_COMMENT_ID:-}}"
+    for id in $ids; do
+        printf '[{"id":%s,"body":"<!-- coverage-report -->\\nprevious body"}]\n' "$id"
+    done
+    exit 0
+fi
 exit 0
 STUB
     chmod +x "$bin/gh"
@@ -150,6 +153,90 @@ teardown() {
     ! grep -q -- '-X POST' "$GH_CALLS"
 }
 
+@test "coverage-comment: a marker comment on a later page is still found" {
+    # Regression: --paginate runs --jq once per page and concatenates, so a
+    # match on any page but the first produced a usable-looking id that was
+    # really one line of several, and the PATCH URL was malformed.
+    run env PATH="$BIN:$PATH" GH_COMMENT_ID="4242" \
+        "$REPO_ROOT/bin/post-coverage-comment.sh" 7 "$COV"
+    [ "$status" -eq 0 ]
+    assert_contains "$(cat "$GH_CALLS")" "-X PATCH repos/owner/repo/issues/comments/4242"
+    ! grep -q -- '-X POST' "$GH_CALLS"
+}
+
+@test "coverage-comment: two marker comments are refused, not guessed between" {
+    # Overwriting one of several is silent and unrecoverable, so stop instead.
+    run env PATH="$BIN:$PATH" GH_COMMENT_IDS="4242 4343" \
+        "$REPO_ROOT/bin/post-coverage-comment.sh" 7 "$COV"
+    [ "$status" -ne 0 ]
+    assert_contains "$output" "refusing to guess"
+    ! grep -q -- '-X PATCH' "$GH_CALLS"
+    ! grep -q -- '-X POST' "$GH_CALLS"
+}
+
+@test "coverage-comment: per-file paths are relative even when REPO_ROOT differs" {
+    # Regression: the table stripped $REPO_ROOT, but kcov roots its paths at
+    # the checkout it measured. Where the two differ the strip no-opped and
+    # every row rendered an absolute path. Point AGENT_CONFIG_ROOT somewhere
+    # else entirely, which is exactly the consumer case.
+    local elsewhere
+    elsewhere=$(mktemp -d)
+    run env PATH="$BIN:$PATH" AGENT_CONFIG_ROOT="$elsewhere" \
+        "$REPO_ROOT/bin/post-coverage-comment.sh" 7 "$COV" --dry-run
+    rm -rf "$elsewhere"
+    [ "$status" -eq 0 ]
+    assert_contains "$output" '`bin/setup.sh`'
+    assert_contains "$output" '`lib/common.sh`'
+    assert_not_contains "$output" "\`$REPO_ROOT/bin/setup.sh\`"
+}
+
+@test "coverage-comment: coverage.json one level down is found, not missed" {
+    # kcov only sometimes leaves a kcov-merged directory, so a caller can point
+    # at the right parent and still not have the file directly beneath it.
+    local outer
+    outer=$(mktemp -d)
+    make_coverage_json "$outer/kcov-merged"
+    run env PATH="$BIN:$PATH" "$REPO_ROOT/bin/post-coverage-comment.sh" 7 "$outer" --dry-run
+    rm -rf "$outer"
+    [ "$status" -eq 0 ]
+    assert_contains "$output" "Coverage: 81.25%"
+}
+
+@test "coverage-comment: a report deeper than one level down is a clear miss, not a silent one" {
+    # The search is bounded on purpose: sweeping a whole checkout can match an
+    # unrelated coverage.json and turn "not found" into a puzzling "several
+    # found". What matters is that the boundary is stated rather than silent.
+    local outer
+    outer=$(mktemp -d)
+    make_coverage_json "$outer/a/b/c"
+    run env PATH="$BIN:$PATH" "$REPO_ROOT/bin/post-coverage-comment.sh" 7 "$outer" --dry-run
+    rm -rf "$outer"
+    [ "$status" -ne 0 ]
+    assert_contains "$output" "one level below"
+}
+
+@test "coverage-comment: a directory named coverage.json is not mistaken for a report" {
+    local outer
+    outer=$(mktemp -d)
+    mkdir -p "$outer/kcov-merged/coverage.json"
+    run env PATH="$BIN:$PATH" "$REPO_ROOT/bin/post-coverage-comment.sh" 7 "$outer" --dry-run
+    rm -rf "$outer"
+    [ "$status" -ne 0 ]
+    assert_contains "$output" "coverage.json"
+}
+
+@test "coverage-comment: several coverage.json files are refused, not guessed between" {
+    # Picking one would report a single traced child's lines as the whole run.
+    local outer
+    outer=$(mktemp -d)
+    make_coverage_json "$outer/bash.1111"
+    make_coverage_json "$outer/bash.2222"
+    run env PATH="$BIN:$PATH" "$REPO_ROOT/bin/post-coverage-comment.sh" 7 "$outer" --dry-run
+    rm -rf "$outer"
+    [ "$status" -ne 0 ]
+    assert_contains "$output" "refusing to report one child as the run"
+}
+
 @test "coverage-comment: missing coverage.json is a loud failure" {
     empty=$(mktemp -d)
     run "$REPO_ROOT/bin/post-coverage-comment.sh" 7 "$empty"
@@ -193,35 +280,42 @@ push_branches() {
     ' "$REPO_ROOT/.github/workflows/coverage.yml"
 }
 
-@test "coverage workflow: the back-merge PR does not run coverage" {
-    # A back-merge PR carries an empty diff and is merged as soon as it is
-    # green. The merge deletes the PR's merge ref while the 10-minute run is
-    # still going, and GitHub reports that as a failed run with no jobs, which
-    # is an artifact nobody can act on. main's own push run measures the same
-    # commit anyway.
+@test "coverage workflow: coverage runs for every event and branch that matters" {
+    # The routine back-merge is a fast-forward now and opens no pull request,
+    # so there is nothing left to skip. Asserting merely that "head_ref" is
+    # absent from the condition is too weak: `github.event_name == 'push'`
+    # satisfies it while silently skipping coverage on EVERY pull request,
+    # which is worse than the special case being removed.
+    #
+    # So evaluate the condition for the pairs that matter, including the
+    # divergent back-merge PR, which is the one back-merge that still opens a
+    # pull request and the one with something to measure. No condition at all
+    # is the current state and passes.
     require_python_yaml
-    # Assert what the predicate DOES, for the three input combinations that
-    # matter, rather than what it says. A substring check passes for the
-    # inverted `head_ref == 'main'`, which skips coverage everywhere except
-    # the back-merge: the exact opposite of the intent.
     run python3 -c '
 import sys, yaml
-cond = yaml.safe_load(open(sys.argv[1]))["jobs"]["coverage"].get("if", "")
-if not cond:
-    sys.exit(1)
+cond = yaml.safe_load(open(sys.argv[1]))["jobs"]["coverage"].get("if")
+if cond is None:
+    sys.exit(0)
 
 def fires(event, head):
-    """Does the job run for this (event, head branch) pair?"""
-    expr = (cond.replace("github.event_name", repr(event))
-                .replace("github.head_ref", repr(head))
-                .replace("||", " or ").replace("&&", " and ").replace("!", " not "))
+    """Does the job run for this (event, head branch) pair?
+
+    eval on the repo own workflow file, in a test, is the point: the thing
+    under test IS the expression, and a parser that only pattern-matched it
+    would reproduce the weakness this test exists to close. The input is a
+    tracked file in this repository, not anything a PR author supplies.
+    """
+    expr = (str(cond).replace("github.event_name", repr(event))
+                     .replace("github.head_ref", repr(head))
+                     .replace("||", " or ").replace("&&", " and ").replace("!", " not "))
     expr = expr.replace(" not =", " !=")   # undo the ! we just mangled in !=
     return bool(eval(expr))
 
-sys.exit(0 if (not fires("pull_request", "main")     # the back-merge: skipped
-               and fires("pull_request", "feature/x")  # every other PR: runs
-               and fires("push", "main")               # main push: runs
-               and fires("push", "develop")) else 1)   # develop push: runs
+sys.exit(0 if (fires("pull_request", "feature/x")   # an ordinary PR
+               and fires("pull_request", "main")    # the divergent back-merge PR
+               and fires("push", "main")
+               and fires("push", "develop")) else 1)
 ' "$REPO_ROOT/.github/workflows/coverage.yml"
     [ "$status" -eq 0 ]
 }
@@ -263,9 +357,13 @@ sys.exit(0 if (not fires("pull_request", "main")     # the back-merge: skipped
     local wf="$REPO_ROOT/.github/workflows/coverage.yml"
     grep -q -- '--exclude-region=kcov-ignore-start:kcov-ignore-end' "$wf"
 
+    # One region per embedded program in the file: the delta and band awk
+    # programs, the per-file jq program, and the awk that derives the path
+    # prefix. An exact count rather than a floor, so removing a region fails
+    # here instead of quietly restoring the phantom lines.
     local marked
     marked=$(grep -c 'kcov-ignore-start' "$REPO_ROOT/bin/post-coverage-comment.sh")
-    [ "$marked" -eq 3 ]
+    [ "$marked" -eq 4 ]
     assert_equal_count "$REPO_ROOT/bin/post-coverage-comment.sh"
 }
 
