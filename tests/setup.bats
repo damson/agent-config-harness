@@ -211,3 +211,46 @@ teardown() {
     [ "$status" -eq 0 ]
     assert_contains "$output" "just skills-install"
 }
+
+# ── Pruning stale skill links ─────────────────────────────
+
+@test "setup: prunes a dangling skill link stored with a non-canonical path" {
+    # Regression: the prune loop matched readlink's raw string against
+    # "$REPO_ROOT/user-dev/skills"/*, so a target that resolves into the owned
+    # tree without being spelled that way was never pruned. The write path
+    # already resolved before judging ownership; the prune path did not.
+    mkdir -p "$HOME/.claude/skills"
+    ln -s "$REPO_ROOT/./user-dev/skills/gone-noncanonical" \
+        "$HOME/.claude/skills/gone-noncanonical"
+    [ -L "$HOME/.claude/skills/gone-noncanonical" ]
+    [ ! -e "$HOME/.claude/skills/gone-noncanonical" ]   # dangling
+
+    run ./bin/setup.sh </dev/null
+    [ "$status" -eq 0 ]
+    [ ! -L "$HOME/.claude/skills/gone-noncanonical" ]
+}
+
+@test "setup: prunes a dangling skill link stored as a relative path" {
+    # The shape setup.bats blesses on the write path: stored relative, and
+    # resolving into the owned tree only by following an intermediate link.
+    mkdir -p "$HOME/.claude/skills"
+    ln -s "$REPO_ROOT/user-dev/skills" "$HOME/.claude/skills-src"
+    ln -s "../skills-src/gone-relative" "$HOME/.claude/skills/gone-relative"
+    [ ! -e "$HOME/.claude/skills/gone-relative" ]       # dangling
+
+    run ./bin/setup.sh </dev/null
+    [ "$status" -eq 0 ]
+    [ ! -L "$HOME/.claude/skills/gone-relative" ]
+}
+
+@test "setup: leaves a dangling skill link that points outside the repo" {
+    # The other half of the predicate: a broken link into someone else's tree
+    # is the user's own business, and pruning it would be data loss.
+    mkdir -p "$HOME/.claude/skills"
+    ln -s "$HOME/elsewhere/not-ours" "$HOME/.claude/skills/not-ours"
+    [ ! -e "$HOME/.claude/skills/not-ours" ]            # dangling
+
+    run ./bin/setup.sh </dev/null
+    [ "$status" -eq 0 ]
+    [ -L "$HOME/.claude/skills/not-ours" ]
+}
