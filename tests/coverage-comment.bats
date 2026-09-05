@@ -249,3 +249,32 @@ sys.exit(0 if (not fires("pull_request", "main")     # the back-merge: skipped
     printf '%s\n' "$measured" | tr ',' '\n' | grep -qx develop
     printf '%s\n' "$measured" | tr ',' '\n' | grep -qx main
 }
+
+@test "coverage workflow: the lines inside quoted programs are excluded from measurement" {
+    # kcov's bash parser counts the body of a multi-line awk or jq program as
+    # bash lines, and they can never be hit: they are awk and jq source, run by
+    # a different interpreter. Left in, they report as permanently uncovered
+    # code that no test can reach, which understates the figure and puts a
+    # patch-coverage failure on any PR that touches one.
+    #
+    # The exclusion is what makes the kcov-ignore markers in the sources mean
+    # anything. Without the flag they are inert comments and the phantom lines
+    # come straight back, so assert the flag and the markers together.
+    local wf="$REPO_ROOT/.github/workflows/coverage.yml"
+    grep -q -- '--exclude-region=kcov-ignore-start:kcov-ignore-end' "$wf"
+
+    local marked
+    marked=$(grep -c 'kcov-ignore-start' "$REPO_ROOT/bin/post-coverage-comment.sh")
+    [ "$marked" -eq 3 ]
+    assert_equal_count "$REPO_ROOT/bin/post-coverage-comment.sh"
+}
+
+# Every opened region must be closed, or kcov swallows the rest of the file
+# silently: the run stays green and the coverage simply drops lines nobody
+# asked it to drop.
+assert_equal_count() {
+    local f="$1" starts ends
+    starts=$(grep -c 'kcov-ignore-start' "$f")
+    ends=$(grep -c 'kcov-ignore-end' "$f")
+    [ "$starts" -eq "$ends" ]
+}

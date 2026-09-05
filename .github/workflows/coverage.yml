@@ -96,6 +96,7 @@ jobs:
                --bash-parse-files-in-dir="$PWD/evals" \
                --bash-parse-files-in-dir="$PWD/benchmarks" \
                --exclude-pattern=/tests/,/benchmarks/scores/,/evals/results/,/evals/examples/ \
+               --exclude-region=kcov-ignore-start:kcov-ignore-end \
                "$PWD/coverage-out" "$(command -v bats)" tests/
           echo "── kcov output tree ──"
           ls -la coverage-out
