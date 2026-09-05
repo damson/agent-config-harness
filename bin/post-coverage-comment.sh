@@ -49,7 +49,58 @@ while [ $# -gt 0 ]; do
 done
 case "$pr" in ''|*[!0-9]*) log_error "Usage: $0 <pr> <kcov-merged-dir> [--base <json>] [--dry-run]";; esac
 json="$dir/coverage.json"
-[ -f "$json" ] || log_error "No coverage.json in '$dir' — did the kcov run produce output?"
+if [ ! -f "$json" ]; then
+    # kcov names its result directory after the traced binary and only
+    # sometimes also leaves a kcov-merged, so a caller that points at the
+    # merged path can be correct and still find nothing there. Accept exactly
+    # one coverage.json one level down. Several means per-child fragments, and
+    # picking one would report a single traced child's lines as the whole
+    # run's, so refuse rather than guess.
+    #
+    # The depth is bounded on purpose rather than sweeping the whole tree: an
+    # unbounded search under a large checkout can match an unrelated
+    # coverage.json and turn a clear "not found" into a puzzling "several
+    # found". kcov puts its output one level under the directory it is given,
+    # so one level is where it is. -type f because a directory of that name is
+    # not a report. -maxdepth is a BSD primary as well as a GNU one and works
+    # on stock macOS find as long as it precedes the tests, which it does.
+    found=$(find "$dir" -maxdepth 2 -type f -name coverage.json 2>/dev/null | sort)
+    # grep -c exits 1 on no matches, which would abort the script under set -e.
+    count=$(printf '%s\n' "$found" | grep -c . || true)
+    if [ "$count" -eq 1 ]; then
+        json="$found"
+        log_info "No coverage.json directly in '$dir'; using $json"
+    elif [ "$count" -gt 1 ]; then
+        log_error "Several coverage.json files under '$dir'; refusing to report one child as the run:
+$found"
+    fi
+fi
+[ -f "$json" ] || log_error "No coverage.json in '$dir' or one level below it — did the kcov run produce output?"
+
+# kcov roots the paths in its report at the checkout it measured. That is not
+# necessarily $REPO_ROOT: under AGENT_CONFIG_ROOT that variable points at the
+# config repo being managed rather than at the tree under test, so stripping it
+# silently no-opped and every row rendered a full absolute path. Derive the
+# prefix from the report itself, which is right by construction.
+strip_root=$(jq -r '.files[].file' "$json" | awk '
+    # kcov-ignore-start
+    NR == 1 { p = $0; next }
+    {
+        # Shrink the candidate prefix a path component at a time until it is
+        # one this file shares. String regexes, not /.../: the delimiter would
+        # have to be escaped inside the bracket expression.
+        while (p != "" && substr($0, 1, length(p)) != p) {
+            sub("[^/]*/?$", "", p)
+        }
+    }
+    END {
+        # Back to a directory boundary, so a single-file report does not have
+        # its filename eaten.
+        if (p !~ "/$") sub("[^/]*$", "", p)
+        print p
+    }
+')
+# kcov-ignore-end
 
 repo="${GITHUB_REPOSITORY:-$(gh repo view --json nameWithOwner --jq .nameWithOwner)}"
 
@@ -130,12 +181,14 @@ trap 'rm -f "$body_file"' EXIT
     printf '%s\n\n' "$(band "$pct")"
     printf '<details>\n<summary>Per-file coverage (worst first)</summary>\n\n'
     printf '| File | Coverage | Lines |\n|---|---:|---:|\n'
-    jq -r --arg root "$REPO_ROOT/" '
+    jq -r --arg root "$strip_root" '
         # kcov-ignore-start
+        # ltrimstr, not sub: the prefix is a path, and sub would read a dot in
+        # it as "any character".
         .files
         | map(.percent_covered |= tonumber)
         | sort_by(.percent_covered)[]
-        | "| `\(.file | sub("^" + $root; ""))` | \(.percent_covered)% | \(.covered_lines)/\(.total_lines) |"
+        | "| `\(.file | ltrimstr($root))` | \(.percent_covered)% | \(.covered_lines)/\(.total_lines) |"
     ' "$json"
     # kcov-ignore-end
     printf '\n</details>\n'
@@ -147,13 +200,27 @@ if [ -n "$dry" ]; then
     exit 0
 fi
 
-existing=$(gh api "repos/$repo/issues/$pr/comments" --paginate \
-    --jq "[.[] | select(.body | startswith(\"$MARKER\"))][0].id // empty")
+# --paginate runs --jq once PER PAGE and concatenates the outputs, so a marker
+# comment on any page but the first made this multi-line, the PATCH URL
+# malformed, and the script exit non-zero with the comment never refreshed.
+# Slurp every page into one document, then filter once.
+mine=$(gh api "repos/$repo/issues/$pr/comments" --paginate \
+    | jq -s --arg m "$MARKER" '[.[][] | select(.body | startswith($m))]')
+count=$(printf '%s' "$mine" | jq 'length')
 
-if [ -n "$existing" ]; then
-    gh api -X PATCH "repos/$repo/issues/comments/$existing" -F body=@"$body_file" >/dev/null
-    log_ok "Refreshed coverage comment on PR #$pr"
-else
-    gh api -X POST "repos/$repo/issues/$pr/comments" -F body=@"$body_file" >/dev/null
-    log_ok "Posted coverage comment on PR #$pr"
-fi
+case "$count" in
+    0)
+        gh api -X POST "repos/$repo/issues/$pr/comments" -F body=@"$body_file" >/dev/null
+        log_ok "Posted coverage comment on PR #$pr"
+        ;;
+    1)
+        id=$(printf '%s' "$mine" | jq -r '.[0].id')
+        gh api -X PATCH "repos/$repo/issues/comments/$id" -F body=@"$body_file" >/dev/null
+        log_ok "Refreshed coverage comment on PR #$pr"
+        ;;
+    *)
+        # Editing one of several in place is silent and unrecoverable: the
+        # body it overwrites is gone. Stop and let a human pick.
+        log_error "PR #$pr carries $count comments with the coverage marker; refusing to guess which to edit. Delete the extras first."
+        ;;
+esac
