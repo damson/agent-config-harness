@@ -256,4 +256,8 @@ Public keys start with -----BEGIN PUBLIC KEY-----.'
     run_lint
     [ "$status" -ne 0 ]
     assert_contains "$output" "tokens.env"
+    # Naming the file only proves something fired on that line. The point is
+    # that the case-sensitive ghp_ detector is what fired, so assert the
+    # pattern the linter echoes with its warning.
+    assert_contains "$output" 'ghp_[A-Za-z0-9]{20,}'
 }
