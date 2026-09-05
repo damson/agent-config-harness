@@ -23,23 +23,26 @@ make_coverage_json() {
 JSON
 }
 
-# `gh` that records argv and answers the comment-list call with $GH_COMMENTS.
+# `gh` that records argv and answers the comment-list call with real JSON.
+#
+# It answers in PAGES, the way `gh api --paginate` does: one page holding a
+# decoy that must never be selected, then one page per id in $GH_COMMENT_IDS
+# (or the single $GH_COMMENT_ID). Pages matter here, because the bug being
+# guarded against only appears when matches fall on different ones.
 make_gh_stub() {
     local bin="$1"
     mkdir -p "$bin"
     cat > "$bin/gh" <<'STUB'
 #!/usr/bin/env bash
 printf '%s\n' "$*" >> "$GH_CALLS"
-for a in "$@"; do
-    case "$a" in repos/*/issues/*/comments)
-        if [ "$1" = "api" ] && [ "$2" != "-X" ]; then
-            # the list call pipes through --jq inside the script; emulate the
-            # post-jq answer directly
-            printf '%s' "${GH_COMMENT_ID:-}"
-            exit 0
-        fi
-    esac
-done
+if [ "$1" = "api" ] && [ "$2" != "-X" ]; then
+    printf '[{"id":1,"body":"unrelated comment, must not be selected"}]\n'
+    ids="${GH_COMMENT_IDS:-${GH_COMMENT_ID:-}}"
+    for id in $ids; do
+        printf '[{"id":%s,"body":"<!-- coverage-report -->\\nprevious body"}]\n' "$id"
+    done
+    exit 0
+fi
 exit 0
 STUB
     chmod +x "$bin/gh"
@@ -148,6 +151,67 @@ teardown() {
     [ "$status" -eq 0 ]
     assert_contains "$(cat "$GH_CALLS")" "-X PATCH repos/owner/repo/issues/comments/4242"
     ! grep -q -- '-X POST' "$GH_CALLS"
+}
+
+@test "coverage-comment: a marker comment on a later page is still found" {
+    # Regression: --paginate runs --jq once per page and concatenates, so a
+    # match on any page but the first produced a usable-looking id that was
+    # really one line of several, and the PATCH URL was malformed.
+    run env PATH="$BIN:$PATH" GH_COMMENT_ID="4242" \
+        "$REPO_ROOT/bin/post-coverage-comment.sh" 7 "$COV"
+    [ "$status" -eq 0 ]
+    assert_contains "$(cat "$GH_CALLS")" "-X PATCH repos/owner/repo/issues/comments/4242"
+    ! grep -q -- '-X POST' "$GH_CALLS"
+}
+
+@test "coverage-comment: two marker comments are refused, not guessed between" {
+    # Overwriting one of several is silent and unrecoverable, so stop instead.
+    run env PATH="$BIN:$PATH" GH_COMMENT_IDS="4242 4343" \
+        "$REPO_ROOT/bin/post-coverage-comment.sh" 7 "$COV"
+    [ "$status" -ne 0 ]
+    assert_contains "$output" "refusing to guess"
+    ! grep -q -- '-X PATCH' "$GH_CALLS"
+    ! grep -q -- '-X POST' "$GH_CALLS"
+}
+
+@test "coverage-comment: per-file paths are relative even when REPO_ROOT differs" {
+    # Regression: the table stripped $REPO_ROOT, but kcov roots its paths at
+    # the checkout it measured. Where the two differ the strip no-opped and
+    # every row rendered an absolute path. Point AGENT_CONFIG_ROOT somewhere
+    # else entirely, which is exactly the consumer case.
+    local elsewhere
+    elsewhere=$(mktemp -d)
+    run env PATH="$BIN:$PATH" AGENT_CONFIG_ROOT="$elsewhere" \
+        "$REPO_ROOT/bin/post-coverage-comment.sh" 7 "$COV" --dry-run
+    rm -rf "$elsewhere"
+    [ "$status" -eq 0 ]
+    assert_contains "$output" '`bin/setup.sh`'
+    assert_contains "$output" '`lib/common.sh`'
+    assert_not_contains "$output" "\`$REPO_ROOT/bin/setup.sh\`"
+}
+
+@test "coverage-comment: coverage.json one level down is found, not missed" {
+    # kcov only sometimes leaves a kcov-merged directory, so a caller can point
+    # at the right parent and still not have the file directly beneath it.
+    local outer
+    outer=$(mktemp -d)
+    make_coverage_json "$outer/kcov-merged"
+    run env PATH="$BIN:$PATH" "$REPO_ROOT/bin/post-coverage-comment.sh" 7 "$outer" --dry-run
+    rm -rf "$outer"
+    [ "$status" -eq 0 ]
+    assert_contains "$output" "Coverage: 81.25%"
+}
+
+@test "coverage-comment: several coverage.json files are refused, not guessed between" {
+    # Picking one would report a single traced child's lines as the whole run.
+    local outer
+    outer=$(mktemp -d)
+    make_coverage_json "$outer/bash.1111"
+    make_coverage_json "$outer/bash.2222"
+    run env PATH="$BIN:$PATH" "$REPO_ROOT/bin/post-coverage-comment.sh" 7 "$outer" --dry-run
+    rm -rf "$outer"
+    [ "$status" -ne 0 ]
+    assert_contains "$output" "refusing to report one child as the run"
 }
 
 @test "coverage-comment: missing coverage.json is a loud failure" {
