@@ -76,8 +76,8 @@ log_info "Scanning tracked files for secret value patterns..."
 
 found=0
 
-# scrub_allowlisted <content> <sed case flag> — remove standalone allowlisted
-# fake values from one line of matched content.
+# scrub_allowlisted <content> — remove standalone allowlisted fake values from
+# one line of matched content.
 #
 # Substitutes one occurrence per pass and repeats until the text stops
 # changing, rather than using sed's /g. The boundary characters are part of
@@ -86,11 +86,11 @@ found=0
 # match against and it survived. Each pass strictly shortens the string, so
 # the loop terminates.
 scrub_allowlisted() {
-    local s="$1" icase="$2" prev
+    local s="$1" prev
     while :; do
         prev="$s"
         s=$(printf '%s' "$s" | sed -E \
-            "s/(^|[^A-Za-z0-9_-])${ALLOWLIST_VALUES}([^A-Za-z0-9_-]|\$)/\1\3/${icase}")
+            "s/(^|[^A-Za-z0-9_-])${ALLOWLIST_VALUES}([^A-Za-z0-9_-]|\$)/\1\3/")
         # Not `[ ... ] && break`: as the last command in the loop body, a false
         # test would return non-zero and kill the script under set -e.
         if [ "$s" = "$prev" ]; then
@@ -103,13 +103,12 @@ scrub_allowlisted() {
 # check_pattern <grep matcher flags> <pattern> — scan tracked files, drop
 # allowlisted fake values, report anything left and bump $found.
 check_pattern() {
-    local flags="$1" pattern="$2" raw rec content scrubbed matches icase
+    local flags="$1" pattern="$2" raw rec content scrubbed matches nocase=0
     # The scrub has to be as case-blind as the scan that produced the match:
     # the assignment patterns run under grep -Ei, so API_KEY=ABC123DEF matched
     # while a case-sensitive scrub left the allowlisted value untouched.
-    icase=""
     case "$flags" in
-        *i*) icase="I" ;;
+        *i*) nocase=1 ;;
     esac
     # -P would be ideal but is not portable. Use -E with caveats.
     # -e keeps a pattern starting with '-' from being read as options.
@@ -124,7 +123,21 @@ check_pattern() {
     while IFS= read -r rec; do
         [ -n "$rec" ] || continue
         content="${rec#*:*:}"
-        scrubbed=$(scrub_allowlisted "$content" "$icase")
+        # Case-fold the copy that the scrub and the re-check both look at,
+        # rather than asking sed for a case-insensitive substitution: sed's
+        # `I` flag is a GNU and modern-BSD extension, and where it is missing
+        # sed exits non-zero and takes the whole linter down under set -e.
+        # Folding is exact here because this branch re-checks with grep -i,
+        # which cannot tell the two spellings apart anyway, and because the
+        # record printed on a hit is the untouched original.
+        # LC_ALL=C with explicit ASCII ranges: tr is byte-oriented there, so a
+        # UTF-8 line passes through untouched instead of being folded by a
+        # multibyte-unaware tr. The patterns are ASCII, so nothing else needs
+        # folding.
+        if [ "$nocase" = 1 ]; then
+            content=$(printf '%s' "$content" | LC_ALL=C tr 'A-Z' 'a-z')
+        fi
+        scrubbed=$(scrub_allowlisted "$content")
         if printf '%s\n' "$scrubbed" | grep -q "$flags" -e "$pattern"; then
             matches+="$rec"$'\n'
         fi
