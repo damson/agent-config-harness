@@ -36,8 +36,23 @@ jobs:
         env:
           # A PR opened with GITHUB_TOKEN does not trigger other workflows, so
           # CI will not run on it. Acceptable for a routine back-merge, whose
-          # trees are identical to develop's — there is nothing for CI to test.
+          # trees are identical to develop's: there is nothing for CI to test.
           # It is NOT acceptable if main ever carries a hotfix: the PR body says
           # "Carries file changes" in that case, and that one wants a real run.
           # Swap in a PAT if hotfixes onto main become normal.
+          #
+          # What this looks like from the outside, because it has now been
+          # misdiagnosed three times (see issue #26): each back-merge PR leaves
+          # two runs in the Actions tab, CI and Coverage, against the PR's head
+          # SHA, with `total_count: 0` jobs and `actor: github-actions[bot]`.
+          # They read `action_required` at first and settle to `failure`. They
+          # are not failures and cannot be made to pass by re-running: the run
+          # was recorded and never authorised to start.
+          #
+          # Two things make them harmless. A run with zero jobs contributes no
+          # check runs, so nothing red appears on the PR itself; and the same
+          # SHA is genuinely tested by main's own push run, which is where the
+          # green checks on the PR come from. Tell this apart from a real
+          # startup race or a merge cancelling a run by reading the actor: a
+          # human-opened PR's runs execute normally.
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

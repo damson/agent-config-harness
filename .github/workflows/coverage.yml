@@ -32,14 +32,20 @@ concurrency:
 jobs:
   coverage:
     name: Coverage report
-    # Skip the back-merge PR (main -> develop). It carries an empty diff by
-    # construction, so it measures the commit main's own push run just
-    # measured, and it is merged the moment it goes green: the merge deletes
-    # the PR's merge ref out from under a 10-minute run, which GitHub then
-    # reports as a failed run with no jobs and a "workflow file issue". That
-    # red X is an artifact of the merge, not a real failure, and one nobody
-    # can act on. No success() here on purpose: this job has no `needs`, so
-    # there is no prior status to gate on.
+    # Skip the back-merge PR (main -> develop). Its diff against develop is
+    # empty by construction, so it would spend ten minutes measuring the exact
+    # commit main's own push run just measured. Pure duplication, and the
+    # figure it uploads is the one already stored.
+    #
+    # This only ever fires for a back-merge PR a human opened by hand. The
+    # automated one is opened by bin/open-backmerge-pr.sh running under
+    # GITHUB_TOKEN, and GitHub does not run workflows for a PR that token
+    # opened: the run is recorded and never authorised to start, so a
+    # job-level `if:` like this one is never reached. See the GH_TOKEN comment
+    # in backmerge-pr.yml for what that looks like from the outside.
+    #
+    # No success() here on purpose: this job has no `needs`, so there is no
+    # prior status to gate on.
     if: github.event_name != 'pull_request' || github.head_ref != 'main'
     runs-on: ubuntu-latest
     # kcov instruments every bash child the suite spawns; slow is normal,

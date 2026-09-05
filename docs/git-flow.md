@@ -136,9 +136,9 @@ different attention:
 
 ---
 
-## Two things that make a PR-opening workflow fail
+## Three things that make a PR-opening workflow fail
 
-Both bit the automation here, and neither is visible from the workflow file.
+All three bit the automation here, and none is visible from the workflow file.
 
 **A job-level `permissions: pull-requests: write` is not sufficient.** The
 repository must also allow it:
@@ -167,7 +167,34 @@ When relocating a script, grep **every** workflow, not just the one CI runs:
 grep -rn 'run: \./' .github/workflows/
 ```
 
----
+**A PR the workflow opens leaves dead runs that look like failures.** GitHub does
+not run workflows for a pull request opened with `GITHUB_TOKEN`, which stops a
+workflow from triggering itself in a loop. The runs are still *recorded*: every
+back-merge PR leaves a `CI` and a `Coverage` run against its head SHA with zero
+jobs, reading `action_required` at first and settling to `failure`.
+
+They are not failures, and re-running them cannot make them pass. Read the actor
+to tell this apart from a real problem:
+
+```bash
+gh api "repos/<owner>/<repo>/actions/runs/<id>" \
+  --jq '{conclusion, actor: .actor.login, event}'
+gh api "repos/<owner>/<repo>/actions/runs/<id>/jobs" --jq .total_count
+```
+
+`actor: github-actions[bot]` with `total_count: 0` is this. A human-opened PR's
+runs execute normally, so an actor of a real login means something else is
+wrong: a genuine startup race, or a merge cancelling a run still in flight.
+
+Two things keep it harmless. A run with zero jobs contributes no check runs, so
+nothing red appears on the PR; and the same SHA is tested by `main`'s own push
+run, which is where the PR's green checks come from. The cost is two dead runs
+per release in the Actions tab. Opening the PR with a PAT instead would make the
+runs execute, at the price of a long-lived token in the repo's secrets.
+
+This one cost three separate misdiagnoses before the actor was checked, which is
+why the signature is written out here and in the `GH_TOKEN` comment in
+`backmerge-pr.yml`.
 
 ---
 
