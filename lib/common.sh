@@ -62,9 +62,19 @@ require() {
 # ── Registry Reader ───────────────────────────────────────
 # Each function trims whitespace; comments (#) and blank lines are ignored.
 
+# Internal: fail unless the domain registry is readable.
+#
+# Every reader below is "_iter_registry | awk", and a pipeline reports awk's
+# status. Guarding inside _iter_registry printed the error from the left-hand
+# subshell and the reader still exited 0 with no output, so a caller looping
+# over the result did nothing and said nothing about it. The guard belongs in
+# the caller's own shell, before the pipe.
+_require_registry() {
+    [ -f "$DOMAINS_CONF" ] || log_error "Domain registry not found at $DOMAINS_CONF"
+}
+
 # Internal: emit each non-comment, non-blank line of domains.conf
 _iter_registry() {
-    [ -f "$DOMAINS_CONF" ] || log_error "Domain registry not found at $DOMAINS_CONF"
     # Strip leading/trailing whitespace; skip comments and blank lines
     awk '
         /^[[:space:]]*#/ { next }
@@ -75,6 +85,7 @@ _iter_registry() {
 
 # list_domains → prints one domain name per line
 list_domains() {
+    _require_registry
     _iter_registry | awk -F= '{
         gsub(/[[:space:]]/, "", $1)
         print $1
@@ -87,6 +98,7 @@ list_domains() {
 # holding no config and not required to exist in this repo.
 get_domain_workspaces() {
     local domain="$1"
+    _require_registry
     _iter_registry | awk -F'[=:]' -v d="$domain" '
         {
             gsub(/[[:space:]]/, "", $1)
@@ -113,6 +125,7 @@ get_domain_workspace() {
 # Supports optional source>dest mapping: "AGENTS.md>sub/CLAUDE.md" emits "sub/CLAUDE.md".
 get_domain_files() {
     local domain="$1"
+    _require_registry
     _iter_registry | awk -F'[=:]' -v d="$domain" '
         {
             gsub(/[[:space:]]/, "", $1)
@@ -139,6 +152,7 @@ get_domain_files() {
 # Returns repo_file unchanged when no mapping is defined for it.
 get_domain_file_src() {
     local domain="$1" repo_file="$2"
+    _require_registry
     _iter_registry | awk -F'[=:]' -v d="$domain" -v dst="$repo_file" '
         {
             gsub(/[[:space:]]/, "", $1)
@@ -174,10 +188,15 @@ domain_exists() {
 # Field 3 (<install>) may itself contain '=' and ':', so the id is split off on
 # the FIRST '=' only and the remainder is split on '::'.
 
-# Internal: emit each non-comment, non-blank line of external-skills.conf
-_iter_external() {
+# Internal: fail unless the external skill registry is readable — same pipeline
+# reasoning as _require_registry above.
+_require_external() {
     [ -f "$EXTERNAL_SKILLS_CONF" ] ||
         log_error "External skill registry not found at $EXTERNAL_SKILLS_CONF"
+}
+
+# Internal: emit each non-comment, non-blank line of external-skills.conf
+_iter_external() {
     awk '
         /^[[:space:]]*#/ { next }
         /^[[:space:]]*$/ { next }
@@ -187,6 +206,7 @@ _iter_external() {
 
 # list_external_skills → prints one provider id per line
 list_external_skills() {
+    _require_external
     _iter_external | awk -F= '{
         gsub(/[[:space:]]/, "", $1)
         print $1
@@ -196,6 +216,7 @@ list_external_skills() {
 # Internal: _external_field <id> <n> → prints the nth '::' field for that id
 _external_field() {
     local id="$1" n="$2"
+    _require_external
     _iter_external | awk -v want="$id" -v n="$n" '
         {
             eq = index($0, "=")
@@ -335,7 +356,9 @@ list_skill_dirs() {
             printf '%s\n' "${dir%/}"
             continue
         fi
-        for nested in "$dir"/*/; do
+        # $dir already ends in "/", so "$dir"/*/ would emit group//first —
+        # a path that resolves but never string-matches the same walk done with find.
+        for nested in "$dir"*/; do
             [ -f "$nested/SKILL.md" ] || continue
             printf '%s\n' "${nested%/}"
         done
