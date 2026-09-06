@@ -118,6 +118,10 @@ get_domain_workspaces() {
 # get_domain_workspace <domain> → the canonical workspace path. Callers that
 # read, write or score a domain's files want this one, never an alias.
 get_domain_workspace() {
+    # The guard again, because this wraps a pipe of its own: the one inside
+    # get_domain_workspaces fires in the left-hand subshell, and head returns 0
+    # on empty input, so without this the caller is handed success and no path.
+    _require_registry
     get_domain_workspaces "$1" | head -1
 }
 
@@ -180,6 +184,10 @@ get_domain_file_src() {
 # domain_exists <domain> → 0 if found, 1 otherwise
 domain_exists() {
     local domain="$1"
+    # Same shape, and here the wrong answer is worse than an empty one: grep
+    # finds nothing in a missing registry and the caller is told the domain
+    # does not exist, which is not what was measured.
+    _require_registry
     list_domains | grep -qx "$domain"
 }
 
@@ -253,6 +261,7 @@ get_external_docs() { _external_field "$1" 4; }
 
 # external_skill_exists <id> → 0 if registered, 1 otherwise
 external_skill_exists() {
+    _require_external
     list_external_skills | grep -qx "$1"
 }
 

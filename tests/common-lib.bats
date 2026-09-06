@@ -231,6 +231,38 @@ setup() {
     assert_contains "$output" "External skill registry not found"
 }
 
+@test "get_domain_workspace: a missing registry fails rather than reporting no workspace" {
+    # This one wraps its own pipe: get_domain_workspaces | head -1. The guard
+    # fires inside the left-hand subshell, and head returns 0 on empty input,
+    # so the wrapper needs the guard in its own shell too.
+    run bash -c ". lib/common.sh; DOMAINS_CONF=/nonexistent/domains.conf; get_domain_workspace mobile"
+    [ "$status" -ne 0 ]
+    assert_contains "$output" "Domain registry not found"
+}
+
+@test "domain_exists: a missing registry fails rather than answering no" {
+    # The wrong answer is worse than the empty one: grep finds nothing and the
+    # caller is told the domain does not exist, which is not what was measured.
+    run bash -c ". lib/common.sh; DOMAINS_CONF=/nonexistent/domains.conf; domain_exists mobile"
+    [ "$status" -ne 0 ]
+    assert_contains "$output" "Domain registry not found"
+}
+
+@test "external_skill_exists: a missing registry fails rather than answering no" {
+    run bash -c ". lib/common.sh; EXTERNAL_SKILLS_CONF=/nonexistent/external.conf; external_skill_exists impeccable"
+    [ "$status" -ne 0 ]
+    assert_contains "$output" "External skill registry not found"
+}
+
+@test "the wrappers still answer correctly when the registry is there" {
+    # Control for the three above: a guard that rejected everything would make
+    # them pass and the library useless.
+    run bash -c ". lib/common.sh; get_domain_workspace mobile; domain_exists mobile && external_skill_exists impeccable && echo both-found"
+    [ "$status" -eq 0 ]
+    assert_contains "$output" "workspace/mobile"
+    assert_contains "$output" "both-found"
+}
+
 @test "domains: a present registry still reads cleanly after the guard" {
     # The control: a guard that rejected everything would make the four tests
     # above pass and the reader useless.
