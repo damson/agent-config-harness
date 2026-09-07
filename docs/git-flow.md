@@ -105,7 +105,7 @@ workflow at all, which is indistinguishable from having lost it:
 
 ```bash
 gh api "repos/<owner>/<repo>/actions/runs?event=schedule" \
-  --jq '.workflow_runs[] | "\(.created_at) \(.name)"'
+  --jq '.workflow_runs[] | "\(.id) \(.created_at) \(.name)"'
 ```
 
 A delay that size is a loss for a standing PR: the batch waited all morning
@@ -113,27 +113,32 @@ with nothing saying it was ready. The Monday cron is still there as a net for a
 week with no merges, at :17 rather than :00 where contention is worst, but the
 push is what the standing PR actually rests on.
 
-**It is opened with a personal access token, not `GITHUB_TOKEN`.** A pull
-request opened by the Actions token receives no `pull_request` event, so nothing
-that reacts to one ever sees it. The release PR is the one that most needs its
-checks, so the workflow reads `RELEASE_PR_TOKEN`, a fine-grained token scoped to
-this repository with *Pull requests: read and write*. A step asserts the secret
-is present before the script runs, so an expired token fails loudly on the next
-merge rather than silently ceasing to open releases.
+**It is opened with a personal access token, not `GITHUB_TOKEN`.** The reason
+is review, not CI. The workflow reads `RELEASE_PR_TOKEN`, a fine-grained token
+scoped to this repository with *Pull requests: read and write*, so the release
+PR is authored by a person. A step asserts the secret is present before the
+script runs, so an expired token fails loudly on the next merge rather than
+silently ceasing to open releases.
 
-**On that PR, green means nothing.** This is worse than the zero-job signature
-described below, because there is no failure to notice. A `develop` → `main` PR
-has `develop`'s own head as its head commit, and that commit was already tested
-by the push to `develop`. GitHub attaches those results to the PR, so it reads
-`CLEAN` with every check green while the review and coverage apps, which act on
-the `pull_request` event, never saw it at all. Release PR #71 was opened this
-way and carried seven green checks and no CodeRabbit and no Codecov. Read the
-check list, not the colour:
+**A release PR the Actions app opens is silently never reviewed.** Release PR
+#71 was opened by the delayed scheduled run, before that token change landed,
+and what happened to it is worth recording exactly, because most of it worked.
+Its `pull_request` runs were created and passed, Codecov measured it and
+commented, and it read `CLEAN`. CodeRabbit did not review it and did not say so:
+no check, no comment, nothing, because the pull request was authored by a bot
+account. A green row with a missing reviewer looks exactly like a green row.
+Read the check list, not the colour:
 
 ```bash
 gh pr view <n> --json statusCheckRollup \
   --jq '[.statusCheckRollup[] | .name // .context] | sort'
 ```
+
+This is not the held-run signature described further down. There, the runs of
+an Actions-opened pull request were withheld and recorded with zero jobs; here
+they executed normally. Both were observed in this repository, two days apart,
+so treat withholding as possible rather than certain and read the runs instead
+of predicting them.
 
 ### Why cadence matters here
 
