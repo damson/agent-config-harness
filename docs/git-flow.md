@@ -70,9 +70,9 @@ Nothing is authored on a release branch; if a fix is needed mid-release, it
 lands on `develop` first and the release PR picks it up.
 
 **A standing release PR is kept open for you.** `.github/workflows/release-pr.yml`
-runs `bin/open-release-pr.sh` every Monday (and on demand via *Run workflow*),
-opening the PR if none is open and refreshing its inventory if one is. It never
-merges; promotion stays a human decision. Locally:
+runs `bin/open-release-pr.sh` on **every push to `develop`**, opening the PR if
+none is open and refreshing its inventory if one is. It never merges; promotion
+stays a human decision. Locally:
 
 ```bash
 just release           # open or refresh it
@@ -89,11 +89,56 @@ blank, because they need judgement:
   and the release is the only place a reader sees where the repo ended up
   rather than one step of the journey.
 
-**Refreshing regenerates the body.** Running the script against an existing
-release PR rewrites the description from the template, discarding the summary,
-diagram and test plan already written into it. Nothing warns you, and the
-inventory table below them looks freshly updated either way. Re-apply the
-written sections after a refresh, and read the body before merging.
+**A refresh replaces only what it wrote.** Everything above the
+`## 📦 What is in this batch` heading is yours and is carried across untouched;
+everything from that heading down is reassembled. It used to regenerate the
+whole description, discarding the summary, diagram and test plan with no
+warning, which was survivable weekly and is not now the refresh runs on every
+merge. A description with no such heading in it, hand-rewritten from scratch,
+is kept whole and the block appended.
+
+**Why a push rather than a schedule.** A `schedule` is best-effort, and the
+delay it is allowed is unbounded in practice. On the first Monday this workflow
+was eligible, the 09:00 UTC run started at **14:30 UTC**, five and a half hours
+late; four hours past due the repository had recorded no scheduled run of any
+workflow at all, which is indistinguishable from having lost it:
+
+```bash
+gh api "repos/<owner>/<repo>/actions/runs?event=schedule" \
+  --jq '.workflow_runs[] | "\(.id) \(.created_at) \(.name)"'
+```
+
+A delay that size is a loss for a standing PR: the batch waited all morning
+with nothing saying it was ready. The Monday cron is still there as a net for a
+week with no merges, at :17 rather than :00 where contention is worst, but the
+push is what the standing PR actually rests on.
+
+**It is opened with a personal access token, not `GITHUB_TOKEN`.** The reason
+is review, not CI. The workflow reads `RELEASE_PR_TOKEN`, a fine-grained token
+scoped to this repository with *Pull requests: read and write*, so the release
+PR is authored by a person. A step asserts the secret is present before the
+script runs, so an expired token fails loudly on the next merge rather than
+silently ceasing to open releases.
+
+**A release PR the Actions app opens is silently never reviewed.** Release PR
+#71 was opened by the delayed scheduled run, before that token change landed,
+and what happened to it is worth recording exactly, because most of it worked.
+Its `pull_request` runs were created and passed, Codecov measured it and
+commented, and it read `CLEAN`. CodeRabbit did not review it and did not say so:
+no check, no comment, nothing, because the pull request was authored by a bot
+account. A green row with a missing reviewer looks exactly like a green row.
+Read the check list, not the colour:
+
+```bash
+gh pr view <n> --json statusCheckRollup \
+  --jq '[.statusCheckRollup[] | .name // .context] | sort'
+```
+
+This is not the held-run signature described further down. There, the runs of
+an Actions-opened pull request were withheld and recorded with zero jobs; here
+they executed normally. Both were observed in this repository, two days apart,
+so treat withholding as possible rather than certain and read the runs instead
+of predicting them.
 
 ### Why cadence matters here
 
@@ -141,6 +186,26 @@ organisation, and it is not a personal access token, because a deploy key is
 narrower. Running `just backmerge` from a laptop will be rejected by the same
 rule; that is expected, and `just backmerge-preview` is the local answer.
 
+**The bypass is granted to deploy keys, not to one deploy key.** GitHub stores
+the entry with `actor_id: null`, so it reads as *any* write-capable deploy key on
+this repository, whatever it was named when it was added:
+
+```bash
+gh api repos/<owner>/<repo>/rulesets/<id> --jq '[.bypass_actors[] | {actor_id, actor_type}]'
+gh api repos/<owner>/<repo>/keys --paginate \
+  --jq '.[] | select(.read_only | not) | "\(.id) \(.title)"'
+```
+
+The second command filters to the write-capable keys, which are the ones that
+matter, and pages: `/keys` returns 30 per response, so without `--paginate` a
+writable key sitting past the first page is invisible to the very inventory
+meant to find it.
+
+Today that set is exactly one key, the one this workflow uses. Adding a second
+write-capable deploy key would silently hand it the same ability to push to
+`develop` without a pull request, so add read-only keys unless a key genuinely
+needs to write, and check the list above when granting one.
+
 **One case still opens a pull request:** `develop` has moved on since the
 release, so it is no longer an ancestor of `main` and levelling the two needs a
 merge commit somebody authors. That is a real change and gets a real review. A
@@ -177,8 +242,10 @@ permitted to create or approve pull requests*, a message that reads like a token
 problem and is not one.
 
 **A workflow with no `pull_request` trigger is never exercised by review.** The
-release and back-merge workflows run only on `push` to `main`, so a PR that moves
-or renames a script they call goes green and fails on the next release instead.
+back-merge runs on `push` to `main` and the release PR workflow on `push` to
+`develop`, so neither is exercised by the pull request that changes it: one that
+moves or renames a script they call goes green and fails on the next merge
+instead.
 When relocating a script, grep **every** workflow, not just the one CI runs:
 
 ```bash
