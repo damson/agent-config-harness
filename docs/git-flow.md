@@ -97,27 +97,43 @@ warning, which was survivable weekly and is not now the refresh runs on every
 merge. A description with no such heading in it, hand-rewritten from scratch,
 is kept whole and the block appended.
 
-**Why a push rather than a schedule.** A `schedule` is best-effort: GitHub
-delays cron under load and drops it. On the first Monday this workflow was
-eligible, nothing ran, and the repository had recorded zero scheduled runs of
-any workflow, four hours past due:
+**Why a push rather than a schedule.** A `schedule` is best-effort, and the
+delay it is allowed is unbounded in practice. On the first Monday this workflow
+was eligible, the 09:00 UTC run started at **14:30 UTC**, five and a half hours
+late; four hours past due the repository had recorded no scheduled run of any
+workflow at all, which is indistinguishable from having lost it:
 
 ```bash
-gh api "repos/<owner>/<repo>/actions/runs?event=schedule" --jq .total_count
+gh api "repos/<owner>/<repo>/actions/runs?event=schedule" \
+  --jq '.workflow_runs[] | "\(.created_at) \(.name)"'
 ```
 
-The Monday cron is still there as a net for a week with no merges, at :17
-rather than :00 where contention is worst, but the push is what the standing PR
-actually rests on.
+A delay that size is a loss for a standing PR: the batch waited all morning
+with nothing saying it was ready. The Monday cron is still there as a net for a
+week with no merges, at :17 rather than :00 where contention is worst, but the
+push is what the standing PR actually rests on.
 
 **It is opened with a personal access token, not `GITHUB_TOKEN`.** A pull
-request opened by the Actions token gets no checks at all: GitHub withholds the
-runs, and they surface as `action_required` with zero jobs, the signature
-described below. The release PR is the one that most needs its checks, so the
-workflow reads `RELEASE_PR_TOKEN`, a fine-grained token scoped to this
-repository with *Pull requests: read and write*. A step asserts the secret is
-present before the script runs, so an expired token fails loudly on the next
+request opened by the Actions token receives no `pull_request` event, so nothing
+that reacts to one ever sees it. The release PR is the one that most needs its
+checks, so the workflow reads `RELEASE_PR_TOKEN`, a fine-grained token scoped to
+this repository with *Pull requests: read and write*. A step asserts the secret
+is present before the script runs, so an expired token fails loudly on the next
 merge rather than silently ceasing to open releases.
+
+**On that PR, green means nothing.** This is worse than the zero-job signature
+described below, because there is no failure to notice. A `develop` → `main` PR
+has `develop`'s own head as its head commit, and that commit was already tested
+by the push to `develop`. GitHub attaches those results to the PR, so it reads
+`CLEAN` with every check green while the review and coverage apps, which act on
+the `pull_request` event, never saw it at all. Release PR #71 was opened this
+way and carried seven green checks and no CodeRabbit and no Codecov. Read the
+check list, not the colour:
+
+```bash
+gh pr view <n> --json statusCheckRollup \
+  --jq '[.statusCheckRollup[] | .name // .context] | sort'
+```
 
 ### Why cadence matters here
 
