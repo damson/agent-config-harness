@@ -97,27 +97,48 @@ warning, which was survivable weekly and is not now the refresh runs on every
 merge. A description with no such heading in it, hand-rewritten from scratch,
 is kept whole and the block appended.
 
-**Why a push rather than a schedule.** A `schedule` is best-effort: GitHub
-delays cron under load and drops it. On the first Monday this workflow was
-eligible, nothing ran, and the repository had recorded zero scheduled runs of
-any workflow, four hours past due:
+**Why a push rather than a schedule.** A `schedule` is best-effort, and the
+delay it is allowed is unbounded in practice. On the first Monday this workflow
+was eligible, the 09:00 UTC run started at **14:30 UTC**, five and a half hours
+late; four hours past due the repository had recorded no scheduled run of any
+workflow at all, which is indistinguishable from having lost it:
 
 ```bash
-gh api "repos/<owner>/<repo>/actions/runs?event=schedule" --jq .total_count
+gh api "repos/<owner>/<repo>/actions/runs?event=schedule" \
+  --jq '.workflow_runs[] | "\(.id) \(.created_at) \(.name)"'
 ```
 
-The Monday cron is still there as a net for a week with no merges, at :17
-rather than :00 where contention is worst, but the push is what the standing PR
-actually rests on.
+A delay that size is a loss for a standing PR: the batch waited all morning
+with nothing saying it was ready. The Monday cron is still there as a net for a
+week with no merges, at :17 rather than :00 where contention is worst, but the
+push is what the standing PR actually rests on.
 
-**It is opened with a personal access token, not `GITHUB_TOKEN`.** A pull
-request opened by the Actions token gets no checks at all: GitHub withholds the
-runs, and they surface as `action_required` with zero jobs, the signature
-described below. The release PR is the one that most needs its checks, so the
-workflow reads `RELEASE_PR_TOKEN`, a fine-grained token scoped to this
-repository with *Pull requests: read and write*. A step asserts the secret is
-present before the script runs, so an expired token fails loudly on the next
-merge rather than silently ceasing to open releases.
+**It is opened with a personal access token, not `GITHUB_TOKEN`.** The reason
+is review, not CI. The workflow reads `RELEASE_PR_TOKEN`, a fine-grained token
+scoped to this repository with *Pull requests: read and write*, so the release
+PR is authored by a person. A step asserts the secret is present before the
+script runs, so an expired token fails loudly on the next merge rather than
+silently ceasing to open releases.
+
+**A release PR the Actions app opens is silently never reviewed.** Release PR
+#71 was opened by the delayed scheduled run, before that token change landed,
+and what happened to it is worth recording exactly, because most of it worked.
+Its `pull_request` runs were created and passed, Codecov measured it and
+commented, and it read `CLEAN`. CodeRabbit did not review it and did not say so:
+no check, no comment, nothing, because the pull request was authored by a bot
+account. A green row with a missing reviewer looks exactly like a green row.
+Read the check list, not the colour:
+
+```bash
+gh pr view <n> --json statusCheckRollup \
+  --jq '[.statusCheckRollup[] | .name // .context] | sort'
+```
+
+This is not the held-run signature described further down. There, the runs of
+an Actions-opened pull request were withheld and recorded with zero jobs; here
+they executed normally. Both were observed in this repository, two days apart,
+so treat withholding as possible rather than certain and read the runs instead
+of predicting them.
 
 ### Why cadence matters here
 
