@@ -221,8 +221,10 @@ permitted to create or approve pull requests*, a message that reads like a token
 problem and is not one.
 
 **A workflow with no `pull_request` trigger is never exercised by review.** The
-release and back-merge workflows run only on `push` to `main`, so a PR that moves
-or renames a script they call goes green and fails on the next release instead.
+back-merge runs on `push` to `main` and the release PR workflow on `push` to
+`develop`, so neither is exercised by the pull request that changes it: one that
+moves or renames a script they call goes green and fails on the next merge
+instead.
 When relocating a script, grep **every** workflow, not just the one CI runs:
 
 ```bash

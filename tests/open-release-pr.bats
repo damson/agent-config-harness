@@ -190,6 +190,51 @@ flowchart LR
     assert_contains "$(cat "$GH_BODY")" "## 📐 Before / after"
 }
 
+@test "open-release-pr: a batch of direct commits says so rather than leaving the cell blank" {
+    local repo
+    repo=$(mktemp -d)
+    (
+        cd "$repo"
+        git init -q .
+        git config user.email t@t
+        git config user.name T
+        git commit -q --allow-empty -m "base"
+        git update-ref refs/remotes/origin/main HEAD
+        # No merge commit and no "(#N)" suffix: nothing to harvest a number from.
+        git commit -q --allow-empty -m "a commit that closed no pull request"
+        git update-ref refs/remotes/origin/develop HEAD
+    )
+    run env PATH="$BIN:$PATH" bash -c "cd '$repo' && '$REPO_ROOT/bin/open-release-pr.sh' --dry-run"
+    rm -rf "$repo"
+    [ "$status" -eq 0 ]
+    assert_contains "$output" "(none, direct commits only)"
+}
+
+@test "open-release-pr: RELEASE_BASE and RELEASE_HEAD retarget the comparison" {
+    # The knobs exist so a fork can promote between its own two branches. An
+    # unread pair would silently report the default range instead.
+    local repo
+    repo=$(mktemp -d)
+    (
+        cd "$repo"
+        git init -q .
+        git config user.email t@t
+        git config user.name T
+        git commit -q --allow-empty -m "base"
+        git update-ref refs/remotes/origin/stable HEAD
+        git commit -q --allow-empty -m "one for the next release (#7)"
+        git commit -q --allow-empty -m "and another (#8)"
+        git update-ref refs/remotes/origin/next HEAD
+    )
+    run env PATH="$BIN:$PATH" RELEASE_BASE=stable RELEASE_HEAD=next \
+        bash -c "cd '$repo' && '$REPO_ROOT/bin/open-release-pr.sh' --dry-run"
+    rm -rf "$repo"
+    [ "$status" -eq 0 ]
+    assert_contains "$output" "| Commits | 2 |"
+    assert_contains "$output" "#7"
+    assert_contains "$output" "#8"
+}
+
 @test "open-release-pr: --dry-run touches nothing" {
     run env PATH="$BIN:$PATH" bash -c "cd '$REPO' && '$REPO_ROOT/bin/open-release-pr.sh' --dry-run"
     [ "$status" -eq 0 ]
