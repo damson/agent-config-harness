@@ -198,3 +198,162 @@ setup() {
     [ "$status" -eq 0 ]
     assert_contains "$output" "reached-the-end"
 }
+
+# --- A missing registry ------------------------------------------------------
+# Every reader below is "guard | awk", and a pipeline reports awk's status. The
+# guard printed its error from inside the left-hand subshell and the call still
+# exited 0 with no output, so a caller looping over the result did nothing and
+# said nothing about it.
+
+@test "list_domains: a missing registry fails instead of reporting no domains" {
+    run bash -c ". lib/common.sh; DOMAINS_CONF=/nonexistent/domains.conf; list_domains"
+    [ "$status" -ne 0 ]
+    assert_contains "$output" "Domain registry not found"
+}
+
+@test "get_domain_workspaces: a missing registry fails instead of returning empty" {
+    # A second entry point, because the guard has to sit in each of them: they
+    # reach the registry directly, not through list_domains.
+    run bash -c ". lib/common.sh; DOMAINS_CONF=/nonexistent/domains.conf; get_domain_workspaces mobile"
+    [ "$status" -ne 0 ]
+    assert_contains "$output" "Domain registry not found"
+}
+
+@test "list_external_skills: a missing registry fails instead of reporting no providers" {
+    run bash -c ". lib/common.sh; EXTERNAL_SKILLS_CONF=/nonexistent/external.conf; list_external_skills"
+    [ "$status" -ne 0 ]
+    assert_contains "$output" "External skill registry not found"
+}
+
+@test "get_external_install: a missing registry fails instead of returning empty" {
+    run bash -c ". lib/common.sh; EXTERNAL_SKILLS_CONF=/nonexistent/external.conf; get_external_install android-skills"
+    [ "$status" -ne 0 ]
+    assert_contains "$output" "External skill registry not found"
+}
+
+@test "get_domain_workspace: a missing registry fails rather than reporting no workspace" {
+    # This one wraps its own pipe: get_domain_workspaces | head -1. The guard
+    # fires inside the left-hand subshell, and head returns 0 on empty input,
+    # so the wrapper needs the guard in its own shell too.
+    run bash -c ". lib/common.sh; DOMAINS_CONF=/nonexistent/domains.conf; get_domain_workspace mobile"
+    [ "$status" -ne 0 ]
+    assert_contains "$output" "Domain registry not found"
+}
+
+@test "domain_exists: a missing registry fails rather than answering no" {
+    # The wrong answer is worse than the empty one: grep finds nothing and the
+    # caller is told the domain does not exist, which is not what was measured.
+    run bash -c ". lib/common.sh; DOMAINS_CONF=/nonexistent/domains.conf; domain_exists mobile"
+    [ "$status" -ne 0 ]
+    assert_contains "$output" "Domain registry not found"
+}
+
+@test "external_skill_exists: a missing registry fails rather than answering no" {
+    run bash -c ". lib/common.sh; EXTERNAL_SKILLS_CONF=/nonexistent/external.conf; external_skill_exists impeccable"
+    [ "$status" -ne 0 ]
+    assert_contains "$output" "External skill registry not found"
+}
+
+@test "the wrappers still answer correctly when the registry is there" {
+    # Control for the three above: a guard that rejected everything would make
+    # them pass and the library useless.
+    run bash -c ". lib/common.sh; get_domain_workspace mobile; domain_exists mobile && external_skill_exists impeccable && echo both-found"
+    [ "$status" -eq 0 ]
+    assert_contains "$output" "workspace/mobile"
+    assert_contains "$output" "both-found"
+}
+
+@test "domains: a present registry still reads cleanly after the guard" {
+    # The control: a guard that rejected everything would make the four tests
+    # above pass and the reader useless.
+    run list_domains
+    [ "$status" -eq 0 ]
+    assert_contains "$output" "mobile"
+}
+
+# --- External registry fields ------------------------------------------------
+# Only field 3 had a test. An off-by-one inside _external_field would leave that
+# one passing while every other accessor returned a neighbouring column.
+
+@test "get_external_requires: android-skills names the command that must be on PATH" {
+    run get_external_requires "android-skills"
+    [ "$status" -eq 0 ]
+    [ "$output" = "android" ]
+}
+
+@test "get_external_docs: android-skills returns the documentation URL" {
+    run get_external_docs "android-skills"
+    [ "$status" -eq 0 ]
+    [ "$output" = "https://developer.android.com/studio/cli" ]
+}
+
+@test "get_external_probe: a leading ~ expands to \$HOME" {
+    # The probe is the only field transformed rather than returned verbatim, and
+    # an unexpanded ~ names a path that never exists: the installer would then
+    # reinstall a bundle that is already there on every run.
+    run bash -c 'HOME=/tmp/ai-setup-probe-home; . lib/common.sh; get_external_probe android-skills'
+    [ "$status" -eq 0 ]
+    [ "$output" = "/tmp/ai-setup-probe-home/.claude/skills/android-cli" ]
+}
+
+@test "external fields: a line shorter than the field asked for yields nothing" {
+    local conf
+    conf=$(mktemp)
+    printf 'short = tool :: ~/probe\n' > "$conf"
+    run bash -c ". lib/common.sh; EXTERNAL_SKILLS_CONF='$conf'; get_external_docs short"
+    rm -f "$conf"
+    [ "$status" -eq 0 ]
+    [ -z "$output" ]
+}
+
+# --- list_skill_dirs ---------------------------------------------------------
+# Nothing exercised this. tests/skills.bats walks the tree with its own find and
+# the helper that does it says to keep the two in step; the last test here is
+# what makes that true rather than hoped for.
+
+@test "list_skill_dirs: finds a top-level skill and descends into a group" {
+    local root expected
+    root=$(mktemp -d)
+    mkdir -p "$root/solo" "$root/group/first" "$root/group/second" "$root/not-a-skill"
+    touch "$root/solo/SKILL.md" "$root/group/first/SKILL.md" "$root/group/second/SKILL.md"
+    run bash -c ". lib/common.sh; SKILLS_DIR='$root'; list_skill_dirs | sort"
+    # Exact list: the group container holds no SKILL.md and is a container, and
+    # a directory holding neither is neither.
+    expected=$(printf '%s\n' "$root/group/first" "$root/group/second" "$root/solo")
+    rm -rf "$root"
+    [ "$status" -eq 0 ]
+    [ "$output" = "$expected" ]
+}
+
+@test "list_skill_dirs: a root that does not exist is silence, not an error" {
+    run bash -c ". lib/common.sh; SKILLS_DIR=/nonexistent/skills; list_skill_dirs"
+    [ "$status" -eq 0 ]
+    [ -z "$output" ]
+}
+
+@test "list_skill_dirs: agrees with the find the test helper walks the tree with" {
+    run bash -c ". lib/common.sh; list_skill_dirs | sort"
+    [ "$status" -eq 0 ]
+    [ "$output" = "$(list_skill_paths)" ]
+}
+
+# --- The two roots -----------------------------------------------------------
+# HARNESS_ROOT is this checkout; REPO_ROOT is the config repo being managed.
+# Getting them backwards is silent: the engine reads its own example domains and
+# reports healthy.
+
+@test "AGENT_CONFIG_ROOT: a path that is not a directory refuses to load" {
+    run bash -c "AGENT_CONFIG_ROOT='$REPO_ROOT/README.md' . lib/common.sh"
+    [ "$status" -ne 0 ]
+    assert_contains "$output" "AGENT_CONFIG_ROOT is not a directory"
+}
+
+@test "AGENT_CONFIG_ROOT: REPO_ROOT follows it while HARNESS_ROOT stays this checkout" {
+    local elsewhere
+    elsewhere=$(mktemp -d)
+    run bash -c "AGENT_CONFIG_ROOT='$elsewhere' . lib/common.sh; printf '%s\n%s\n' \"\$REPO_ROOT\" \"\$HARNESS_ROOT\""
+    rm -rf "$elsewhere"
+    [ "$status" -eq 0 ]
+    [ "$(printf '%s\n' "$output" | head -1)" = "$elsewhere" ]
+    [ "$(printf '%s\n' "$output" | tail -1)" = "$REPO_ROOT" ]
+}
