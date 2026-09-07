@@ -70,9 +70,9 @@ Nothing is authored on a release branch; if a fix is needed mid-release, it
 lands on `develop` first and the release PR picks it up.
 
 **A standing release PR is kept open for you.** `.github/workflows/release-pr.yml`
-runs `bin/open-release-pr.sh` every Monday (and on demand via *Run workflow*),
-opening the PR if none is open and refreshing its inventory if one is. It never
-merges; promotion stays a human decision. Locally:
+runs `bin/open-release-pr.sh` on **every push to `develop`**, opening the PR if
+none is open and refreshing its inventory if one is. It never merges; promotion
+stays a human decision. Locally:
 
 ```bash
 just release           # open or refresh it
@@ -89,11 +89,35 @@ blank, because they need judgement:
   and the release is the only place a reader sees where the repo ended up
   rather than one step of the journey.
 
-**Refreshing regenerates the body.** Running the script against an existing
-release PR rewrites the description from the template, discarding the summary,
-diagram and test plan already written into it. Nothing warns you, and the
-inventory table below them looks freshly updated either way. Re-apply the
-written sections after a refresh, and read the body before merging.
+**A refresh replaces only what it wrote.** Everything above the
+`## 📦 What is in this batch` heading is yours and is carried across untouched;
+everything from that heading down is reassembled. It used to regenerate the
+whole description, discarding the summary, diagram and test plan with no
+warning, which was survivable weekly and is not now the refresh runs on every
+merge. A description with no such heading in it, hand-rewritten from scratch,
+is kept whole and the block appended.
+
+**Why a push rather than a schedule.** A `schedule` is best-effort: GitHub
+delays cron under load and drops it. On the first Monday this workflow was
+eligible, nothing ran, and the repository had recorded zero scheduled runs of
+any workflow, four hours past due:
+
+```bash
+gh api "repos/<owner>/<repo>/actions/runs?event=schedule" --jq .total_count
+```
+
+The Monday cron is still there as a net for a week with no merges, at :17
+rather than :00 where contention is worst, but the push is what the standing PR
+actually rests on.
+
+**It is opened with a personal access token, not `GITHUB_TOKEN`.** A pull
+request opened by the Actions token gets no checks at all: GitHub withholds the
+runs, and they surface as `action_required` with zero jobs, the signature
+described below. The release PR is the one that most needs its checks, so the
+workflow reads `RELEASE_PR_TOKEN`, a fine-grained token scoped to this
+repository with *Pull requests: read and write*. A step asserts the secret is
+present before the script runs, so an expired token fails loudly on the next
+merge rather than silently ceasing to open releases.
 
 ### Why cadence matters here
 

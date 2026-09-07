@@ -30,7 +30,9 @@ make_repo() {
     printf '%s' "$dir"
 }
 
-# `gh` that records its arguments and answers `pr list` with $GH_EXISTING_PR.
+# `gh` that records its arguments, answers `pr list` with $GH_EXISTING_PR and
+# `pr view` with $GH_PR_BODY, and saves whatever body it is asked to write to
+# $GH_BODY, so a test can assert on the description rather than on the call.
 make_gh_stub() {
     local bin="$1"
     mkdir -p "$bin"
@@ -39,6 +41,16 @@ make_gh_stub() {
 printf '%s\n' "$*" >> "$GH_CALLS"
 if [ "$1" = "pr" ] && [ "$2" = "list" ]; then
     printf '%s' "${GH_EXISTING_PR:-}"
+fi
+if [ "$1" = "pr" ] && [ "$2" = "view" ]; then
+    printf '%s' "${GH_PR_BODY:-}"
+fi
+if [ "$1" = "pr" ] && { [ "$2" = "edit" ] || [ "$2" = "create" ]; }; then
+    prev=""
+    for arg in "$@"; do
+        [ "$prev" = "--body" ] && printf '%s' "$arg" > "$GH_BODY"
+        prev="$arg"
+    done
 fi
 exit 0
 STUB
@@ -50,7 +62,9 @@ setup() {
     BIN=$(mktemp -d)
     make_gh_stub "$BIN"
     export GH_CALLS="$BIN/calls.log"
+    export GH_BODY="$BIN/body.md"
     : > "$GH_CALLS"
+    : > "$GH_BODY"
 }
 
 teardown() {
@@ -105,6 +119,75 @@ teardown() {
     prs_row=$(printf '%s\n' "$output" | grep '| Pull requests |')
     assert_contains "$prs_row" "#123"   # squash subject "... (#123)"
     assert_contains "$prs_row" "#99"    # classic merge subject still picked up
+}
+
+# --- Refreshing an open PR ---------------------------------------------------
+# The refresh runs on every push to the integration branch now, not weekly, so
+# a refresh that regenerated the whole body would discard the summary and the
+# diagram several times a week. Only the generated block may be rewritten.
+
+@test "open-release-pr: a refresh keeps the sections a human wrote" {
+    export GH_PR_BODY='## 👥 High-level summary
+
+This batch teaches the harness to stop lying about itself.
+
+## 📐 Before / after
+
+```mermaid
+flowchart LR
+    a --> b
+```
+
+---
+
+## 📦 What is in this batch
+
+| | |
+|---|---|
+| Commits | 999 |
+'
+    run env PATH="$BIN:$PATH" GH_EXISTING_PR="123" bash -c "cd '$REPO' && '$REPO_ROOT/bin/open-release-pr.sh'"
+    [ "$status" -eq 0 ]
+    local body
+    body=$(cat "$GH_BODY")
+    assert_contains "$body" "stop lying about itself"   # the summary survived
+    assert_contains "$body" "flowchart LR"              # so did the diagram
+    assert_contains "$body" "| Commits | 2 |"           # inventory is current
+    assert_not_contains "$body" "999"                   # and the stale one is gone
+}
+
+@test "open-release-pr: refreshing a body it already wrote does not pile up" {
+    # Feed the script its own output. A second marker or a second rule would
+    # mean the body grows a copy of itself on every push.
+    export GH_PR_BODY="$(env PATH="$BIN:$PATH" bash -c "cd '$REPO' && '$REPO_ROOT/bin/open-release-pr.sh' --dry-run")"
+    run env PATH="$BIN:$PATH" GH_EXISTING_PR="123" bash -c "cd '$REPO' && '$REPO_ROOT/bin/open-release-pr.sh'"
+    [ "$status" -eq 0 ]
+    local markers rules
+    markers=$(grep -c '^## 📦 What is in this batch$' "$GH_BODY")
+    rules=$(grep -c '^---$' "$GH_BODY")
+    [ "$markers" -eq 1 ]
+    [ "$rules" -eq 1 ]
+}
+
+@test "open-release-pr: a body with no generated block is kept whole" {
+    # Someone rewrote the description by hand. Guessing where the block would
+    # have gone risks eating their text; appending never does.
+    export GH_PR_BODY='Only a hand-written note, no marker anywhere.'
+    run env PATH="$BIN:$PATH" GH_EXISTING_PR="123" bash -c "cd '$REPO' && '$REPO_ROOT/bin/open-release-pr.sh'"
+    [ "$status" -eq 0 ]
+    local body
+    body=$(cat "$GH_BODY")
+    assert_contains "$body" "Only a hand-written note"
+    assert_contains "$body" "## 📦 What is in this batch"
+}
+
+@test "open-release-pr: an empty body falls back to the template" {
+    export GH_PR_BODY=''
+    run env PATH="$BIN:$PATH" GH_EXISTING_PR="123" bash -c "cd '$REPO' && '$REPO_ROOT/bin/open-release-pr.sh'"
+    [ "$status" -eq 0 ]
+    # The mandatory sections come back rather than the PR being left with only
+    # a table under no headings at all.
+    assert_contains "$(cat "$GH_BODY")" "## 📐 Before / after"
 }
 
 @test "open-release-pr: --dry-run touches nothing" {

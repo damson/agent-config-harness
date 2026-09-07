@@ -1,13 +1,22 @@
 name: Release PR
 
-# Keeps a standing develop → main PR open, refreshed weekly. It never merges:
-# promotion stays a human decision, and the summary and before/after diagram
-# still have to be written by hand. What this removes is the excuse — the
-# inventory is assembled for you, so a release is a review rather than an
-# archaeology exercise.
+# Keeps a standing develop → main PR open. It never merges: promotion stays a
+# human decision, and the summary and before/after diagram still have to be
+# written by hand. What this removes is the excuse — the inventory is assembled
+# for you, so a release is a review rather than an archaeology exercise.
+#
+# The push trigger is the one that is relied on. A schedule is best-effort:
+# GitHub delays cron under load and drops it outright, which is what happened
+# on the first Monday this workflow was eligible to run — zero scheduled runs
+# ever recorded for the repository, four hours past due. A push event is not
+# dropped, so every merge into develop refreshes the standing PR and the cron
+# is only a net for a quiet week. Its minute is deliberately not :00, where
+# scheduler contention is worst.
 on:
+  push:
+    branches: [develop]
   schedule:
-    - cron: '0 9 * * MON'   # Mondays 09:00 UTC
+    - cron: '17 9 * * MON'   # Mondays 09:17 UTC, best-effort
   workflow_dispatch:
 
 permissions:
@@ -28,11 +37,26 @@ jobs:
         with:
           fetch-depth: 0   # the script diffs main..develop
 
+      # A PR opened with GITHUB_TOKEN gets no checks: GitHub withholds the
+      # workflow runs of a PR its own token opened, so the release PR would
+      # arrive reading action_required with zero jobs, which is the signature
+      # that cost three misdiagnoses on the back-merge PR. A token belonging to
+      # a person does not have that problem, so the release PR is opened with
+      # one and its CI, coverage and review all run as they do on any other PR.
+      #
+      # Checked before the script runs rather than after: a missing or expired
+      # token otherwise surfaces as a gh 401 halfway through, and an expired
+      # PAT is the likeliest way this workflow ever stops working.
+      - name: Check the release token is present
+        env:
+          RELEASE_PR_TOKEN: ${{ secrets.RELEASE_PR_TOKEN }}
+        run: |
+          if [ -z "$RELEASE_PR_TOKEN" ]; then
+            echo "::error::RELEASE_PR_TOKEN is not set. The release PR needs a token belonging to a person, because a PR opened with GITHUB_TOKEN arrives with no checks. Create a fine-grained PAT scoped to this repository with Pull requests: read and write, then: gh secret set RELEASE_PR_TOKEN"
+            exit 1
+          fi
+
       - name: Open or refresh
         run: ./bin/open-release-pr.sh
         env:
-          # A PR opened with GITHUB_TOKEN does not trigger other workflows, so
-          # CI will not re-run on it. That is acceptable here and nowhere else:
-          # every commit in the batch was already CI-green on its own PR, and
-          # this one adds none. Swap in a PAT if that ever stops being true.
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.RELEASE_PR_TOKEN }}
