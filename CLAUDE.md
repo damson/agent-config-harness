@@ -22,6 +22,10 @@ domain registry and what this repo is for. Don't duplicate that here.
   reply held no parsable object.** Read whichever artifact is *newest* and check
   its mtime: grepping the newest RAW after a successful run returns a previous
   run's score.
+- **kcov traces no bash on macOS, so a local coverage number does not exist.**
+  Take per-file coverage from Codecov's public API for the branch
+  (`api.codecov.io/api/v2/github/<owner>/repos/<repo>/report/?branch=<b>`). The
+  newest `coverage-baseline` artifact can be weeks stale and reads as current.
 - **The eval's `consistency` dimension cannot tell disclosure from
   contradiction.** A skill that documents an unresolved dispute scores below one
   that silently asserts a side. State the trade-off; don't degrade the skill to
