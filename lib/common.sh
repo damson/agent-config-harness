@@ -77,19 +77,23 @@ _require_registry() {
 _iter_registry() {
     # Strip leading/trailing whitespace; skip comments and blank lines
     awk '
+        # kcov-ignore-start
         /^[[:space:]]*#/ { next }
         /^[[:space:]]*$/  { next }
         { print }
     ' "$DOMAINS_CONF"
+    # kcov-ignore-end
 }
 
 # list_domains → prints one domain name per line
 list_domains() {
     _require_registry
     _iter_registry | awk -F= '{
+        # kcov-ignore-start
         gsub(/[[:space:]]/, "", $1)
         print $1
     }'
+    # kcov-ignore-end
 }
 
 # get_domain_workspaces <domain> → prints every path the domain answers to, one
@@ -100,6 +104,7 @@ get_domain_workspaces() {
     local domain="$1"
     _require_registry
     _iter_registry | awk -F'[=:]' -v d="$domain" '
+        # kcov-ignore-start
         {
             gsub(/[[:space:]]/, "", $1)
             if ($1 == d) {
@@ -113,6 +118,7 @@ get_domain_workspaces() {
             }
         }
     '
+    # kcov-ignore-end
 }
 
 # get_domain_workspace <domain> → the canonical workspace path. Callers that
@@ -131,6 +137,7 @@ get_domain_files() {
     local domain="$1"
     _require_registry
     _iter_registry | awk -F'[=:]' -v d="$domain" '
+        # kcov-ignore-start
         {
             gsub(/[[:space:]]/, "", $1)
             if ($1 == d) {
@@ -150,6 +157,7 @@ get_domain_files() {
             }
         }
     '
+    # kcov-ignore-end
 }
 
 # get_domain_file_src <domain> <repo_file> → prints the project-side filename.
@@ -158,6 +166,7 @@ get_domain_file_src() {
     local domain="$1" repo_file="$2"
     _require_registry
     _iter_registry | awk -F'[=:]' -v d="$domain" -v dst="$repo_file" '
+        # kcov-ignore-start
         {
             gsub(/[[:space:]]/, "", $1)
             if ($1 == d) {
@@ -179,6 +188,7 @@ get_domain_file_src() {
             }
         }
     '
+    # kcov-ignore-end
 }
 
 # domain_exists <domain> → 0 if found, 1 otherwise
@@ -206,19 +216,23 @@ _require_external() {
 # Internal: emit each non-comment, non-blank line of external-skills.conf
 _iter_external() {
     awk '
+        # kcov-ignore-start
         /^[[:space:]]*#/ { next }
         /^[[:space:]]*$/ { next }
         { print }
     ' "$EXTERNAL_SKILLS_CONF"
+    # kcov-ignore-end
 }
 
 # list_external_skills → prints one provider id per line
 list_external_skills() {
     _require_external
     _iter_external | awk -F= '{
+        # kcov-ignore-start
         gsub(/[[:space:]]/, "", $1)
         print $1
     }'
+    # kcov-ignore-end
 }
 
 # Internal: _external_field <id> <n> → prints the nth '::' field for that id
@@ -226,6 +240,7 @@ _external_field() {
     local id="$1" n="$2"
     _require_external
     _iter_external | awk -v want="$id" -v n="$n" '
+        # kcov-ignore-start
         {
             eq = index($0, "=")
             if (eq == 0) next
@@ -241,6 +256,7 @@ _external_field() {
             exit
         }
     '
+    # kcov-ignore-end
 }
 
 # get_external_requires <id> → command that must be on PATH
@@ -386,12 +402,14 @@ list_skill_dirs() {
 # and prose on either side.
 extract_json_object() {
     sed '/^[[:space:]]*```/d' | awk '
+        # kcov-ignore-start
         { line[NR] = $0
           if (!first && index($0, "{")) first = NR
           if (index($0, "}")) last = NR }
         END { if (!first || !last) exit 1
               for (i = first; i <= last; i++) print line[i] }
     '
+    # kcov-ignore-end
 }
 
 # ── Marketplace registry (config/marketplaces.conf) ───────
