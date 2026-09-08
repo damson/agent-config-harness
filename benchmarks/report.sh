@@ -33,7 +33,20 @@ if [ "$has_data" -eq 0 ]; then
 fi
 
 # Collect domains found in score files.
-domains=$(find "$SCORES_DIR" -name '*.json' -exec jq -r '.domain' {} + 2>/dev/null | sort -u)
+#
+# Two deliberate details, both about one corrupt file.
+#
+# `-exec ... \;` rather than `+`: batched, jq aborts at the first file it
+# cannot parse and never reads the rest, and `find` hands them over in
+# directory order, so a corrupt file silently swallows every valid record
+# that happens to sit behind it. One jq per file costs a process each and
+# confines the damage to the file that earned it.
+#
+# `|| true`: jq still exits non-zero for that one file, `find` passes it up,
+# and under `set -e` the assignment killed the script here. The report became
+# exit 1 with nothing printed at all, and the "No valid score files" message
+# two lines down could never be reached.
+domains=$(find "$SCORES_DIR" -name '*.json' -exec jq -r '.domain' {} \; 2>/dev/null | sort -u || true)
 
 if [ -z "$domains" ]; then
     log_info "No valid score files found."

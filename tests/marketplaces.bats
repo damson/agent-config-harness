@@ -177,6 +177,65 @@ EOF
     assert_contains "$output" "eval needs a marketplace id"
 }
 
+@test "marketplaces: eval names the cache it looked in when nothing is installed" {
+    # The registry knowing an id does not mean the plugins were ever installed,
+    # and the path is the only thing that tells the two apart.
+    mkdir -p "$TREE/cfg"
+    run env CLAUDE_CONFIG_DIR="$TREE/cfg" ./bin/marketplaces.sh eval demo
+    [ "$status" -ne 0 ]
+    assert_contains "$output" "no installed plugins"
+    assert_contains "$output" "$TREE/cfg/plugins/cache/demo"
+}
+
+@test "marketplaces: eval filtered to a plugin that is not there says so" {
+    # A cache with real plugins in it, and a filter none of them match. Without
+    # the found flag this exits 0 having scored nothing, which reads as a pass.
+    mkdir -p "$TREE/cfg/plugins/cache/demo/alpha/1.0.0/skills"
+    mkdir -p "$TREE/cfg/plugins/cache/demo/beta/2.0.0/skills"
+    run env CLAUDE_CONFIG_DIR="$TREE/cfg" ./bin/marketplaces.sh eval demo gamma
+    [ "$status" -ne 0 ]
+    assert_contains "$output" "No installed skills matched"
+    assert_contains "$output" "gamma"
+}
+
+@test "marketplaces: status reports an installed plugin as installed" {
+    # The other status cases all run against a CLI that reports nothing
+    # installed, so only this one exercises the affirmative branch.
+    mkdir -p "$TREE/stub"
+    printf '#!/bin/sh\n[ "$1 $2" = "plugin list" ] && echo "alpha@demo"\nexit 0\n' \
+        > "$TREE/stub/claude"
+    chmod +x "$TREE/stub/claude"
+    mkdir -p "$TREE/cfg/plugins/marketplaces/demo/.claude-plugin"
+    printf '{"name":"demo","plugins":[{"name":"alpha"},{"name":"beta"}]}\n' \
+        > "$TREE/cfg/plugins/marketplaces/demo/.claude-plugin/marketplace.json"
+    run env CLAUDE_CONFIG_DIR="$TREE/cfg" PATH="$TREE/stub:$PATH" ./bin/marketplaces.sh status
+    [ "$status" -eq 0 ]
+    assert_contains "$output" "alpha"
+    assert_contains "$output" "beta not installed"
+}
+
+@test "marketplaces: status on an empty registry says nothing is registered" {
+    # The shipped registry has every line commented out, so this is the state a
+    # fresh clone is actually in, and silence would read as "all is well".
+    : > "$CONF"
+    mkdir -p "$TREE/tb"
+    ln -s "$(command -v jq)" "$TREE/tb/jq"
+    run env PATH="$TREE/tb:/usr/bin:/bin" ./bin/marketplaces.sh status
+    [ "$status" -eq 0 ]
+    assert_contains "$output" "No marketplaces registered"
+}
+
+@test "marketplaces: install with no id targets every registered marketplace" {
+    # Resolution happens before the CLI is demanded, so the id list is visible
+    # on a machine with no claude on PATH.
+    mkdir -p "$TREE/tb"
+    ln -s "$(command -v jq)" "$TREE/tb/jq"
+    run env PATH="$TREE/tb:/usr/bin:/bin" ./bin/marketplaces.sh install
+    [ "$status" -ne 0 ]
+    assert_contains "$output" "not on PATH"
+    assert_not_contains "$output" "Unknown marketplace"
+}
+
 @test "marketplaces: --help prints the usage block" {
     run ./bin/marketplaces.sh --help
     [ "$status" -eq 0 ]
