@@ -96,6 +96,17 @@ jobs:
           # tests still pass, the lines just never arrive. Measured on
           # tests/git-stealth.bats, whose three behavioural tests cd first:
           # 10/81 lines relative, 77/81 absolute.
+          #
+          # --exclude-region earns its keep on more than one file. kcov counts
+          # every line of a multi-line literal as a statement bash never
+          # executes: an embedded awk program and a multi-line array of regexes
+          # are each one bash statement, and kcov reports the rest of their
+          # lines as uncovered forever. lib/common.sh read 57.9% with 75 such
+          # lines, all of them awk source, which is a number no test can move
+          # and which sent one reader off to write tests for code that was
+          # already exercised. Wrap the foreign text in the markers below and
+          # the file measures bash. Wrap only data and foreign source; a bash
+          # statement inside a region stops being measured at all.
           "$HOME/.local/kcov/bin/kcov" \
                --include-path="$PWD/bin,$PWD/lib,$PWD/evals,$PWD/benchmarks" \
                --bash-parse-files-in-dir="$PWD/bin" \
