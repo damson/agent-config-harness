@@ -105,7 +105,7 @@ fi
 body=$(cat <<BODY
 ## 👥 High-level summary
 
-Releases move code one way, from the integration branch to the release branch, and each one leaves a merge commit behind that the integration branch never receives. Normally that is repaired by fast-forwarding, which needs no pull request because nothing is being decided. This one could not be: the integration branch has moved on since the release, so bringing the two level needs a merge commit that somebody has to author, and authoring is what review is for.
+Every release leaves a commit on the release branch that the integration branch never receives, and the gap is normally closed by fast-forwarding, which decides nothing and needs no pull request. This one could not be: the integration branch has moved on, so levelling the two needs a merge commit somebody has to author.
 
 ## 📋 What changed
 

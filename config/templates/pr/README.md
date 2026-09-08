@@ -55,8 +55,19 @@ same attention as a real one and returns nothing.
 
 ### 👥 High-level summary
 
-Three to five sentences someone outside the codebase could follow. No
-identifiers, no file names, no jargon.
+Two or three sentences someone outside the codebase could follow: what was
+wrong, what is true now. No identifiers, no file names, no jargon.
+
+**Two or three, not five.** This section used to ask for three to five and got
+paragraphs, because a summary that can hold detail attracts it. Detail belongs
+in *What changed*, where a reader is looking for it. When the summary will not
+fit, the limit has told you something: you are describing the mechanism, and
+the purpose is always shorter than the mechanism.
+
+**No second, shorter summary.** A TL;DR above this section would be redundant
+by construction, and worse than redundant in practice: given two summaries a
+reader skims both and trusts neither, and the pair drift apart on the first
+edit. If this section needs a summary, shorten this section.
 
 **The test:** could a competent person from another department read it and
 correctly say who is better off? If explaining the change requires naming a
@@ -67,7 +78,7 @@ function, you may understand its mechanism but not yet its purpose.
 | Front-end | "Memoises the selector and splits the bundle at the route boundary." | "The settings page took about four seconds to appear on a mid-range phone, so people tapped twice and created duplicate records. It now appears almost immediately." |
 | Backend | "Adds an idempotency key to the charge endpoint." | "If a payment request was sent twice (a flaky network, an impatient tap), we could charge the customer twice. Now the second attempt returns the first result instead of taking more money." |
 | Mobile | "Moves DB writes off the main thread via a background dispatcher." | "The app froze for a moment whenever you saved a note, and long notes could freeze it long enough for the phone to kill it. Saving no longer blocks anything." |
-| Parser / pipeline | "Adds a discriminated union on the adapter sink." | "One of our sources supplies whole sentences, not single words. We had been feeding it into the machine that handles single words, where every sentence was thrown away. Sentences now have their own shelf, and they cannot end up in the dictionary by accident." |
+| Parser / pipeline | "Adds a discriminated union on the adapter sink." | "One of our sources supplies whole sentences, and we were feeding them into the machine that handles single words, which threw every one of them away. Sentences now have their own shelf." |
 | Infrastructure | "Pins the runner image and adds a concurrency group." | "Two deploys starting at once could overwrite each other, and the result depended on which finished last. Only one can run at a time now." |
 
 This is the section most often skipped and, for most readers, the only one
@@ -279,6 +290,8 @@ and all three were wrong. Skipping a finding is legitimate; skipping it
 |---|---|
 | "N/A" under a conditional heading | Costs a reader the same attention as content, returns nothing. Delete the section. |
 | High-level summary full of identifiers | It is a second technical summary, not one anyone can read. |
+| High-level summary that runs to a paragraph | Past two or three sentences it stops being a summary and starts being *What changed*, said worse and one section too early. |
+| A TL;DR added above the summary | Two summaries of one change: the reader skims both, and they drift apart on the first edit. |
 | Ticking every box because the suite is green | A green suite proves the tests you have pass, not that the change works. |
 | One bullet per changed file | The diff already does this. Explain decisions, not inventory. |
 | Screenshot linked to a branch path | 404s the moment the branch is deleted. Pin to a commit SHA. |

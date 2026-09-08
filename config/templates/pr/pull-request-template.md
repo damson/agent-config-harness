@@ -34,21 +34,20 @@
 ## 👥 High-level summary
 
 <!--
-    3–5 sentences someone outside this codebase could follow. No identifiers,
-    no file names, no jargon. Say what was true before, what is true now, and
-    who is better off.
+    2–3 sentences someone outside this codebase could follow: what was wrong,
+    what is true now. No identifiers, no file names, no jargon.
 
-    Write this section LAST and FIRST-PERSON-FREE: if you cannot explain the
-    change without naming a function, you may not yet understand its purpose,
-    only its mechanism.
+    Two or three, not five. Detail belongs in What changed, where a reader is
+    looking for it. If it will not fit, the limit is working: you are
+    describing the mechanism, and the purpose is shorter than the mechanism.
+
+    Write it last, and write it plainly.
 
     Bad:  "Refactors PaymentAdapter to inject a RetryPolicy via the DI
            container, removing the hardcoded backoff."
-    Good: "When a card payment failed because the bank was briefly
-           unreachable, we gave up immediately and told the customer their
-           card was declined, which wasn't true. Now we retry for a few
-           seconds first. Customers stop seeing false declines, and support
-           stops getting tickets about cards that actually work."
+    Good: "A card payment failed outright whenever the bank was briefly
+           unreachable, and we told the customer their card was declined,
+           which was not true. We now retry for a few seconds first."
 -->
 
 <!--
