@@ -174,9 +174,10 @@ just backmerge-preview   # say what it would do, touch nothing
 at that moment, so advancing it discards nothing and decides nothing. Every
 back-merge this repo has done was that shape, and delivering it through a pull
 request produced one nobody could review, a merge commit on `develop` per
-release, and two workflow runs per release held for approval that never ran and
-were finally recorded as failures. See *Three things that make a PR-opening
-workflow fail* below for that last one, which cost three separate misdiagnoses.
+release, and two workflow runs per release that were recorded as failures with
+no jobs in them and could not be made to succeed. See *Three things that make a
+PR-opening workflow fail* below for that last one, which has now cost four
+explanations, three of them wrong.
 
 The push needs an identity `develop`'s ruleset lets past its pull-request rule.
 That is a **deploy key**, write-scoped to this repository, stored as
@@ -252,22 +253,34 @@ When relocating a script, grep **every** workflow, not just the one CI runs:
 grep -rn 'run: \./' .github/workflows/
 ```
 
-**A PR the workflow opens leaves runs that look like failures.** GitHub holds
-the `pull_request` runs of a PR opened with `GITHUB_TOKEN` in an
-approval-required state instead of starting them, which is what stops a workflow
-triggering itself in a loop. The runs are still recorded: zero jobs,
-`actor: github-actions[bot]`, reading `action_required` and settling to
-`failure`. Approving is not re-running, and only approving starts them.
+**A PR the workflow opens leaves runs that look like failures, and they are not
+runs GitHub withheld.** All seventeen release and back-merge PRs this repository
+has opened from a workflow received their `pull_request` runs within seconds of
+opening. The recursion rule that is supposed to stop `GITHUB_TOKEN` triggering a
+workflow never applied to a single one of them, so *no runs at all* is the wrong
+thing to look for. What varies is whether a run **starts**: eight of them
+concluded `failure` carrying `total_count: 0` jobs and GitHub's startup line,
+*This run likely failed because of a workflow file issue*, on workflow files
+that were fine and that passed on the same commit through a different run.
 
 ```bash
-gh api "repos/<owner>/<repo>/actions/runs/<id>" --jq '{conclusion, actor: .actor.login}'
+gh api "repos/<owner>/<repo>/actions/runs/<id>" --jq '{status, conclusion, actor: .actor.login}'
 gh api "repos/<owner>/<repo>/actions/runs/<id>/jobs" --jq .total_count
 ```
 
-`github-actions[bot]` with `0` jobs is this, and it cost three separate
-misdiagnoses before anyone read the actor. It is why the routine back-merge is a
-fast-forward and no longer opens a PR at all; the fallback PR can still hit it,
-and that one wants approving.
+**Read the actor first, and do not stop there.** Twelve of the seventeen had
+their runs attributed to `github-actions[bot]`, and every dead run is one of
+those twelve; the five attributed to a real login all started and passed. But
+four of the twelve also started and passed, on the same two workflows, with no
+configuration change between them. Nothing in the run records separates those
+four from the eight, and this repository does not know what does.
+
+**Nothing here is ever `action_required`,** which is the trap: an approval state
+was the third explanation and it is not what the API reports. There is nothing
+held, so there is nothing to approve, and re-running an attempt reproduces the
+same empty run. This is why the routine back-merge is a fast-forward that opens
+no pull request at all. A run that cannot be made to succeed is worse than no
+run, because it is indistinguishable from a real failure in the checks list.
 
 ---
 

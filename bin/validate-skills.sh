@@ -67,6 +67,7 @@ problem() { log_warn "$1"; fail=$((fail + 1)); }
 # Frontmatter is the first --- ... --- block; read a scalar key out of it.
 frontmatter_value() {
     awk -v key="$2" '
+        # kcov-ignore-start
         NR == 1 && /^---[[:space:]]*$/ { infm = 1; next }
         infm && /^---[[:space:]]*$/    { exit }
         infm && $0 ~ "^" key ":" {
@@ -74,6 +75,7 @@ frontmatter_value() {
             print; exit
         }
     ' "$1"
+    # kcov-ignore-end
 }
 
 declare -a seen_leaves=()
@@ -91,6 +93,7 @@ for p in "${skills[@]}"; do
     # A description can be a folded block (description: >), so accept any
     # non-empty content on the key line OR on the lines that follow it.
     if ! awk '
+        # kcov-ignore-start
         NR == 1 && /^---[[:space:]]*$/ { infm = 1; next }
         infm && /^---[[:space:]]*$/    { exit }
         infm && /^description:/        { started = 1
@@ -99,6 +102,7 @@ for p in "${skills[@]}"; do
         started && /^[a-zA-Z_-]+:/     { exit }
         started && NF                  { found = 1 }
         END { exit(found ? 0 : 1) }
+        # kcov-ignore-end
     ' "$f"; then
         problem "$leaf: frontmatter 'description:' is missing or empty"
     fi

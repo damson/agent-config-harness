@@ -198,13 +198,20 @@ origin_main() {
     ! grep -q 'pr create' "$GH_CALLS"
 }
 
-@test "backmerge: the fallback PR body tells a reader to approve its held runs" {
-    # A PR opened by a workflow has its runs held for approval. This is the one
-    # back-merge with something to test, so the body must say so.
+@test "backmerge: the fallback PR body says its empty runs cannot be approved" {
+    # A PR opened by a workflow can get runs that start with no jobs in them.
+    # They are startup failures, not runs waiting on approval, so the body must
+    # not send a reader to a merge box that has nothing to click. This is the
+    # one back-merge with something to test, so it must say where a real
+    # verdict comes from instead.
     REPO=$(make_repo diverged)
     run_backmerge --dry-run
     [ "$status" -eq 0 ]
-    assert_contains "$output" "held for approval"
+    assert_contains "$output" "failed"
+    assert_contains "$output" "nothing to approve"
+    # assert_not_contains, not `! grep`: a negated command is exempt from
+    # set -e, so `! grep` on a non-final line passes whatever it finds.
+    assert_not_contains "$output" "held for approval"
     assert_contains "$output" "History only"
 }
 

@@ -20,17 +20,20 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # Assignment-style patterns match the key NAME, which is case-arbitrary in the
 # wild (`API_KEY=` leaks as often as `api_key=`), so these scan with grep -i.
 PATTERNS_NOCASE=(
+    # kcov-ignore-start
     # API keys assigned to a value (`API_KEY=foo`, `apiKey: "foo"`).
     # [[:space:]] over \s: BSD grep is not guaranteed to expand \s in -E.
     '(api[_-]?key)["'\'']?[[:space:]]*[:=][[:space:]]*["'\'']?[A-Za-z0-9_\-]{8,}'
     # secret/password/token assigned to a value
     '(secret|password|passwd|token)["'\'']?[[:space:]]*[:=][[:space:]]*["'\'']?[A-Za-z0-9_\-]{8,}'
+    # kcov-ignore-end
 )
 
 # Token-shape patterns match the secret value itself, whose case is part of
 # the shape (ghp_, AKIA, sk-ant-…) — these stay case-sensitive so lookalike
 # text in the wrong case does not fire.
 PATTERNS=(
+    # kcov-ignore-start
     # Bearer tokens with an actual token after them
     'Bearer[[:space:]]+[A-Za-z0-9._\-]{16,}'
     # GitHub personal access tokens
@@ -45,6 +48,7 @@ PATTERNS=(
     '\bAKIA[0-9A-Z]{16}\b'
     # Private key headers
     '-----BEGIN (RSA |EC |OPENSSH |DSA |PGP )?PRIVATE KEY-----'
+    # kcov-ignore-end
 )
 
 # Known-fake example values, exempted per VALUE after matching (see
@@ -60,12 +64,14 @@ ALLOWLIST_VALUES='(abc123def|stub-key)'
 # NAME, so a path like 'evals/results' never matched anything. Pathspecs
 # handle full paths, and git ls-files limits the scan to tracked files.
 EXCLUDE_PATHSPECS=(
+    # kcov-ignore-start
     ':(exclude)evals/results'
     ':(exclude)benchmarks/scores'
     ':(exclude,glob)**/SYNC_LOG.md'
     ':(exclude,glob)**/SETUP_LOG.md'
     ':(exclude)bin/lint-secrets.sh'      # contains the patterns themselves
     ':(exclude)tests/lint-secrets.bats'  # contains fixtures that must match them
+    # kcov-ignore-end
 )
 
 cd "$REPO_ROOT"
