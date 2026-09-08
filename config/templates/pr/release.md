@@ -1,7 +1,7 @@
 ## 👥 High-level summary
 
 <!--
-    3–5 sentences someone outside this codebase could follow: what this batch
+    2–3 sentences someone outside this codebase could follow: what this batch
     changes for a reader of these files, not which PRs it contains. The PR list
     below is the inventory; this is the point.
 -->
