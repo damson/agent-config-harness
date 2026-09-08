@@ -220,3 +220,42 @@ INJECT
         [ "$(printf '%s\n' "$output" | grep -c "$d")" -eq 1 ]
     done
 }
+
+@test "report: no scores directory says so and succeeds" {
+    # The first run on a fresh consumer repo. Nothing has been scored, which is
+    # a state to report, not a failure to exit on.
+    [ ! -d "$CONSUMER/benchmarks/scores" ]
+    run env AGENT_CONFIG_ROOT="$CONSUMER" "$REPO_ROOT/benchmarks/report.sh"
+    [ "$status" -eq 0 ]
+    assert_contains "$output" "No benchmark data yet"
+}
+
+@test "report: an empty scores directory is the same answer, not a crash" {
+    # `for f in dir/*.json` leaves the glob unexpanded when it matches nothing,
+    # so the loop body must reject the literal rather than treat it as a file.
+    mkdir -p "$CONSUMER/benchmarks/scores"
+    run env AGENT_CONFIG_ROOT="$CONSUMER" "$REPO_ROOT/benchmarks/report.sh"
+    [ "$status" -eq 0 ]
+    assert_contains "$output" "No benchmark data yet"
+}
+
+@test "report: a corrupt score file is reported, not exited on silently" {
+    # jq exits non-zero on it and `find -exec +` passes that up, so under set -e
+    # this used to be exit 1 with no output at all: the report simply vanished
+    # and nothing said why.
+    mkdir -p "$CONSUMER/benchmarks/scores"
+    printf 'not json at all\n' > "$CONSUMER/benchmarks/scores/corrupt.json"
+    run env AGENT_CONFIG_ROOT="$CONSUMER" "$REPO_ROOT/benchmarks/report.sh"
+    [ "$status" -eq 0 ]
+    assert_contains "$output" "No valid score files found"
+}
+
+@test "report: one corrupt file does not take the valid records with it" {
+    mkdir -p "$CONSUMER/benchmarks/scores"
+    make_score "2026-01-01T000000-web" web 2026-01-01
+    printf 'not json at all\n' > "$CONSUMER/benchmarks/scores/corrupt.json"
+    run env AGENT_CONFIG_ROOT="$CONSUMER" "$REPO_ROOT/benchmarks/report.sh"
+    [ "$status" -eq 0 ]
+    assert_contains "$output" "web"
+    assert_contains "$output" "2026-01-01"
+}
