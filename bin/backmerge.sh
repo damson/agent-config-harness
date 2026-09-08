@@ -11,9 +11,9 @@
 #
 # Every back-merge this repo has done was a pure fast-forward carrying an empty
 # diff, and it used to be delivered by a pull request nobody could review: no
-# diff to read, no CI worth running, and, because a workflow opened it with
-# GITHUB_TOKEN, two workflow runs per release that GitHub held for approval,
-# never ran, and finally recorded as failures. A fast-forward is a push, so this
+# diff to read, no CI worth running, and two workflow runs per release that
+# started with no jobs in them, recorded a failure, and could not be cleared by
+# approving or re-running. A fast-forward is a push, so this
 # does the push. A pull request is kept for the one shape that actually needs
 # one: when develop has moved on and a real merge commit has to be authored.
 #
@@ -130,9 +130,10 @@ $subjects
 ---
 
 *Opened by \`bin/backmerge.sh\`, which opens a pull request only when a
-fast-forward is impossible. If its checks show as runs with no jobs, they are
-held for approval because a workflow opened this: approve them from the merge
-box, because unlike a routine back-merge this one has something to test.*
+fast-forward is impossible. If its checks show as runs with no jobs, they failed
+at startup rather than waiting on anything: there is nothing to approve and a
+re-run reproduces them. Unlike a routine back-merge this one has something to
+test, so get a verdict from a run triggered by a push to the head branch.*
 BODY
 )
 

@@ -37,12 +37,12 @@ jobs:
         with:
           fetch-depth: 0   # the script diffs main..develop
 
-      # A PR opened with GITHUB_TOKEN gets no checks: GitHub withholds the
-      # workflow runs of a PR its own token opened, so the release PR would
-      # arrive reading action_required with zero jobs, which is the signature
-      # that cost three misdiagnoses on the back-merge PR. A token belonging to
-      # a person does not have that problem, so the release PR is opened with
-      # one and its CI, coverage and review all run as they do on any other PR.
+      # The release PR is opened by a person, and the reason is review rather
+      # than CI. A PR opened with GITHUB_TOKEN does get its workflow runs here,
+      # but the review bot skips bot-authored pull requests and says nothing
+      # about skipping, so the release would arrive green and unread. Some of
+      # those runs also start with zero jobs and record a failure nothing can
+      # clear; docs/git-flow.md has what is and is not known about that.
       #
       # Checked before the script runs rather than after: a missing or expired
       # token otherwise surfaces as a gh 401 halfway through, and an expired
