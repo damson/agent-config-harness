@@ -26,6 +26,10 @@ domain registry and what this repo is for. Don't duplicate that here.
   Take per-file coverage from Codecov's public API for the branch
   (`api.codecov.io/api/v2/github/<owner>/repos/<repo>/report/?branch=<b>`). The
   newest `coverage-baseline` artifact can be weeks stale and reads as current.
+  Per-line detail is `…/file_report/<url-encoded path>?branch=<b>`, with no
+  trailing slash or it 404s on a path it just reported, and its `line_coverage`
+  pairs encode **0 = hit, 1 = miss**. That reads backwards, and taking it at
+  face value returns exactly the wrong set of lines.
 - **The eval's `consistency` dimension cannot tell disclosure from
   contradiction.** A skill that documents an unresolved dispute scores below one
   that silently asserts a side. State the trade-off; don't degrade the skill to
