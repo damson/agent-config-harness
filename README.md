@@ -97,6 +97,19 @@ comes from an LLM reading the PR author's own file, so a determined author can
 steer their grade with content addressed to the evaluator. It catches drift
 and sloppiness, not adversaries.
 
+This repository runs the action on itself.
+[`config-eval.yml`](.github/workflows/config-eval.yml) scores this repo's own
+`CLAUDE.md` whenever it or any part of the action that scores it changes, so a
+change to the rubric or the plumbing is proven against the live API before it
+can reach a consumer. Every other test of the action stubs the Claude CLI.
+
+A pull request is scored by the **released** action, pinned by commit, and the
+merged tree is scored by `uses: ./` once it lands on the integration branch.
+Never the other way round: `uses: ./` executes the checked-out tree, so running
+it on a pull request would hand `ANTHROPIC_API_KEY` to code the author of that
+pull request wrote. Worth copying if you point this action at a repository
+whose pull requests can change it.
+
 ## 🚀 Install
 
 > 🚦 **Setting up your own config?** Start from
