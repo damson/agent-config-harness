@@ -218,6 +218,7 @@ Everything is driven through [`just`](Justfile); run bare `just` to list these:
 | `just eval [domain]` | Score config quality. Needs the Claude CLI |
 | `just eval-skills [skill]` | Score a skill against the skill rubric |
 | `just benchmark` | Print the score trend per domain |
+| `just benchmark-pr` | Publish the score snapshots as a standing PR. Never merges |
 | `just skills-install` | Install third-party skill bundles from the registry |
 | `just marketplaces-status` | What skill marketplaces are registered, and what is installed |
 | `just marketplaces-install` | Add registered marketplaces and install their plugins |
