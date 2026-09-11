@@ -1,24 +1,35 @@
 name: Config Eval
 
-# Runs this repository's own action (`uses: ./`) against this repository's own
-# CLAUDE.md. The harness publishes a config-scoring action and, until this
-# workflow existed, never ran it: every test of it stubs the Claude CLI, so the
-# install step, the real API call and the job-summary rendering were proven
-# only by reading them. A consumer would have been the first to execute that
-# path for real.
+# Runs this repository's own config-scoring action against this repository's own
+# CLAUDE.md. The harness publishes that action and, until this workflow existed,
+# never ran it: every test of it stubs the Claude CLI, so the install step, the
+# real API call and the job-summary rendering were proven only by reading them.
 #
-# It runs on the pull requests where it can actually catch something: a change
-# to the scored file, or a change to any part of the action that scores it.
-# Scoring every pull request would spend API budget re-measuring a file the
-# pull request did not touch.
+# Two jobs, because scoring a pull request and proving the action are different
+# problems with different trust:
 #
-# Path-filtered, so it must NOT become a required status check: GitHub holds a
-# required check that never runs as pending forever, and that would block every
-# pull request outside these paths.
+#   gate    (pull_request) scores the branch's CLAUDE.md with the RELEASED
+#           action, pinned by commit. Trusted code reading the pull request's
+#           file as data.
+#   dogfood (push to develop, or dispatch) scores with `uses: ./`, the tree as
+#           merged. This is the end-to-end proof, and it runs on code that is
+#           already in the integration branch.
 #
-# The gate is advisory in a second sense too: the grade comes from an LLM
-# reading a file the pull request author controls. It catches drift, not
-# adversaries. README says so under "Score your config in CI".
+# The split is a security property, not tidiness. `uses: ./` executes the
+# checked-out tree, and a pull request can change that tree: running it with
+# ANTHROPIC_API_KEY in the environment would hand the secret to code the pull
+# request author wrote. Forks never see repository secrets, but a branch pushed
+# to this repository would. So the pull request never executes what it is
+# scoring, and the tree is only executed once it is merged, which is still
+# before any release can carry it.
+#
+# Path-filtered, so neither job may become a required status check: GitHub holds
+# a required check that never runs as pending forever, and that would block
+# every pull request outside these paths.
+#
+# The gate is advisory in a second sense: the grade comes from an LLM reading a
+# file the author controls. It catches drift, not adversaries. README says so
+# under "Score your config in CI".
 
 permissions:
   contents: read
@@ -29,7 +40,27 @@ on:
       # The file being scored.
       - 'CLAUDE.md'
       # Everything that decides how it is scored. A change here reaches the
-      # rubric or the plumbing, and this workflow is the only end-to-end proof.
+      # rubric or the plumbing, and the dogfood job is the only end-to-end proof.
+      - 'action.yml'
+      - 'bin/eval-action.sh'
+      - 'bin/install-claude-cli.sh'
+      - 'evals/run-eval.sh'
+      - 'evals/eval-schema.json'
+      - 'evals/prompts/config-quality.md'
+      - 'lib/scoring.sh'
+      - 'lib/common.sh'
+      - '.github/workflows/config-eval.yml'
+  push:
+    branches: [develop]
+    # Repeated rather than anchored: GitHub's workflow parser does not support
+    # YAML anchors, and a file it refuses to parse produces a run with no jobs
+    # that blames the workflow file without saying why. A test keeps the two
+    # lists identical.
+    paths:
+      # The file being scored.
+      - 'CLAUDE.md'
+      # Everything that decides how it is scored. A change here reaches the
+      # rubric or the plumbing, and the dogfood job is the only end-to-end proof.
       - 'action.yml'
       - 'bin/eval-action.sh'
       - 'bin/install-claude-cli.sh'
@@ -46,22 +77,23 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  score:
+  gate:
     name: Score CLAUDE.md
+    if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
-    # An npm install plus one model call. Fifteen minutes is a hang, and a
-    # hung job here would sit pending rather than fail readably.
+    # An npm install plus one model call. Fifteen minutes is a hang, and a hung
+    # job would sit pending rather than fail readably.
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
-          # The job reads the tree and calls an API; it never pushes.
+          # This job reads the tree and calls an API; it never pushes.
           persist-credentials: false
 
       # Without the key the action exits 1 on its own, which would paint every
       # pull request in these paths red for a missing secret rather than for a
-      # bad config. A fork's pull request never sees repository secrets, so
-      # that state is normal, not an outage.
+      # bad config. A fork's pull request never sees repository secrets, so that
+      # state is normal, not an outage.
       #
       # The cost of skipping is a green check that scored nothing, which is the
       # failure mode a checks list hides best. The summary says so in as many
@@ -85,13 +117,14 @@ jobs:
             } >> "$GITHUB_STEP_SUMMARY"
           fi
 
-      # `uses: ./` runs the action as it exists in this pull request, not as it
-      # exists at a released tag: the point is to prove the change, not the
-      # release. An explicit `if:` replaces the implicit success() gate, so it
-      # is spelled out here rather than assumed.
+      # The RELEASED action, pinned by commit: this job runs with the API key in
+      # its environment, so the code it runs must not be code the pull request
+      # can edit. The pull request's CLAUDE.md is read as data, which is the
+      # whole job. An explicit `if:` replaces the implicit success() gate, so it
+      # is spelled out rather than assumed.
       - name: Score
         if: success() && steps.preflight.outputs.skipped != 'true'
-        uses: ./
+        uses: damson/agent-config-harness@a09adb78d39e14cb7890cc1b7bf85b5d67bf80df # v1
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         with:
@@ -100,4 +133,45 @@ jobs:
           # so a tighter gate fails pull requests for non-determinism and
           # teaches everyone to re-run until green. This trips on a real
           # regression and stays quiet otherwise.
+          fail-below: C
+
+  dogfood:
+    name: Score with the merged tree
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - name: Check the API key is present
+        id: preflight
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          if [ -z "$ANTHROPIC_API_KEY" ]; then
+            echo "skipped=true" >> "$GITHUB_OUTPUT"
+            echo "::notice::Config eval skipped: no ANTHROPIC_API_KEY available to this run. Nothing was scored."
+            {
+              echo "## Config eval: NOT RUN"
+              echo
+              echo "No \`ANTHROPIC_API_KEY\` was available to this run, so **CLAUDE.md was not scored**."
+              echo "This check is green because nothing failed, not because anything passed."
+              echo
+              echo "\`gh secret set ANTHROPIC_API_KEY\` turns it on."
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      # `uses: ./` is the proof: the action as this tree defines it, not as a
+      # tag defines it. Safe here and nowhere else, because this job only ever
+      # runs on the integration branch or on a dispatch, never on a pull
+      # request's own code.
+      - name: Score with this tree's action
+        if: success() && steps.preflight.outputs.skipped != 'true'
+        uses: ./
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        with:
+          files: CLAUDE.md
           fail-below: C
