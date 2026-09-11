@@ -193,3 +193,69 @@ EOF
     grep -q 'glab mr create --target-branch develop' ./bin/sync-back.sh
     ! grep -qE '(--base|--target-branch) main' ./bin/sync-back.sh
 }
+
+# --- The skips copy_file reports ---------------------------------------------
+# Three branches that used to be unreachable: the loop repeated copy_file's own
+# checks before calling it, so a file absent from the project, one already
+# symlinked into the repo, and one with no changes were all passed over in
+# silence. The reasons exist to be printed.
+
+@test "sync-back: a managed file absent from the project is named, not silently passed over" {
+    make_flow_fixture
+    # Two managed files, one of which the project does not have.
+    printf 'acme = workspace/acme : CLAUDE.md, .cursorrules\n' > "$CONSUMER/config/domains.conf"
+    printf '# rules\n' > "$CONSUMER/workspace/acme/.cursorrules"
+    run env PATH="$STUB:$PATH" AGENT_CONFIG_ROOT="$CONSUMER" AI_SETUP_SKIP_EVAL=1 \
+        ./bin/sync-back.sh "$PROJ"
+    [ "$status" -eq 0 ]
+    assert_contains "$output" "skip (not in project): .cursorrules"
+    # The file that WAS there still synced: one skip does not end the run.
+    assert_contains "$output" "synced: CLAUDE.md"
+}
+
+@test "sync-back: a project file already symlinked into the repo is left alone" {
+    make_flow_fixture
+    printf 'acme = workspace/acme : CLAUDE.md, .cursorrules\n' > "$CONSUMER/config/domains.conf"
+    printf '# rules\n' > "$CONSUMER/workspace/acme/.cursorrules"
+    # The stealth arrangement: the project's copy IS the repo's copy.
+    ln -s "$CONSUMER/workspace/acme/.cursorrules" "$PROJ/.cursorrules"
+    run env PATH="$STUB:$PATH" AGENT_CONFIG_ROOT="$CONSUMER" AI_SETUP_SKIP_EVAL=1 \
+        ./bin/sync-back.sh "$PROJ"
+    [ "$status" -eq 0 ]
+    assert_contains "$output" "skip (symlink already up to date): .cursorrules"
+    # Still a symlink afterwards: copying would have replaced it with a file.
+    [ -L "$PROJ/.cursorrules" ]
+}
+
+@test "sync-back: an unchanged file says why it was skipped" {
+    make_flow_fixture
+    printf 'acme = workspace/acme : CLAUDE.md, .cursorrules\n' > "$CONSUMER/config/domains.conf"
+    printf '# rules\n' > "$CONSUMER/workspace/acme/.cursorrules"
+    printf '# rules\n' > "$PROJ/.cursorrules"
+    run env PATH="$STUB:$PATH" AGENT_CONFIG_ROOT="$CONSUMER" AI_SETUP_SKIP_EVAL=1 \
+        ./bin/sync-back.sh "$PROJ"
+    [ "$status" -eq 0 ]
+    assert_contains "$output" "skip (no diff): .cursorrules"
+}
+
+@test "sync-back: the benchmark comment reaches a GitLab MR too" {
+    # The gh path had a test; the glab one did not, and it is the half that
+    # cannot be checked by reading, because `glab mr note` takes its body
+    # differently from `gh pr comment`.
+    make_flow_fixture
+    make_toolbox
+    rm "$STUB/gh"
+    cat > "$STUB/claude" <<'EOF'
+#!/usr/bin/env bash
+cat >/dev/null
+cat <<'JSON'
+{"date":"2026-01-01T00:00:00Z","domain":"acme","git_hash":"stub","scores":{"clarity":5,"conciseness":5,"completeness":5,"consistency":5,"actionability":5},"total":25,"percentage":100,"grade":"A","findings":[]}
+JSON
+EOF
+    chmod +x "$STUB/claude"
+    run env PATH="$STUB:$TOOLBOX" AGENT_CONFIG_ROOT="$CONSUMER" \
+        ./bin/sync-back.sh "$PROJ"
+    [ "$status" -eq 0 ]
+    assert_contains "$output" "Re-scoring acme"
+    assert_contains "$(cat "$STUB/glab.args")" "mr note"
+}
