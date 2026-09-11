@@ -357,3 +357,64 @@ setup() {
     [ "$(printf '%s\n' "$output" | head -1)" = "$elsewhere" ]
     [ "$(printf '%s\n' "$output" | tail -1)" = "$REPO_ROOT" ]
 }
+
+# --- Domain flags ------------------------------------------------------------
+# The optional fourth field. The risk it carries is not the flag but the three
+# readers that split the same line on the same [=:]: a flagged line has to mean
+# exactly what it meant to them before it grew a field.
+
+@test "get_domain_flags: reads the fourth field, and an unflagged domain has none" {
+    local conf
+    conf=$(mktemp)
+    printf 'flagged = ws : CLAUDE.md : template\nplain = ws2 : CLAUDE.md\n' > "$conf"
+    run bash -c ". lib/common.sh; DOMAINS_CONF='$conf'; get_domain_flags flagged; echo ---; get_domain_flags plain"
+    rm -f "$conf"
+    [ "$status" -eq 0 ]
+    [ "$output" = "$(printf 'template\n---')" ]
+}
+
+@test "get_domain_flags: several flags are comma separated and trimmed" {
+    local conf
+    conf=$(mktemp)
+    printf 'many = ws : CLAUDE.md :  template ,  draft \n' > "$conf"
+    run bash -c ". lib/common.sh; DOMAINS_CONF='$conf'; get_domain_flags many"
+    rm -f "$conf"
+    [ "$status" -eq 0 ]
+    [ "$output" = "$(printf 'template\ndraft')" ]
+}
+
+@test "get_domain_flags: a flagged line still reads the same to every other reader" {
+    local conf
+    conf=$(mktemp)
+    printf 'flagged = workspace/flagged, workspace/alias : AGENTS.md>project/CLAUDE.md, .cursorrules : template\n' > "$conf"
+    run bash -c ". lib/common.sh; DOMAINS_CONF='$conf'; get_domain_workspace flagged; get_domain_files flagged; get_domain_file_src flagged project/CLAUDE.md"
+    rm -f "$conf"
+    [ "$status" -eq 0 ]
+    # Workspace, both dest files, and the source mapping: none of them may pick
+    # the flag up as a path, a file or a mapping.
+    [ "$output" = "$(printf 'workspace/flagged\nproject/CLAUDE.md\n.cursorrules\nAGENTS.md')" ]
+}
+
+@test "domain_has_flag: a missing flag answers no rather than ending the caller" {
+    # Returning 1 is the answer, so a caller must ask inside a condition. A bare
+    # `domain_has_flag x y` under `set -e` would take the whole run down, which
+    # is why run-eval.sh spells the `if` out.
+    local conf
+    conf=$(mktemp)
+    printf 'plain = ws : CLAUDE.md\n' > "$conf"
+    run bash -c "set -e; . lib/common.sh; DOMAINS_CONF='$conf'
+        if domain_has_flag plain template; then echo yes; else echo no; fi
+        if domain_has_flag nosuch template; then echo yes; else echo no; fi
+        echo reached-the-end"
+    rm -f "$conf"
+    [ "$status" -eq 0 ]
+    [ "$output" = "$(printf 'no\nno\nreached-the-end')" ]
+}
+
+@test "registry: user-pers ships flagged as a template" {
+    # The domain this flag was added for. Its files are prompts to fill in, and
+    # scoring them as though the blanks were omissions pinned it to a D.
+    run bash -c ". lib/common.sh; if domain_has_flag user-pers template; then echo flagged; fi"
+    [ "$status" -eq 0 ]
+    [ "$output" = "flagged" ]
+}
