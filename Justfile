@@ -95,6 +95,14 @@ eval-skills skill="all":
 benchmark:
     @./benchmarks/report.sh
 
+# Open (or refresh) the standing PR carrying benchmark score snapshots. Never merges.
+benchmark-pr:
+    @./bin/open-benchmark-pr.sh
+
+# Print what the benchmark PR would carry, without pushing or opening anything.
+benchmark-pr-preview:
+    @./bin/open-benchmark-pr.sh --dry-run
+
 # Snapshot current benchmark scores into git (force-add: scores are gitignored by default).
 benchmark-commit:
     @git add -f benchmarks/scores/ && git commit -m "benchmark: snapshot scores $(date +%Y-%m-%d)"

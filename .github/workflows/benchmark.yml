@@ -1,0 +1,129 @@
+name: Benchmark
+
+# Scores every registered domain and publishes the records as a standing pull
+# request, so `just benchmark` has a series to print instead of a single
+# afternoon's numbers.
+#
+# The push trigger is the one relied on: config changed, so measure it. The
+# cron is a net for a quiet week, and nothing waits on it. GitHub delays and
+# drops scheduled runs, which this repository has already watched happen.
+#
+# The job never merges anything. It pushes score records to a standing branch
+# and refreshes one pull request; keeping a measurement in the repository's
+# history stays a human decision, as it is for the release PR.
+#
+# The pull request is opened with GITHUB_TOKEN, so it arrives with no checks
+# and the review bot ignores it. That is acceptable here and nowhere else: the
+# diff is machine-written JSON that no reviewer can meaningfully read, and the
+# only decision is keep or discard.
+
+permissions:
+  contents: write        # pushes the score records to the standing branch
+  pull-requests: write   # opens or refreshes the standing PR
+
+on:
+  push:
+    branches: [develop]
+    paths:
+      # The scored files themselves.
+      - 'workspace/**'
+      - 'user-pers/**'
+      # And the two things that change what a score means: which files are
+      # scored, and the rubric they are scored against.
+      - 'config/domains.conf'
+      - 'evals/prompts/config-quality.md'
+  schedule:
+    - cron: '41 9 * * MON'   # Mondays 09:41 UTC, best-effort, off the hour
+  workflow_dispatch:
+
+concurrency:
+  group: benchmark
+  # Two runs publishing to the same branch would race. Queue instead: the
+  # second one has newer scores and should not lose them.
+  cancel-in-progress: false
+
+jobs:
+  benchmark:
+    name: Score every domain and publish the snapshots
+    runs-on: ubuntu-latest
+    # One model call per registered domain, plus an npm install.
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          # The script pushes a branch and reads origin/develop, so credentials
+          # stay in the git config and history must be there to branch from.
+          fetch-depth: 0
+
+      - name: Install jq
+        timeout-minutes: 5
+        run: .github/install-packages.sh jq
+
+      # Without a key the eval dies inside the Claude CLI with an auth error
+      # that never names the cause. A skip that says so is worth more than a
+      # red run that does not, and a green check that scored nothing is the
+      # state this summary exists to make unmissable.
+      - name: Check the API key is present
+        id: preflight
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          if [ -z "$ANTHROPIC_API_KEY" ]; then
+            echo "skipped=true" >> "$GITHUB_OUTPUT"
+            echo "::notice::Benchmark skipped: no ANTHROPIC_API_KEY. Nothing was scored."
+            {
+              echo "## Benchmark: NOT RUN"
+              echo
+              echo "No \`ANTHROPIC_API_KEY\` secret, so **no domain was scored**."
+              echo "This check is green because nothing failed, not because anything passed."
+              echo
+              echo "\`gh secret set ANTHROPIC_API_KEY\` turns it on."
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Install the Claude CLI
+        if: success() && steps.preflight.outputs.skipped != 'true'
+        env:
+          # Same pin the action uses: an eval whose scores are compared across
+          # weeks cannot have its evaluator swapped underneath it.
+          CLAUDE_VERSION: "2.1.259"
+        run: ./bin/install-claude-cli.sh
+
+      # A domain that fails to score must not take the domains that scored with
+      # it: those records are already written and are worth publishing. The
+      # failure is carried to the end of the job instead of being swallowed.
+      - name: Score every registered domain
+        id: score
+        if: success() && steps.preflight.outputs.skipped != 'true'
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          if ./evals/run-eval.sh all; then
+            echo "failed=0" >> "$GITHUB_OUTPUT"
+          else
+            echo "failed=1" >> "$GITHUB_OUTPUT"
+            echo "::warning::At least one domain failed to score. Publishing the records that did."
+          fi
+
+      - name: Publish the snapshots as a standing pull request
+        if: success() && steps.preflight.outputs.skipped != 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: ./bin/open-benchmark-pr.sh
+
+      - name: Report the trend in the job summary
+        if: success() && steps.preflight.outputs.skipped != 'true'
+        run: |
+          {
+            echo "## Benchmark"
+            echo
+            echo '```'
+            ./benchmarks/report.sh
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Fail if a domain could not be scored
+        if: success() && steps.score.outputs.failed == '1'
+        run: |
+          echo "::error::A domain failed to score. The records that succeeded were still published."
+          exit 1

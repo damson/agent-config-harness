@@ -156,6 +156,35 @@ Date         Clarity   Concise   Complete   Consistent   Action    Total  Grade
 
 If a score drops, look at the most recent `evals/results/` entry to see why.
 
+A table with one row in it is not a trend, which is what this looked like for
+months: scores are gitignored, so a run that scored the domains and stopped
+left nothing behind, and the report showed whichever afternoon somebody last
+ran `just eval` by hand.
+
+[`.github/workflows/benchmark.yml`](../.github/workflows/benchmark.yml) closes
+that. It scores every registered domain when the config it measures changes on
+`develop` (with a Monday cron as a net, because a push is reliable and a
+schedule is not), then runs:
+
+```bash
+just benchmark-pr           # commit the records, push, open or refresh the PR
+just benchmark-pr-preview   # print the body, touch nothing
+```
+
+The records land on a standing `benchmark/scores` branch behind one pull
+request that is refreshed rather than reopened, so the churn is a single PR
+rather than one per run. It never merges: keeping a measurement in the
+repository's history is a human decision, the same as a release.
+
+Two things worth knowing about it:
+
+- **It needs the same `ANTHROPIC_API_KEY` secret** the CI action does, and
+  skips loudly without one.
+- **That pull request arrives with no checks**, because a pull request opened
+  with `GITHUB_TOKEN` does not get them and the review bot skips bot authors.
+  Acceptable for machine-written JSON whose only decision is keep or discard,
+  and not acceptable for a change to the harness itself.
+
 ---
 
 ## Caveats
