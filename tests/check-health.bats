@@ -83,3 +83,70 @@ teardown() {
     assert_contains "$output" "android-skills"
     assert_contains "$output" "impeccable"
 }
+
+@test "check-health: a real file where a link belongs is a failure, not a note" {
+    # setup.sh backs such a file up and replaces it with the link, so finding
+    # one means setup has not run since it appeared and none of this repo's
+    # config is in effect. Counting it as a warning only let the run print the
+    # warning and "All systems nominal" together, and exit 0.
+    rm "$HOME/.claude/CLAUDE.md"
+    printf '# not the managed file\n' > "$HOME/.claude/CLAUDE.md"
+    run ./bin/check-health.sh
+    [ "$status" -ne 0 ]
+    assert_contains "$output" "exists but is not a symlink"
+    assert_not_contains "$output" "All systems nominal"
+}
+
+@test "check-health: an external provider that IS installed is reported as such" {
+    # Every other external-skills test runs with none installed, so the
+    # installed branch had never executed.
+    . lib/common.sh
+    local first probe
+    first=$(list_external_skills | head -1)
+    [ -n "$first" ]
+    probe=$(get_external_probe "$first")
+    mkdir -p "$probe"
+    run ./bin/check-health.sh
+    assert_contains "$output" "external skill: $first"
+    assert_not_contains "$output" "external skill: $first not installed"
+}
+
+# --- A consumer repo whose tree does not match its registry ------------------
+# The registry is edited by hand, so it outruns the tree: a domain added before
+# its folder, a file renamed in the workspace and not in the registry. Both are
+# what check-health exists to catch, and neither had a test.
+
+make_consumer() {
+    CONSUMER=$(mktemp -d)
+    mkdir -p "$CONSUMER/config"
+    printf 'acme = workspace/acme : CLAUDE.md\n' > "$CONSUMER/config/domains.conf"
+}
+
+@test "check-health: a registered domain with no workspace folder fails the run" {
+    make_consumer
+    run env AGENT_CONFIG_ROOT="$CONSUMER" ./bin/check-health.sh
+    rm -rf "$CONSUMER"
+    [ "$status" -ne 0 ]
+    assert_contains "$output" "domain 'acme' workspace MISSING"
+    # It moves on to the next domain rather than looking for files inside a
+    # folder that is not there.
+    assert_not_contains "$output" "acme/CLAUDE.md: MISSING"
+}
+
+@test "check-health: a managed file the workspace does not have fails the run" {
+    make_consumer
+    mkdir -p "$CONSUMER/workspace/acme"
+    run env AGENT_CONFIG_ROOT="$CONSUMER" ./bin/check-health.sh
+    rm -rf "$CONSUMER"
+    [ "$status" -ne 0 ]
+    assert_contains "$output" "acme/CLAUDE.md: MISSING"
+}
+
+@test "check-health: a repo with no skills directory says so instead of passing quietly" {
+    make_consumer
+    mkdir -p "$CONSUMER/workspace/acme"
+    printf '# Acme\n' > "$CONSUMER/workspace/acme/CLAUDE.md"
+    run env AGENT_CONFIG_ROOT="$CONSUMER" ./bin/check-health.sh
+    rm -rf "$CONSUMER"
+    assert_contains "$output" "skills directory missing"
+}

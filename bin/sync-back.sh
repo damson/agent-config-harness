@@ -33,13 +33,19 @@ log_info "Detected domain: $domain (→ $ws)"
 # A file in the project may be a symlink into ai-setup; readlink -f resolves
 # the canonical destination so we don't accidentally overwrite the symlink
 # with itself.
+# copy_file <src_in_project> <dest_in_repo>
+#
+# 0 when the file was copied, 1 when it was skipped, so the caller can count
+# what actually moved. It owns every skip decision: the loop below used to
+# repeat the same three checks before calling, which made all three branches
+# here unreachable, and the reasons they print were never printed once.
 copy_file() {
     local src_in_project="$1"
     local dest_in_repo="$2"
 
     if [ ! -e "$src_in_project" ]; then
         log_warn "skip (not in project): $(basename "$src_in_project")"
-        return
+        return 1
     fi
 
     # If src is a symlink that already points at dest, nothing to do.
@@ -47,13 +53,13 @@ copy_file() {
         local target
         target=$(readlink "$src_in_project")
         case "$target" in
-            "$dest_in_repo") log_info "skip (symlink already up to date): $(basename "$src_in_project")"; return ;;
+            "$dest_in_repo") log_info "skip (symlink already up to date): $(basename "$src_in_project")"; return 1 ;;
         esac
     fi
 
     if cmp -s "$src_in_project" "$dest_in_repo" 2>/dev/null; then
         log_info "skip (no diff): $(basename "$src_in_project")"
-        return
+        return 1
     fi
 
     cp "$src_in_project" "$dest_in_repo"
@@ -72,8 +78,9 @@ while IFS= read -r f; do
     proj_f=$(get_domain_file_src "$domain" "$f")
     src="$PROJECT_PATH/$proj_f"
     dst="$REPO_ROOT/$ws/$f"
-    if [ -e "$src" ] && ! cmp -s "$src" "$dst" 2>/dev/null; then
-        copy_file "$src" "$dst"
+    # `if`, not a bare call: a skip answers 1, and under `set -e` a bare call
+    # would end the run on the first file that did not need syncing.
+    if copy_file "$src" "$dst"; then
         synced_any=1
     fi
 done < <(get_domain_files "$domain")
