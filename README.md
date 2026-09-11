@@ -97,6 +97,12 @@ comes from an LLM reading the PR author's own file, so a determined author can
 steer their grade with content addressed to the evaluator. It catches drift
 and sloppiness, not adversaries.
 
+This repository runs the action on itself. [`config-eval.yml`](.github/workflows/config-eval.yml)
+scores this repo's own `CLAUDE.md` on any pull request that touches it or any
+part of the action that scores it, so a change to the rubric or the plumbing is
+proven against the live API before it reaches a consumer. Every other test of
+the action stubs the Claude CLI.
+
 ## 🚀 Install
 
 > 🚦 **Setting up your own config?** Start from

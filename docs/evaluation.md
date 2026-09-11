@@ -158,6 +158,35 @@ If a score drops, look at the most recent `evals/results/` entry to see why.
 
 ---
 
+## In CI
+
+The same rubric runs as a [GitHub Action](../action.yml), and this repository
+runs it on itself:
+[`.github/workflows/config-eval.yml`](../.github/workflows/config-eval.yml)
+scores the repo's own `CLAUDE.md`.
+
+It triggers on a pull request that touches the scored file or any part of the
+action that scores it (the rubric prompt, `bin/eval-action.sh`,
+`evals/run-eval.sh`, `lib/scoring.sh`), and on `workflow_dispatch`. Every bats
+test of the action stubs the Claude CLI, so this workflow is the only place the
+install step, the live model call and the job-summary rendering run for real.
+
+Two things about it are deliberate:
+
+- **It needs an `ANTHROPIC_API_KEY` repository secret.** Without one the job
+  skips and says so in the job summary, in those words: the check is green
+  because nothing failed, not because anything passed. A pull request from a
+  fork never sees repository secrets, so that state is normal there.
+- **It is path-filtered, so it must never be a required status check.** GitHub
+  holds a required check that never runs as pending forever, which would block
+  every pull request outside those paths.
+
+The threshold is `fail-below: C`. Scoring moves by 1 to 2 points on borderline
+cases, so a tighter gate fails pull requests for non-determinism and trains
+everyone to re-run until green.
+
+---
+
 ## Caveats
 
 - AI scoring is non-deterministic. Run multiple times for sensitive comparisons.
