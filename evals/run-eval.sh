@@ -60,11 +60,21 @@ score_domain() {
     nonce=$(scored_nonce)
     cat "$PROMPT" >"$tmp_prompt"
     scored_content_preamble "$nonce" >>"$tmp_prompt"
+    # Whether this domain ships as a fill-in template, read from the registry
+    # rather than from the files: the rubric must not take a scored file's word
+    # for what it is. `if`, not `&&`: a domain without the flag returns 1 and
+    # would end the run under `set -e`.
+    local is_template="no"
+    if domain_has_flag "$domain" template; then
+        is_template="yes"
+    fi
+
     {
         printf '\n\n### Domain context\n'
         printf 'domain: %s\n' "$domain"
         printf 'git_hash: %s\n' "$git_hash"
         printf 'date: %s\n' "$timestamp"
+        printf 'template: %s\n' "$is_template"
     } >>"$tmp_prompt"
 
     while IFS= read -r f; do

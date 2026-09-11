@@ -259,3 +259,30 @@ INJECT
     assert_contains "$output" "web"
     assert_contains "$output" "2026-01-01"
 }
+
+# --- The template declaration ------------------------------------------------
+# Whether a domain ships as a fill-in template is registry-side, and reaches the
+# evaluator as one line of domain context. Both halves are tested, because
+# either one alone is silent: a runner that stops emitting the line scores a
+# template as an unfinished config, and a rubric that stops reading it does the
+# same while the line is still there.
+
+@test "eval pipeline: an ordinary domain is declared not a template" {
+    run_eval
+    [ "$status" -eq 0 ]
+    grep -qx 'template: no' "$STUB/prompt"
+}
+
+@test "eval pipeline: a template-flagged domain is declared to the evaluator" {
+    printf 'acme = workspace/acme : CLAUDE.md : template\n' > "$CONSUMER/config/domains.conf"
+    run_eval
+    [ "$status" -eq 0 ]
+    grep -qx 'template: yes' "$STUB/prompt"
+}
+
+@test "eval pipeline: the rubric tells the evaluator what that line means" {
+    # The declaration is worth nothing if the prompt does not act on it, and the
+    # two live in different files.
+    grep -q 'template: yes' "$REPO_ROOT/evals/prompts/config-quality.md"
+    grep -q 'template: no' "$REPO_ROOT/evals/prompts/config-quality.md"
+}

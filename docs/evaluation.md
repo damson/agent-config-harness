@@ -29,6 +29,36 @@ just benchmark-commit
 
 ---
 
+## Template Domains
+
+Some registered files ship to be filled in rather than used as they are: the
+`user-pers` identity files are prompts, not content. Scored as ordinary config
+they are permanently incomplete, and the report carries a domain nobody will
+ever fix, which teaches everyone to ignore the number. It sat at a D.
+
+Mark such a domain in the registry, as an optional fourth field:
+
+```
+user-pers = user-pers : custom_instructions.md, user_tone_of_voice.md : template
+```
+
+The runner passes that through to the evaluator as one line of domain context
+(`template: yes`), and the rubric then scores what the file elicits rather than
+what it contains: whether every area the filled file needs is prompted for,
+whether each prompt says what to write and why, and whether an ordinary reader's
+answer would be executable by an agent. An unfilled placeholder stops being a
+finding; a prompt that will produce a useless answer becomes one.
+
+The declaration is registry-side on purpose. A file that could declare itself a
+template would be able to talk its way out of the rubric, and the eval already
+treats everything inside the scored-content markers as data.
+
+Scores before and after the flag are not comparable: the same files moved from
+15/25 to 20/25 and 21/25 on two runs. Read the flag as the start of a new
+series, not a jump in an old one.
+
+---
+
 ## The Scoring Rubric
 
 Five dimensions, each 1–5. Total 5–25. The full prompt lives at [`evals/prompts/config-quality.md`](../evals/prompts/config-quality.md).
