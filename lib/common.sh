@@ -191,6 +191,48 @@ get_domain_file_src() {
     # kcov-ignore-end
 }
 
+# get_domain_flags <domain> → prints the domain's flags, one per line.
+#
+# Flags are an OPTIONAL fourth field: `name = workspace : files : flag, flag`.
+# Every reader above splits on the same [=:] and looks at $1 to $3 only, so a
+# line that grows a fourth field means exactly what it meant before to all of
+# them. A domain with no flags prints nothing.
+#
+# The only flag today is `template`, which tells the eval that the domain's
+# files ship to be filled in. It is registry-side on purpose: a scored file
+# that declared itself a template could talk its way out of the rubric.
+get_domain_flags() {
+    local domain="$1"
+    _require_registry
+    _iter_registry | awk -F'[=:]' -v d="$domain" '
+        # kcov-ignore-start
+        {
+            gsub(/[[:space:]]/, "", $1)
+            if ($1 == d) {
+                gsub(/^[[:space:]]+|[[:space:]]+$/, "", $4)
+                n = split($4, parts, ",")
+                for (i = 1; i <= n; i++) {
+                    gsub(/^[[:space:]]+|[[:space:]]+$/, "", parts[i])
+                    if (parts[i] != "") print parts[i]
+                }
+                exit
+            }
+        }
+    '
+    # kcov-ignore-end
+}
+
+# domain_has_flag <domain> <flag> → 0 when the domain carries the flag.
+#
+# Call it in a condition (`if domain_has_flag ...`), never as a bare statement:
+# a domain without the flag returns 1, which under `set -e` would end the
+# caller instead of answering it.
+domain_has_flag() {
+    local domain="$1" flag="$2"
+    _require_registry
+    get_domain_flags "$domain" | grep -qx "$flag"
+}
+
 # domain_exists <domain> → 0 if found, 1 otherwise
 domain_exists() {
     local domain="$1"

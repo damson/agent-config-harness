@@ -31,7 +31,12 @@ check_link() {
             errors=$((errors + 1))
         fi
     elif [ -e "$link" ]; then
+        # A real file where a managed link belongs means setup.sh has not run
+        # since it appeared, so none of this repo's config is in effect for it.
+        # It counted as a warning and not an error, which let the run print the
+        # warning and "All systems nominal" in the same breath, and exit 0.
         log_warn "$description: exists but is not a symlink ($link)"
+        errors=$((errors + 1))
     else
         log_warn "$description: MISSING ($link)"
         errors=$((errors + 1))

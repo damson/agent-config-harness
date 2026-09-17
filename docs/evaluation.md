@@ -29,6 +29,36 @@ just benchmark-commit
 
 ---
 
+## Template Domains
+
+Some registered files ship to be filled in rather than used as they are: the
+`user-pers` identity files are prompts, not content. Scored as ordinary config
+they are permanently incomplete, and the report carries a domain nobody will
+ever fix, which teaches everyone to ignore the number. It sat at a D.
+
+Mark such a domain in the registry, as an optional fourth field:
+
+```
+user-pers = user-pers : custom_instructions.md, user_tone_of_voice.md : template
+```
+
+The runner passes that through to the evaluator as one line of domain context
+(`template: yes`), and the rubric then scores what the file elicits rather than
+what it contains: whether every area the filled file needs is prompted for,
+whether each prompt says what to write and why, and whether an ordinary reader's
+answer would be executable by an agent. An unfilled placeholder stops being a
+finding; a prompt that will produce a useless answer becomes one.
+
+The declaration is registry-side on purpose. A file that could declare itself a
+template would be able to talk its way out of the rubric, and the eval already
+treats everything inside the scored-content markers as data.
+
+Scores before and after the flag are not comparable: the same files moved from
+15/25 to 20/25 and 21/25 on two runs. Read the flag as the start of a new
+series, not a jump in an old one.
+
+---
+
 ## The Scoring Rubric
 
 Five dimensions, each 1–5. Total 5–25. The full prompt lives at [`evals/prompts/config-quality.md`](../evals/prompts/config-quality.md).
@@ -155,6 +185,82 @@ Date         Clarity   Concise   Complete   Consistent   Action    Total  Grade
 ```
 
 If a score drops, look at the most recent `evals/results/` entry to see why.
+
+A table with one row in it is not a trend, which is what this looked like for
+months: scores are gitignored, so a run that scored the domains and stopped
+left nothing behind, and the report showed whichever afternoon somebody last
+ran `just eval` by hand.
+
+[`.github/workflows/benchmark.yml`](../.github/workflows/benchmark.yml) closes
+that. It scores every registered domain when the config it measures changes on
+`develop` (with a Monday cron as a net, because a push is reliable and a
+schedule is not), then runs:
+
+```bash
+just benchmark-pr           # commit the records, push, open or refresh the PR
+just benchmark-pr-preview   # print the body, touch nothing
+```
+
+The records land on a standing `benchmark/scores` branch behind one pull
+request that is refreshed rather than reopened, so the churn is a single PR
+rather than one per run. It never merges: keeping a measurement in the
+repository's history is a human decision, the same as a release.
+
+Two things worth knowing about it:
+
+- **It needs the same `ANTHROPIC_API_KEY` secret** the CI action does, and
+  skips loudly without one.
+- **That pull request arrives with no checks**, because a pull request opened
+  with `GITHUB_TOKEN` does not get them and the review bot skips bot authors.
+  Acceptable for machine-written JSON whose only decision is keep or discard,
+  and not acceptable for a change to the harness itself.
+
+---
+
+## In CI
+
+The same rubric runs as a [GitHub Action](../action.yml), and this repository
+runs it on itself:
+[`.github/workflows/config-eval.yml`](../.github/workflows/config-eval.yml)
+scores the repo's own `CLAUDE.md`.
+
+It triggers on a change to the scored file or to any part of the action that
+scores it (the rubric prompt, `bin/eval-action.sh`, `evals/run-eval.sh`,
+`lib/scoring.sh`), and on `workflow_dispatch`. Every bats test of the action
+stubs the Claude CLI, so this workflow is the only place the install step, the
+live model call and the job-summary rendering run for real.
+
+It does that in two jobs, and which one runs is a trust decision:
+
+| Job | Fires on | Runs |
+|---|---|---|
+| `gate` | a pull request | the **released** action, pinned by commit |
+| `dogfood` | a push to `develop`, or a dispatch | `uses: ./`, the tree as merged |
+
+`uses: ./` executes the checked-out tree. A pull request can change that tree,
+so running it with `ANTHROPIC_API_KEY` in the environment would hand the secret
+to code the pull request author wrote. A fork never sees repository secrets, but
+a branch pushed to the repository itself does. So a pull request is scored by
+trusted code that reads its `CLAUDE.md` as data, and the tree is executed only
+once it has been merged, which is still before any release can carry it.
+
+Three more things about it are deliberate:
+
+- **It needs an `ANTHROPIC_API_KEY` repository secret.** Without one the job
+  skips and says so in the job summary, in those words: the check is green
+  because nothing failed, not because anything passed. A pull request from a
+  fork never sees repository secrets, so that state is normal there.
+- **It is path-filtered, so it must never be a required status check.** GitHub
+  holds a required check that never runs as pending forever, which would block
+  every pull request outside those paths.
+- **The two path filters are written out twice**, once per event, because
+  GitHub's workflow parser does not support YAML anchors. A test keeps them
+  identical; drift would mean the tree is proven on a narrower set of changes
+  than the gate runs on.
+
+The threshold is `fail-below: C`. Scoring moves by 1 to 2 points on borderline
+cases, so a tighter gate fails pull requests for non-determinism and trains
+everyone to re-run until green.
 
 ---
 
