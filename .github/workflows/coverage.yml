@@ -107,6 +107,14 @@ jobs:
           # already exercised. Wrap the foreign text in the markers below and
           # the file measures bash. Wrap only data and foreign source; a bash
           # statement inside a region stops being measured at all.
+          #
+          # One artifact the markers must NOT be used on: kcov reports the
+          # first line of a multi-line command substitution as never executed.
+          # Measured across bin/, lib/, evals/ and benchmarks/: 9 such lines,
+          # 9 reported uncovered, 0 reported hit, several of them inside
+          # functions the suite calls on every run. No test can win those lines
+          # back, and an ignore region would stop measuring a real statement.
+          # Keep the substitution on one line instead, however wide it reads.
           "$HOME/.local/kcov/bin/kcov" \
                --include-path="$PWD/bin,$PWD/lib,$PWD/evals,$PWD/benchmarks" \
                --bash-parse-files-in-dir="$PWD/bin" \
