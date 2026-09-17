@@ -275,5 +275,11 @@ everyone to re-run until green.
   1-point move as a result, and prefer the findings to the total: they were the
   stable half even under rubric 1, which is why the scores are now computed from
   them.
+- **A file the rubric cannot place scores worst of all.** This repository's own
+  root `CLAUDE.md` is about a repository's workflow, not a language and a build,
+  and the CI gate scored it 23, 22 and then 16 out of 25 on barely changed
+  content: the model was picking a framing, not measuring a file. Completeness
+  is now judged against the scope a stack sets for itself. If a score swings
+  that far, suspect the question before the file.
 - The model interpretation depends on the prompt. If a score feels wrong, the fix is usually in [`evals/prompts/config-quality.md`](../evals/prompts/config-quality.md), not the file under test.
 - Schema validation (via `ajv-cli`) is optional. Without it, malformed output is detected by `jq` parse but not field-level checked.

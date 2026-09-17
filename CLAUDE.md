@@ -16,11 +16,10 @@ domain registry and what this repo is for. Don't duplicate that here.
   sibling back into a real file: that reintroduces the duplication that tanks
   `conciseness` and `consistency` in `just eval`. A `.cursorrules` stays a real
   file only when it carries content the `CLAUDE.md` does not.
-- **Eval is non-deterministic, by 2 points under rubric 2 and 3 under rubric 1**
-  (measured over identical trees: `mobile` 22/20/20/21, `user-pers` 23 four
-  times; rubric 1 crossed the A/B line on both). Don't claim a trend from one
-  run, or from two that agree. Compare findings over totals, and never compare
-  across `rubric_version`: the numbers share units, not meaning.
+- **Eval scores move by about 2 points between runs of an unchanged tree.**
+  Don't claim a trend from one run, or from two that agree; compare findings
+  over totals, and never compare across `rubric_version`, whose numbers share
+  units but not meaning. Measurements: [docs/evaluation.md](docs/evaluation.md).
 - **`just eval-skills` writes `.json` on success and `-RAW.txt` only when the
   reply held no parsable object.** Read whichever artifact is *newest* and check
   its mtime: grepping the newest RAW after a successful run returns a previous

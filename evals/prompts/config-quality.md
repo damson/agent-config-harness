@@ -28,9 +28,16 @@ repeats rules stated elsewhere, or a passage that carries no instruction at all.
 Length alone is not a finding: a long file where every line instructs is lean.
 
 **3. Completeness.** An area an agent working in this domain will hit and the
-stack says nothing about: language conventions, architecture, testing, git
-workflow, build commands, and whatever else this domain plainly needs. One
-finding per missing area, not one per imagined question.
+stack says nothing about. One finding per missing area, not one per imagined
+question.
+
+Judge that against the scope the stack sets for itself, which you can read off
+its own headings, not against a checklist of what a project usually has. For a
+domain that steers code, the usual areas apply: language conventions,
+architecture, testing, git workflow, build commands. A stack that is plainly
+about something else, a repository's own workflow, a person's identity and
+voice, the documentation an agent reads, is not incomplete for omitting a build
+command it was never about. Ask what a reader of THIS stack still has to guess.
 
 **4. Consistency.** Two rules in the same scope that cannot both be followed, or
 a statement contradicted elsewhere in the stack. Deliberate layering is not a
