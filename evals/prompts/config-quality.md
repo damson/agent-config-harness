@@ -1,40 +1,71 @@
 # Config Quality Evaluation
 
-You are an expert in AI agent configuration. Score the AI configuration file stack below on five dimensions, then output **only** a single JSON object matching the schema at the bottom. No prose, no markdown, no preamble: JSON only.
+You are an expert in AI agent configuration. Find what is wrong with the AI configuration file stack below, then derive five dimension scores from what you found, by the rule in "Deriving the scores". Output **only** a single JSON object matching the schema at the bottom. No prose, no markdown, no preamble: JSON only.
 
 ## Scoring Dimensions
 
-Each dimension is scored 1–5:
+Five dimensions, each scored 1 to 5. **The scores are not judgements you make
+directly. They are computed from the findings you list**, by the rule in
+"Deriving the scores" below, which exists because a number chosen by impression
+moves between runs over an unchanged file while the findings barely move at all.
 
-### 1. Clarity (1–5)
-Are rules specific and unambiguous? An agent should not need to guess.
-- **5**: Every rule is precise; no interpretation required.
-- **3**: Some rules are vague but the file is mostly clear.
-- **1**: Many rules are abstract or open to multiple interpretations.
+Work in this order, and do not revise a score to feel right afterwards:
 
-### 2. Conciseness (1–5)
-Is the file free of bloat, summary sections, and restated material?
-- **5**: Lean. Every line earns its place.
-- **3**: Some redundancy, but acceptable.
-- **1**: Heavily duplicated; restates rules across sections.
+1. Read the file stack.
+2. Write down every finding you would act on, up to 8, each tagged with the one
+   dimension it belongs to and a severity.
+3. Apply the deduction rule to get five numbers.
+4. Sum them, map the grade, emit the JSON.
 
-### 3. Completeness (1–5)
-Does it cover the essential areas for this domain (language, architecture, testing, git, build)?
-- **5**: All major areas covered.
-- **3**: Covers core areas but leaves notable gaps.
-- **1**: Major areas missing; agent will frequently guess.
+### What counts as a finding, per dimension
 
-### 4. Consistency (1–5)
-Are there contradictions inside the file or with other files in the stack?
-- **5**: Fully consistent.
-- **3**: Minor tensions that resolve with context.
-- **1**: Outright contradictions.
+**1. Clarity.** A rule an agent could read two ways, or that leaves the agent
+guessing at something that matters. "Follow best practices" is a finding;
+"format with `just fmt` before pushing" is not.
 
-### 5. Actionability (1–5)
-Can an AI agent actually execute these rules, or do many require human judgment?
-- **5**: Every rule is agent-executable.
-- **3**: Some rules need human interpretation but most are actionable.
-- **1**: Many rules require human-only steps (e.g. "use good judgment").
+**2. Conciseness.** Material restated in a second place, a summary section that
+repeats rules stated elsewhere, or a passage that carries no instruction at all.
+Length alone is not a finding: a long file where every line instructs is lean.
+
+**3. Completeness.** An area an agent working in this domain will hit and the
+stack says nothing about: language conventions, architecture, testing, git
+workflow, build commands, and whatever else this domain plainly needs. One
+finding per missing area, not one per imagined question.
+
+**4. Consistency.** Two rules in the same scope that cannot both be followed, or
+a statement contradicted elsewhere in the stack. Deliberate layering is not a
+contradiction: a narrower file overriding a broader one is the design. A file
+that states a trade-off and picks a side is consistent; disclosure is not
+contradiction.
+
+**5. Actionability.** A rule whose execution needs a human: a judgement call with
+no test, an instruction to "use discretion", a step that names no command, file
+or condition an agent can check.
+
+### Severity
+
+- **major**: an agent following this stack does the wrong thing, or has to guess
+  about something that changes the outcome.
+- **minor**: an agent still lands in the right place, but the file made it
+  harder than it needed to be.
+
+Severity is about consequence, not about how much text is wrong.
+
+### Deriving the scores
+
+For each dimension, count only the findings you tagged with it:
+
+| Findings in that dimension | Score |
+|---|---|
+| none | 5 |
+| one minor | 4 |
+| two or more minor, or one major | 3 |
+| one major and any minor, or two major | 2 |
+| three or more major | 1 |
+
+Count the findings you actually listed. If a dimension has more problems than
+you had room to list, list the majors first: the rule saturates at 1, so nothing
+is lost by the cap.
 
 ## Template Domains
 
@@ -73,14 +104,20 @@ Report a prompt that will produce a useless answer.
 
 ## Findings
 
-List up to 5 specific issues. Each finding includes:
-- `dimension`: which score it pulled down
+List every issue you would act on, up to 8, majors first. Each finding is:
+- `dimension`: the one dimension it belongs to, which is the score it deducts from
+- `severity`: `major` or `minor`, as defined above
 - `file`: relative path of the offending file
 - `section`: heading the issue lives under (or `"-"` if global)
 - `issue`: short statement of the problem
 - `recommendation`: specific fix
 
-Skip findings if the file is already excellent.
+A finding belongs to exactly one dimension. If it could sit in two, put it in
+the one it damages most and do not list it twice: the deduction rule counts
+findings, so a duplicate is a second deduction for one problem.
+
+An excellent stack produces no findings and scores 25. Do not invent one to look
+thorough: an invented finding is a real deduction.
 
 ## Output Schema
 
@@ -102,6 +139,7 @@ Skip findings if the file is already excellent.
   "findings": [
     {
       "dimension": "<one of the five>",
+      "severity": "<major|minor>",
       "file": "<path>",
       "section": "<heading or '-'>",
       "issue": "<short problem statement>",
