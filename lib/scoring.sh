@@ -19,6 +19,15 @@
 
 EVAL_MODEL="${EVAL_MODEL:-claude-sonnet-5}"
 
+# Which rubric produced a score. Bumped whenever a prompt change moves what the
+# numbers mean, because two series either side of such a change are different
+# measurements wearing the same units, and a trend that mixes them silently is
+# worse than no trend. Stamped by the harness, never asked of the model.
+#
+#   1  the original five gestalt judgements, 5/3/1 anchored
+#   2  findings first, each tagged major or minor, scores derived from them
+RUBRIC_VERSION="${RUBRIC_VERSION:-2}"
+
 # The schema is a harness asset (HARNESS_ROOT, never REPO_ROOT), used for the
 # optional ajv validation in score_prompt.
 SCHEMA="$HARNESS_ROOT/evals/eval-schema.json"
@@ -129,10 +138,12 @@ score_prompt() {
     local out_path score_path
     out_path="$RESULTS_DIR/$stamp-$domain.json"
     score_path="$SCORES_DIR/$stamp-$domain.json"
-    printf '%s\n' "$json" >"$out_path"
+    # Stamp the rubric version on the way in, so a result file says which rubric
+    # judged it even when it is read years later on its own.
+    printf '%s\n' "$json" | jq --argjson rv "$RUBRIC_VERSION" '. + {rubric_version: $rv}' >"$out_path"
 
     # Write a compact score record for benchmark trending.
-    jq '{date, domain, git_hash, scores, total, percentage, grade}' \
+    jq '{date, domain, git_hash, scores, total, percentage, grade, rubric_version}' \
         <"$out_path" >"$score_path"
 
     log_ok "Result written: $out_path"

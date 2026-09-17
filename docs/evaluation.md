@@ -61,67 +61,59 @@ series, not a jump in an old one.
 
 ## The Scoring Rubric
 
-Five dimensions, each 1–5. Total 5–25. The full prompt lives at [`evals/prompts/config-quality.md`](../evals/prompts/config-quality.md).
+Five dimensions, each 1 to 5, total 5 to 25. The full prompt lives at
+[`evals/prompts/config-quality.md`](../evals/prompts/config-quality.md).
 
-### 1. Clarity
+**The scores are not judgements the model makes directly.** It lists findings
+first, tags each with one dimension and a severity, and the score for a
+dimension follows from what it listed:
 
-**Are rules specific and unambiguous?** An agent should not have to guess.
-
-| Score | Description |
+| Findings in that dimension | Score |
 |---|---|
-| **5** | Every rule is precise. No interpretation needed. |
-| **4** | Mostly specific with the occasional vague line. |
-| **3** | Many rules are clear; some require judgment. |
-| **2** | Several rules are abstract. |
-| **1** | Mostly vague. "Follow best practices." |
+| none | 5 |
+| one minor | 4 |
+| two or more minor, or one major | 3 |
+| one major and any minor, or two major | 2 |
+| three or more major | 1 |
 
-### 2. Conciseness
+- **major**: an agent following the stack does the wrong thing, or has to guess
+  about something that changes the outcome.
+- **minor**: an agent still lands in the right place, but the file made it
+  harder than it needed to be.
 
-**Free of bloat, summary sections, and restated material?**
+The order matters more than the table. Asked for five numbers directly, the
+model produced a different set each run over an unchanged file; asked for
+findings, it produced nearly the same list each time and the numbers now follow
+that list. The measured effect is under "Caveats".
 
-| Score | Description |
+### What counts as a finding
+
+| Dimension | A finding is |
 |---|---|
-| **5** | Lean. Every line earns its place. |
-| **3** | Some redundancy. |
-| **1** | Heavy duplication. Reminder sections that repeat rules. |
+| **Clarity** | a rule an agent could read two ways, or that leaves it guessing about something that matters |
+| **Conciseness** | material restated elsewhere, a summary that repeats rules, a passage carrying no instruction. Length alone is not a finding |
+| **Completeness** | an area an agent in this domain will hit that the stack says nothing about: conventions, architecture, testing, git, build |
+| **Consistency** | two rules in the same scope that cannot both be followed. Deliberate layering is not a contradiction, and neither is stating a trade-off and picking a side |
+| **Actionability** | a rule whose execution needs a human: a judgement call with no test, "use discretion", a step naming no command or condition |
 
-### 3. Completeness
+A finding belongs to exactly one dimension, so one problem is one deduction. An
+excellent stack produces no findings and scores 25.
 
-**Does it cover the essential areas for this domain?**
+## Rubric versions
 
-For a typical domain, "essential areas" include: language conventions, architecture, testing, git workflow, build commands. A backend domain may also need database/API conventions; a frontend domain may also need styling/a11y.
+Every result and score record carries `rubric_version`, stamped by the harness
+rather than asked of the model, and `just benchmark` shows it as a column.
 
-| Score | Description |
+| Version | Rubric |
 |---|---|
-| **5** | All major areas covered well. |
-| **3** | Core areas covered, notable gaps. |
-| **1** | Many areas missing; agent will frequently guess. |
+| 1 | five gestalt judgements, anchored only at 5, 3 and 1 |
+| 2 | findings first, tagged major or minor, scores derived from them |
 
-### 4. Consistency
-
-**Contradictions inside the file or with other files in the stack?**
-
-A common pattern is intentional layering: a global `CLAUDE.md` overrides a domain `CLAUDE.md` rule. That's not a contradiction; the prompt should recognise it. A genuine contradiction is two rules in the same scope that can't both be true.
-
-| Score | Description |
-|---|---|
-| **5** | Fully consistent. |
-| **3** | Minor tensions. |
-| **1** | Outright contradictions. |
-
-### 5. Actionability
-
-**Can an AI agent actually execute these rules?**
-
-"Use good judgment" is not actionable. "Run `./gradlew detektAll` before opening a PR" is.
-
-| Score | Description |
-|---|---|
-| **5** | Every rule is agent-executable. |
-| **3** | Most are executable; a few need human interpretation. |
-| **1** | Many rules require human judgment. |
-
----
+Scores from different rubric versions are different measurements in the same
+units. Compare within a version, and read a jump at a version boundary as the
+boundary, not as the config changing. Bump `RUBRIC_VERSION` in
+[`lib/scoring.sh`](../lib/scoring.sh) whenever a prompt change moves what the
+numbers mean.
 
 ## Grade Mapping
 
@@ -266,11 +258,22 @@ everyone to re-run until green.
 
 ## Caveats
 
-- AI scoring is non-deterministic, and by more than it looks. Three runs over an
-  identical tree (`user-pers`, 2026-09-17) returned 21, 24 and 24 out of 25:
-  a 3-point spread, which crosses a grade boundary. Two runs that agree are not
-  evidence either, as the same domain returned 21 twice before the files changed.
-  Compare medians over three or more runs, or compare findings rather than
-  totals: they are more stable than the number is.
+- **AI scoring is non-deterministic, and rubric 2 exists because of how much.**
+  Measured over identical trees on 2026-09-17, four runs per domain for rubric 2
+  and three for rubric 1:
+
+  | Domain | Rubric 1 | Rubric 2 |
+  |---|---|---|
+  | `mobile` | 21, 24, 21 (B, A, B) | 22, 20, 20, 21 (B, B, B, B) |
+  | `user-pers` | 21, 24, 24 (B, A, A) | 23, 23, 23, 23 (A, A, A, A) |
+
+  Rubric 1 crossed the A/B boundary on both domains without a file changing,
+  which is the failure that matters: a grade nobody can reproduce. Deriving the
+  scores from tagged findings narrowed the spread to 2 points and 0, and the
+  grade held across every run.
+- **It is narrower, not gone.** `mobile` still moves by 2. Do not read a
+  1-point move as a result, and prefer the findings to the total: they were the
+  stable half even under rubric 1, which is why the scores are now computed from
+  them.
 - The model interpretation depends on the prompt. If a score feels wrong, the fix is usually in [`evals/prompts/config-quality.md`](../evals/prompts/config-quality.md), not the file under test.
 - Schema validation (via `ajv-cli`) is optional. Without it, malformed output is detected by `jq` parse but not field-level checked.

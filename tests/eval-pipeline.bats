@@ -286,3 +286,58 @@ INJECT
     grep -q 'template: yes' "$REPO_ROOT/evals/prompts/config-quality.md"
     grep -q 'template: no' "$REPO_ROOT/evals/prompts/config-quality.md"
 }
+
+# --- The rubric version stamp ------------------------------------------------
+# Two rubrics produce numbers in the same units that do not mean the same thing.
+# A trend that mixes them silently is worse than no trend, so every record says
+# which rubric judged it, and the report shows it.
+
+@test "eval pipeline: every record says which rubric judged it" {
+    run_eval
+    [ "$status" -eq 0 ]
+    local result score
+    result=$(ls "$CONSUMER/evals/results/"*.json | head -1)
+    score=$(ls "$CONSUMER/benchmarks/scores/"*.json | head -1)
+    # Both files, because they are read in different places: the result on its
+    # own years later, the score record by the trend report.
+    [ "$(jq -r .rubric_version "$result")" = "2" ]
+    [ "$(jq -r .rubric_version "$score")" = "2" ]
+}
+
+@test "eval pipeline: the stamp is the harness's, not the model's" {
+    # A model that emits its own rubric_version must not be believed: the field
+    # says which prompt ran, and only the harness knows that.
+    cat > "$STUB/reply" <<'JSON'
+{"date":"2026-01-01T00:00:00Z","domain":"acme","git_hash":"stub","rubric_version":99,"scores":{"clarity":5,"conciseness":5,"completeness":5,"consistency":5,"actionability":5},"total":25,"percentage":100,"grade":"A","findings":[]}
+JSON
+    run_eval
+    [ "$status" -eq 0 ]
+    local result
+    result=$(ls "$CONSUMER/evals/results/"*.json | head -1)
+    [ "$(jq -r .rubric_version "$result")" = "2" ]
+}
+
+@test "report: a record from an older rubric is labelled, not silently mixed" {
+    # Records written before the stamp existed are all rubric 1. Showing them
+    # as anything else, or as nothing, is how two different measurements read
+    # as one trend.
+    make_score "2026-01-01T000000-acme" acme 2026-01-01
+    run env AGENT_CONFIG_ROOT="$CONSUMER" "$REPO_ROOT/benchmarks/report.sh"
+    [ "$status" -eq 0 ]
+    assert_contains "$output" "Rubric"
+    assert_contains "$output" "v1"
+}
+
+@test "eval pipeline: the rubric asks for the severity the schema requires" {
+    # The scores are computed from findings tagged major or minor. If the prompt
+    # stops asking for the tag, or the schema stops requiring it, the deduction
+    # rule quietly goes back to being a judgement call and the spread returns.
+    local prompt="$REPO_ROOT/evals/prompts/config-quality.md"
+    local schema="$REPO_ROOT/evals/eval-schema.json"
+    grep -q '`severity`' "$prompt"
+    grep -q 'Deriving the scores' "$prompt"
+    run jq -e '.properties.findings.items.required | index("severity")' "$schema"
+    [ "$status" -eq 0 ]
+    run jq -r '.properties.findings.items.properties.severity.enum | join(",")' "$schema"
+    [ "$output" = "major,minor" ]
+}
