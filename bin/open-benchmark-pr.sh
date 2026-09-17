@@ -149,8 +149,13 @@ log_ok "Pushed $count score record(s) to $BRANCH"
 
 pr_body=$(body "$tmp")
 
-existing=$(gh pr list --base "$BASE" --head "$BRANCH" --state open --json number \
-           --jq '.[0].number // empty')
+# One line, deliberately. kcov reports the first line of a multi-line command
+# substitution as never executed: 9 of the 9 in this repository read that way
+# and none reads as hit, so wrapping this for width would cost a line of
+# coverage that no test can win back. Not a case for the ignore markers, which
+# are for data and foreign source; a bash statement inside a region stops being
+# measured at all.
+existing=$(gh pr list --base "$BASE" --head "$BRANCH" --state open --json number --jq '.[0].number // empty')
 
 if [ -n "$existing" ]; then
     log_info "Refreshing benchmark PR #$existing"
