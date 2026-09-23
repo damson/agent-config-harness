@@ -81,6 +81,9 @@ EOF
     printf 'I cannot score this, sorry.\n' > "$STUB/reply"
     run_eval
     [ "$status" -ne 0 ]
+    # Two guards can catch this, the type check and the writer's fallback, and
+    # which one fires is not the contract. The contract is that the reply is
+    # kept and nothing claims a score, so that is what this asserts.
     assert_contains "$output" "Saved raw response"
     run bash -c "ls '$CONSUMER/evals/results/'"
     assert_contains "$output" "-acme-RAW.txt"
@@ -285,4 +288,97 @@ INJECT
     # two live in different files.
     grep -q 'template: yes' "$REPO_ROOT/evals/prompts/config-quality.md"
     grep -q 'template: no' "$REPO_ROOT/evals/prompts/config-quality.md"
+}
+
+# --- The write path ----------------------------------------------------------
+# Everything here is about one rule: a reply is either stored whole or kept as
+# RAW. A partially written result that reports success is worse than a failure,
+# because the run says it measured something and the evidence is gone.
+
+@test "eval pipeline: a reply that is not an object is kept as RAW, not half-written" {
+    # A reply wrapped in [ ... ] parses as JSON, so the parse guard passes it.
+    cat > "$STUB/reply" <<'JSON'
+[{"date":"2026-01-01T00:00:00Z","domain":"acme","git_hash":"stub","scores":{"clarity":5,"conciseness":5,"completeness":5,"consistency":5,"actionability":5},"total":25,"percentage":100,"grade":"A","findings":[]}]
+JSON
+    run_eval
+    [ "$status" -ne 0 ]
+    assert_contains "$output" "Saved raw response"
+    # The RAW copy exists and the result does not: no 0-byte file claiming a score.
+    run bash -c "ls '$CONSUMER/evals/results/'"
+    assert_contains "$output" "-RAW.txt"
+    assert_not_contains "$output" "acme.json"
+    run bash -c "ls '$CONSUMER/benchmarks/scores/' 2>/dev/null | wc -l"
+    [ "$(printf '%s' "$output" | tr -d ' ')" = "0" ]
+}
+
+@test "eval pipeline: a run that cannot be stamped says so instead of reporting a score" {
+    run env PATH="$STUB:$PATH" AGENT_CONFIG_ROOT="$CONSUMER" RUBRIC_VERSION=9 \
+        "$REPO_ROOT/evals/run-eval.sh" acme
+    [ "$status" -eq 0 ]
+    # A whole number is fine; the guard is against a version that is not one.
+    run env PATH="$STUB:$PATH" AGENT_CONFIG_ROOT="$CONSUMER" RUBRIC_VERSION=v9 \
+        "$REPO_ROOT/evals/run-eval.sh" acme
+    [ "$status" -ne 0 ]
+    assert_contains "$output" "RUBRIC_VERSION must be a whole number"
+}
+
+# --- Rubric version and derived scores ---------------------------------------
+
+@test "eval pipeline: the config runner stamps rubric 2 and derives the scores" {
+    # The stub claims 25/25 while listing a major finding. The findings are the
+    # model's job; the arithmetic is the harness's.
+    cat > "$STUB/reply" <<'JSON'
+{"date":"2026-01-01T00:00:00Z","domain":"acme","git_hash":"stub","scores":{"clarity":5,"conciseness":5,"completeness":5,"consistency":5,"actionability":5},"total":25,"percentage":100,"grade":"A","findings":[{"dimension":"clarity","severity":"major","file":"CLAUDE.md","section":"-","issue":"x","recommendation":"y"}]}
+JSON
+    run_eval
+    [ "$status" -eq 0 ]
+    local result
+    result=$(ls "$CONSUMER/evals/results/"*acme.json | head -1)
+    [ "$(jq -r .rubric_version "$result")" = "2" ]
+    [ "$(jq -r .scores.clarity "$result")" = "2" ]
+    [ "$(jq -r .total "$result")" = "22" ]
+    [ "$(jq -r .grade "$result")" = "B" ]
+    assert_contains "$output" "scores rewritten from findings"
+}
+
+@test "eval pipeline: a skill eval is not stamped with the config rubric's version" {
+    # Both runners share lib/scoring.sh, and evals/prompts/skill-quality.md is a
+    # different rubric. Stamping it 2 was a mislabelled series in the one field
+    # that exists to prevent them.
+    local skills root
+    root=$(mktemp -d)
+    skills="$root/user-dev/skills/probe"
+    mkdir -p "$skills"
+    printf -- '---\nname: probe\ndescription: x\n---\n# Probe\n## Procedure\n1. do\n## When to STOP\n- never\n' > "$skills/SKILL.md"
+    cat > "$STUB/reply" <<'JSON'
+{"date":"2026-01-01T00:00:00Z","domain":"skill-probe","git_hash":"stub","scores":{"clarity":4,"conciseness":4,"completeness":4,"consistency":4,"actionability":4},"total":20,"percentage":80,"grade":"B","findings":[{"dimension":"clarity","file":"SKILL.md","section":"-","issue":"x","recommendation":"y"}]}
+JSON
+    run env PATH="$STUB:$PATH" AGENT_CONFIG_ROOT="$root" "$REPO_ROOT/evals/run-skill-eval.sh" probe
+    [ "$status" -eq 0 ]
+    local result
+    result=$(ls "$root/evals/results/"*skill-probe.json | head -1)
+    [ "$(jq -r .rubric_version "$result")" = "1" ]
+    # And its scores are the model's own, because that rubric is not derived.
+    [ "$(jq -r .total "$result")" = "20" ]
+    rm -rf "$root"
+}
+
+@test "eval pipeline: the rubric's deduction table and the code agree" {
+    # Two copies of one rule, in a prompt and in jq. A test that only read the
+    # code could not catch the prompt drifting away from it.
+    local prompt="$REPO_ROOT/evals/prompts/config-quality.md"
+    grep -q '| two or more major | 1 |' "$prompt"
+    grep -q '| one major | 2 |' "$prompt"
+    grep -q '| two or more minor | 3 |' "$prompt"
+    grep -q '| one minor | 4 |' "$prompt"
+    grep -q '| none | 5 |' "$prompt"
+    grep -q '`severity`' "$prompt"
+}
+
+@test "report: a record from an older rubric is labelled, not silently mixed" {
+    make_score "2026-01-01T000000-acme" acme 2026-01-01
+    run env AGENT_CONFIG_ROOT="$CONSUMER" "$REPO_ROOT/benchmarks/report.sh"
+    [ "$status" -eq 0 ]
+    assert_contains "$output" "Rubric"
+    assert_contains "$output" "v1"
 }

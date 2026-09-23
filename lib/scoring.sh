@@ -19,6 +19,23 @@
 
 EVAL_MODEL="${EVAL_MODEL:-claude-sonnet-5}"
 
+# Which rubric produced a score, and whether the harness derives the scores
+# rather than believing the model's.
+#
+# Both belong to the PROMPT, so each runner sets them; the library defaults to
+# the original rubric. Setting them here instead stamped every skill eval as
+# rubric 2 while evals/prompts/skill-quality.md had not changed, which is the
+# mislabelled series the field exists to prevent.
+#
+#   1  five gestalt judgements, anchored at 5, 3 and 1 (skill-quality.md)
+#   2  findings first, tagged major or minor, scores derived (config-quality.md)
+RUBRIC_VERSION="${RUBRIC_VERSION:-1}"
+SCORES_DERIVED="${SCORES_DERIVED:-0}"
+
+if ! [[ "$RUBRIC_VERSION" =~ ^[0-9]+$ ]]; then
+    log_error "RUBRIC_VERSION must be a whole number, got: $RUBRIC_VERSION"
+fi
+
 # The schema is a harness asset (HARNESS_ROOT, never REPO_ROOT), used for the
 # optional ajv validation in score_prompt.
 SCHEMA="$HARNESS_ROOT/evals/eval-schema.json"
@@ -71,6 +88,65 @@ append_scored_file() {
     } >>"$prompt_file"
 }
 
+# derive_scores <result_json_file>
+#
+# Rewrite scores, total, percentage and grade from the findings, by the rule the
+# rubric states. The model lists what is wrong; the arithmetic is the harness's,
+# because a model asked for both produced numbers its own findings did not
+# support, and nothing downstream could tell.
+#
+# Per dimension, counting its findings: majors M, minors m.
+#
+#   M >= 2   -> 1
+#   M == 1   -> 2
+#   m >= 2   -> 3
+#   m == 1   -> 4
+#   nothing  -> 5
+#
+# Majors dominate on purpose. A dimension holding something that makes an agent
+# do the wrong thing is not a 3 because the rest of that dimension is fine, and
+# the gentler ladder this replaced could not express a bad file at all: the
+# repository's own degraded example scored B.
+#
+# An untagged finding counts as a major: an omitted tag must not flatter a file.
+derive_scores() {
+    local file="$1" tmp
+    tmp=$(mktemp)
+    if ! jq '
+        def dim_score($d):
+            [.findings[]? | select(.dimension == $d)] as $f
+            | ([$f[] | select(.severity != "minor")] | length) as $M
+            | ([$f[] | select(.severity == "minor")] | length) as $m
+            | if   $M >= 2 then 1
+              elif $M == 1 then 2
+              elif $m >= 2 then 3
+              elif $m == 1 then 4
+              else 5 end;
+        {
+            clarity:       dim_score("clarity"),
+            conciseness:   dim_score("conciseness"),
+            completeness:  dim_score("completeness"),
+            consistency:   dim_score("consistency"),
+            actionability: dim_score("actionability")
+        } as $s
+        | ([$s[]] | add) as $total
+        | . + {
+            scores: $s,
+            total: $total,
+            percentage: (($total / 25 * 100) | round),
+            grade: (if   $total >= 23 then "A"
+                    elif $total >= 20 then "B"
+                    elif $total >= 17 then "C"
+                    elif $total >= 14 then "D"
+                    else "F" end)
+        }
+    ' "$file" >"$tmp" 2>/dev/null; then
+        rm -f "$tmp"
+        return 1
+    fi
+    mv "$tmp" "$file"
+}
+
 # score_prompt <label> <domain> <prompt_file> <findings_filter>
 #
 #   label            name used in log messages (a domain, or a skill's short name)
@@ -113,8 +189,12 @@ score_prompt() {
     # Validate JSON parses. The empty string must fail too: a reply holding no
     # object at all extracts to nothing, and `jq empty` on empty input is a
     # vacuous pass that would write an empty result and report success.
-    if [ -z "$json" ] || ! printf '%s' "$json" | jq empty >/dev/null 2>&1; then
-        log_warn "Output for $label was not valid JSON. Saved raw response."
+    #
+    # `jq empty` is not enough on its own: a reply wrapped in `[ ... ]` parses,
+    # and every step below expects an object. It used to reach the writer and
+    # fail there, after the output file had already been truncated.
+    if [ -z "$json" ] || ! printf '%s' "$json" | jq -e 'type == "object"' >/dev/null 2>&1; then
+        log_warn "Output for $label was not a JSON object. Saved raw response."
         printf '%s' "$response" >"$RESULTS_DIR/$stamp-$domain-RAW.txt"
         return 1
     fi
@@ -126,13 +206,43 @@ score_prompt() {
         fi
     fi
 
-    local out_path score_path
+    local out_path score_path tmp_out
     out_path="$RESULTS_DIR/$stamp-$domain.json"
     score_path="$SCORES_DIR/$stamp-$domain.json"
-    printf '%s\n' "$json" >"$out_path"
+
+    # Build the record in a temp file and move it into place only once every
+    # step has succeeded. Writing straight to $out_path truncates it before the
+    # first command runs, so a failure there left a 0-byte result, no RAW copy
+    # of the reply, and a run that reported success.
+    tmp_out=$(mktemp)
+    if ! printf '%s\n' "$json" | jq --argjson rv "$RUBRIC_VERSION" \
+            '. + {rubric_version: $rv}' >"$tmp_out" 2>/dev/null; then
+        log_warn "Output for $label could not be stamped. Saved raw response."
+        printf '%s' "$response" >"$RESULTS_DIR/$stamp-$domain-RAW.txt"
+        rm -f "$tmp_out"
+        return 1
+    fi
+
+    if [ "$SCORES_DERIVED" = "1" ]; then
+        local before after
+        before=$(jq -c '.scores' "$tmp_out")
+        if ! derive_scores "$tmp_out"; then
+            log_warn "Output for $label could not be scored from its findings. Saved raw response."
+            printf '%s' "$response" >"$RESULTS_DIR/$stamp-$domain-RAW.txt"
+            rm -f "$tmp_out"
+            return 1
+        fi
+        after=$(jq -c '.scores' "$tmp_out")
+        # Worth saying out loud: the model's own numbers disagreeing with its
+        # findings is the failure this rule was added to absorb, and a run of
+        # them says the rubric text and the table have drifted.
+        [ "$before" = "$after" ] || log_warn "  $label: scores rewritten from findings (model said $before)"
+    fi
+
+    mv "$tmp_out" "$out_path"
 
     # Write a compact score record for benchmark trending.
-    jq '{date, domain, git_hash, scores, total, percentage, grade}' \
+    jq '{date, domain, git_hash, scores, total, percentage, grade, rubric_version}' \
         <"$out_path" >"$score_path"
 
     log_ok "Result written: $out_path"

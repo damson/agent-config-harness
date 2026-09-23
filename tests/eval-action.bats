@@ -35,6 +35,19 @@ teardown() {
     rm -rf "$TARGET" "$STUB"
 }
 
+# The grade is derived from the findings now, so that is the lever a test pulls
+# to ask for one. Majors land in distinct dimensions, each taking that dimension
+# from 5 to 2: none is 25 (A), one is 22 (B), two is 19 (C), three is 16 (D).
+majors() {
+    local n="$1" dims=(clarity conciseness completeness consistency actionability) out=""
+    local i
+    for (( i = 0; i < n; i++ )); do
+        [ -n "$out" ] && out="$out,"
+        out="$out{\"dimension\":\"${dims[$i]}\",\"severity\":\"major\",\"file\":\"CLAUDE.md\",\"section\":\"-\",\"issue\":\"i\",\"recommendation\":\"r\"}"
+    done
+    printf '[%s]\n' "$out" > "$STUB/findings"
+}
+
 # GITHUB_OUTPUT / GITHUB_STEP_SUMMARY are blanked so a run inside real CI
 # cannot write into the actual job's files; tests that assert on them pass
 # their own paths via "$@", which wins because env's later assignment wins.
@@ -44,22 +57,24 @@ run_action() {
 }
 
 @test "eval action: scores a plain repo's CLAUDE.md and passes at the threshold" {
+    majors 1
     run_action FAIL_BELOW=C
     [ "$status" -eq 0 ]
     assert_contains "$output" "grade B"
 }
 
 @test "eval action: fails when the grade is below the threshold" {
-    printf 'D\n' > "$STUB/grade"
+    majors 3
     run_action FAIL_BELOW=C
     [ "$status" -ne 0 ]
     assert_contains "$output" "below the C threshold"
 }
 
 @test "eval action: a grade equal to the threshold passes — below means below" {
-    printf 'C\n' > "$STUB/grade"
+    majors 2
     run_action FAIL_BELOW=C
     [ "$status" -eq 0 ]
+    assert_contains "$output" "grade C"
 }
 
 @test "eval action: a missing file is a hard error, not a vacuous pass" {
@@ -86,7 +101,10 @@ run_action() {
     # raw — would smuggle a second variable into the consumer workflow.
     printf 'A\\nmalicious=1\n' > "$STUB/grade"
     : > "$STUB/gh_output"
-    run_action GITHUB_OUTPUT="$STUB/gh_output"
+    # SCORES_DERIVED=0 so the model's own grade reaches the result file. With
+    # derivation on, the harness overwrites it and this value never gets near
+    # the output, which is a second defence and not the one under test here.
+    run_action SCORES_DERIVED=0 GITHUB_OUTPUT="$STUB/gh_output"
     [ "$status" -ne 0 ]
     assert_contains "$output" "invalid grade"
     [ ! -s "$STUB/gh_output" ]
@@ -95,7 +113,7 @@ run_action() {
 @test "eval action: a non-numeric total aborts before anything reaches GITHUB_OUTPUT" {
     printf '"22\\nsneaky=1"\n' > "$STUB/total"
     : > "$STUB/gh_output"
-    run_action GITHUB_OUTPUT="$STUB/gh_output"
+    run_action SCORES_DERIVED=0 GITHUB_OUTPUT="$STUB/gh_output"
     [ "$status" -ne 0 ]
     assert_contains "$output" "invalid total"
     [ ! -s "$STUB/gh_output" ]

@@ -140,7 +140,10 @@ AI-powered quality scoring.
 A JSON object validated against `evals/eval-schema.json`. Contains:
 - Five 1–5 scores
 - Total, percentage, grade (A–F)
-- Up to 5 findings with `dimension`, `file`, `section`, `issue`, `recommendation`
+- Findings with `dimension`, `severity`, `file`, `section`, `issue`,
+  `recommendation`: at most 3 per dimension and 12 per result. The five scores
+  are derived from them by `derive_scores` in `lib/scoring.sh`, not taken from
+  the model, and each record carries the `rubric_version` that produced it
 
 Results land in `evals/results/` (full output) and `benchmarks/scores/` (compact snapshot).
 
