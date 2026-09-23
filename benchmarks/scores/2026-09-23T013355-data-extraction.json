@@ -1,0 +1,16 @@
+{
+  "date": "2026-09-23T01:33:55Z",
+  "domain": "data-extraction",
+  "git_hash": "7711260",
+  "scores": {
+    "clarity": 5,
+    "conciseness": 5,
+    "completeness": 2,
+    "consistency": 5,
+    "actionability": 4
+  },
+  "total": 21,
+  "percentage": 84,
+  "grade": "B",
+  "rubric_version": 2
+}
