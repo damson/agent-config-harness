@@ -234,10 +234,15 @@ Two things worth knowing about it:
 
 - **It needs the same `ANTHROPIC_API_KEY` secret** the CI action does, and
   skips loudly without one.
-- **That pull request arrives with no checks**, because a pull request opened
-  with `GITHUB_TOKEN` does not get them and the review bot skips bot authors.
-  Acceptable for machine-written JSON whose only decision is keep or discard,
-  and not acceptable for a change to the harness itself.
+- **It publishes as a person, using `RELEASE_PR_TOKEN`.** A pull request GitHub
+  attributes to Actions raises no `pull_request` runs at all, and this repo
+  requires two, so such a pull request is permanently unmergeable while looking
+  merely pending. The token needs Contents: write as well as Pull requests:
+  write, and the job checks for it before spending a model call per domain.
+- **The branch is rebuilt from `develop` every run**, carrying forward whatever
+  the open pull request still holds. Grown from itself it kept every record it
+  had ever carried, because the base merges it by squash and the branch never
+  becomes an ancestor.
 
 ---
 
