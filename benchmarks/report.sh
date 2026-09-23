@@ -56,9 +56,9 @@ fi
 # Render one table per domain.
 for d in $domains; do
     printf '\n%s\n' "$d"
-    printf '%s\n' "──────────────────────────────────────────────────────────────────"
-    printf '%-12s %-9s %-9s %-10s %-12s %-8s %-6s %s\n' \
-        "Date" "Clarity" "Concise" "Complete" "Consistent" "Action" "Total" "Grade"
+    printf '%s\n' "─────────────────────────────────────────────────────────────────────────"
+    printf '%-12s %-9s %-9s %-10s %-12s %-8s %-6s %-6s %s\n' \
+        "Date" "Clarity" "Concise" "Complete" "Consistent" "Action" "Total" "Grade" "Rubric"
 
     # Select files by the domain recorded IN the JSON, not by filename glob —
     # a glob like *-web.json also matches skill-web.json (any domain this one
@@ -75,8 +75,13 @@ for d in $domains; do
         action=$(jq -r '.scores.actionability' "$f")
         pct=$(jq -r '.percentage' "$f")
         grade=$(jq -r '.grade' "$f")
-        printf '%-12s %-9s %-9s %-10s %-12s %-8s %-6s %s\n' \
-            "$date" "$clarity" "$concise" "$complete" "$consistent" "$action" "${pct}%" "$grade"
+        # Records written before the rubric was versioned carry no field, and
+        # those were all rubric 1. Without the column, a series whose meaning
+        # changed mid-way reads as one trend, which is the single way this
+        # table can mislead.
+        rubric=$(jq -r '.rubric_version // 1' "$f")
+        printf '%-12s %-9s %-9s %-10s %-12s %-8s %-6s %-6s %s\n' \
+            "$date" "$clarity" "$concise" "$complete" "$consistent" "$action" "${pct}%" "$grade" "v$rubric"
     done
 done
 echo

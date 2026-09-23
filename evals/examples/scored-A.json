@@ -1,12 +1,12 @@
 {
-  "date": "2026-09-02T00:07:52Z",
+  "date": "2026-09-23T01:10:49Z",
   "domain": "backend-node",
-  "git_hash": "232ee14",
+  "git_hash": "unknown",
   "scores": {
     "clarity": 5,
     "conciseness": 5,
-    "completeness": 4,
-    "consistency": 5,
+    "completeness": 5,
+    "consistency": 4,
     "actionability": 5
   },
   "total": 24,
@@ -14,18 +14,13 @@
   "grade": "A",
   "findings": [
     {
-      "dimension": "completeness",
+      "dimension": "consistency",
+      "severity": "minor",
       "file": "workspace/backend-node/CLAUDE.md",
-      "section": "-",
-      "issue": "No build/run/tooling guidance: nothing on package manager, how to run tests, lint, or type-check, so an agent must guess the commands for the repo it lands in.",
-      "recommendation": "Add a short 'Commands' or 'Tooling' section (or a pointer rule like 'read package.json scripts before inventing commands; prefer the repo's package manager lockfile to pick npm/pnpm/yarn')."
-    },
-    {
-      "dimension": "completeness",
-      "file": "workspace/backend-node/CLAUDE.md",
-      "section": "Editing discipline",
-      "issue": "The 'match the existing framework/ORM/test runner' rule covers conventions, but the file gives no direction for greenfield choices when the repo has none established.",
-      "recommendation": "Add one line naming the default stack to reach for when starting fresh (e.g. 'greenfield: Fastify + Drizzle + Vitest'), so the rule resolves in both situations."
+      "section": "Architecture",
+      "issue": "The asyncHandler wrapping rule is stated as a blanket architecture rule, but it is Express-specific (Fastify awaits handlers natively and forwards rejections to error handling; NestJS uses exception filters/interceptors instead). This sits uneasily against 'Editing discipline', which explicitly treats Express/Fastify/NestJS as interchangeable options already present in a given repo.",
+      "recommendation": "Scope the asyncHandler rule to Express, e.g. 'If the repo uses Express, wrap async route handlers in asyncHandler...; Fastify and NestJS handle this natively.'"
     }
-  ]
+  ],
+  "rubric_version": 2
 }
