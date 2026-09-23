@@ -106,23 +106,39 @@ fi
 git fetch origin --quiet "$BASE" 2>/dev/null || true
 git fetch origin --quiet "$BRANCH" 2>/dev/null || true
 
-# Start from the standing branch when it exists, from the base when it does not.
-start="origin/$BASE"
-if git rev-parse --verify --quiet "origin/$BRANCH" >/dev/null; then
-    start="origin/$BRANCH"
-fi
-
+# Always build from the base, never from the branch's own last state.
+#
+# The branch used to grow from itself, and the base merges its content by
+# squash, so nothing on the branch ever became an ancestor of the base. Every
+# record it had ever carried stayed in the diff: the second pull request listed
+# twelve files, six of which were already on the integration branch with
+# identical content, and that set grows by one run per cycle.
+#
+# Rebuilt from the base each time, the branch means exactly one thing: the
+# records the base does not have yet.
+#
 # A detached worktree, not a checkout of the branch: the branch may already be
 # checked out somewhere (a person's own worktree), and `git worktree add` of a
 # branch that is refuses outright. Pushing HEAD to the ref by name needs no
 # local branch at all.
 tmp=$(mktemp -d)
 rm -rf "$tmp"
-git worktree add --detach --quiet "$tmp" "$start"
+git worktree add --detach --quiet "$tmp" "origin/$BASE"
 # shellcheck disable=SC2064
 trap "git worktree remove --force '$tmp' >/dev/null 2>&1 || true" EXIT
 
 mkdir -p "$tmp/benchmarks/scores"
+
+# Carry forward what the open pull request is still holding. Those records are
+# on the branch and not in the base, and rebuilding from the base alone would
+# drop them: a CI checkout has only the run that just happened.
+if git rev-parse --verify --quiet "origin/$BRANCH" >/dev/null; then
+    while IFS= read -r path; do
+        [ -n "$path" ] || continue
+        git show "origin/$BRANCH:$path" >"$tmp/$path" 2>/dev/null || true
+    done < <(git diff --name-only --diff-filter=AM "origin/$BASE" "origin/$BRANCH" -- benchmarks/scores)
+fi
+
 cp "${new_scores[@]}" "$tmp/benchmarks/scores/"
 
 # -f because benchmarks/scores/* is gitignored. Without it `git add` reports
@@ -131,8 +147,19 @@ cp "${new_scores[@]}" "$tmp/benchmarks/scores/"
 git -C "$tmp" add -f benchmarks/scores
 
 if git -C "$tmp" diff --cached --quiet; then
-    log_info "Every score record is already on $BRANCH — nothing new to publish."
+    log_info "Every score record is already on $BASE — nothing new to publish."
     exit 0
+fi
+
+# Rebuilding from the base produces a fresh commit every run, so "has anything
+# changed" has to be asked of the tree rather than of the commit. Without this
+# the pull request collects one empty-diff commit per run, which is the noise
+# that teaches a reviewer to stop opening it.
+if git rev-parse --verify --quiet "origin/$BRANCH" >/dev/null; then
+    if [ "$(git -C "$tmp" write-tree)" = "$(git rev-parse "origin/$BRANCH^{tree}")" ]; then
+        log_info "$BRANCH already carries exactly these records — nothing new to publish."
+        exit 0
+    fi
 fi
 
 count=$(git -C "$tmp" diff --cached --name-only | wc -l | tr -d ' ')
@@ -144,7 +171,9 @@ git -C "$tmp" \
     -c user.email="${BENCHMARK_GIT_EMAIL:-41898282+github-actions[bot]@users.noreply.github.com}" \
     commit --quiet -m "benchmark: $count score snapshot(s)"
 
-git -C "$tmp" push --quiet origin "HEAD:refs/heads/$BRANCH"
+# Force, because the branch is rebuilt from the base rather than extended, and
+# it is owned by this script alone. Nobody commits to it by hand.
+git -C "$tmp" push --quiet --force origin "HEAD:refs/heads/$BRANCH"
 log_ok "Pushed $count score record(s) to $BRANCH"
 
 pr_body=$(body "$tmp")

@@ -12,10 +12,21 @@ name: Benchmark
 # and refreshes one pull request; keeping a measurement in the repository's
 # history stays a human decision, as it is for the release PR.
 #
-# The pull request is opened with GITHUB_TOKEN, so it arrives with no checks
-# and the review bot ignores it. That is acceptable here and nowhere else: the
-# diff is machine-written JSON that no reviewer can meaningfully read, and the
-# only decision is keep or discard.
+# The pull request is opened with a person's token, not GITHUB_TOKEN. A pull
+# request GitHub attributes to Actions raises no `pull_request` runs at all, and
+# this repository requires two of them, so both of the first pull requests this
+# workflow opened arrived permanently unmergeable: zero check runs against two
+# required contexts, which reads as "still running" and never resolves. Each
+# needed a commit pushed by hand to start them.
+#
+# The same token does the push, because a later refresh is a `synchronize` event
+# and it is attributed to whoever pushed: refreshing with GITHUB_TOKEN would
+# leave the pull request showing checks from an earlier commit, which is worse
+# than showing none.
+#
+# It needs Contents: write as well as Pull requests: write. Without the first,
+# the push fails and this job goes red with a message saying so, which is the
+# intended way to find out.
 
 permissions:
   contents: write        # pushes the score records to the standing branch
@@ -54,6 +65,20 @@ jobs:
           # The script pushes a branch and reads origin/develop, so credentials
           # stay in the git config and history must be there to branch from.
           fetch-depth: 0
+          # The person's token, so the push that refreshes the pull request is
+          # attributed to them and its checks run.
+          token: ${{ secrets.RELEASE_PR_TOKEN }}
+
+      # Checked before two model calls are spent, not after: without this token
+      # the run would score every domain and then fail with a git push rejection.
+      - name: Check the publishing token is present
+        env:
+          RELEASE_PR_TOKEN: ${{ secrets.RELEASE_PR_TOKEN }}
+        run: |
+          if [ -z "$RELEASE_PR_TOKEN" ]; then
+            echo "::error::RELEASE_PR_TOKEN is not set. The benchmark PR needs a token belonging to a person, because a pull request opened by Actions never gets the checks this repository requires. Create a fine-grained PAT scoped to this repository with Contents: read and write and Pull requests: read and write, then: gh secret set RELEASE_PR_TOKEN"
+            exit 1
+          fi
 
       - name: Install jq
         timeout-minutes: 5
@@ -108,7 +133,7 @@ jobs:
       - name: Publish the snapshots as a standing pull request
         if: success() && steps.preflight.outputs.skipped != 'true'
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.RELEASE_PR_TOKEN }}
         run: ./bin/open-benchmark-pr.sh
 
       - name: Report the trend in the job summary
