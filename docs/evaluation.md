@@ -279,6 +279,12 @@ Three more things about it are deliberate:
   skips and says so in the job summary, in those words: the check is green
   because nothing failed, not because anything passed. A pull request from a
   fork never sees repository secrets, so that state is normal there.
+- **The gate's pin follows the releases on its own.**
+  [`gate-pin.yml`](../.github/workflows/gate-pin.yml) fires on the promotion to
+  `main`, again on the published release, and weekly as a net. It rewrites the
+  pin on `develop`, runs the suite against the rewritten workflow, and opens a
+  pull request; it never merges. Before it existed the pin sat four releases
+  behind, so pull requests were graded by a rubric the repo no longer shipped.
 - **It is path-filtered, so it must never be a required status check.** GitHub
   holds a required check that never runs as pending forever, which would block
   every pull request outside those paths.

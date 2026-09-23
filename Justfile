@@ -65,6 +65,10 @@ test:
 sync project:
     @./bin/sync-back.sh "{{project}}"
 
+# Say whether the PR gate still runs the latest release, without touching anything.
+gate-pin-preview:
+    @./bin/bump-gate-pin.sh --dry-run
+
 # Open (or refresh) the release PR promoting develop → main. Never merges.
 release:
     @./bin/open-release-pr.sh
