@@ -91,6 +91,10 @@ eval domain="all":
 eval-skills skill="all":
     @./evals/run-skill-eval.sh "{{skill}}"
 
+# Does the rubric still tell a good config from a rotted one? Two model calls.
+calibrate:
+    @./bin/calibrate-rubric.sh
+
 # Print benchmark score trend per domain.
 benchmark:
     @./benchmarks/report.sh

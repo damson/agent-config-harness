@@ -20,6 +20,10 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=../lib/common.sh
 . "$SCRIPT_DIR/../lib/common.sh"
+# This runner's prompt is rubric 2: findings first, scores derived from them.
+# Set before the library is sourced, because the library reads them as defaults.
+RUBRIC_VERSION="${RUBRIC_VERSION:-2}"
+SCORES_DERIVED="${SCORES_DERIVED:-1}"
 # shellcheck source=../lib/scoring.sh
 . "$HARNESS_ROOT/lib/scoring.sh"
 
@@ -88,7 +92,7 @@ score_domain() {
     # The shared half of the pipeline: claude call → JSON extraction →
     # validation → result + score records → findings summary.
     score_prompt "$domain" "$domain" "$tmp_prompt" \
-        '.findings[] | "    - [\(.dimension)] \(.file)/\(.section): \(.issue)"'
+        '.findings[] | "    - [\(.severity // "major")/\(.dimension)] \(.file)/\(.section): \(.issue)"'
 }
 
 # ── Run all targets ───────────────────────────────────────

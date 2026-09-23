@@ -232,3 +232,83 @@ sys.exit(0 if tail and "exit 1" in tail[-1].get("run", "") else 1)
 ' "$REPO_ROOT/.github/workflows/benchmark.yml"
     [ "$status" -eq 0 ]
 }
+
+# --- What the branch carries ------------------------------------------------
+# The base merges this branch by squash, so nothing on it ever becomes an
+# ancestor of the base. Grown from itself, the branch keeps every record it has
+# ever carried, and the pull request re-lists files that are already merged.
+
+@test "open-benchmark-pr: a record already on the base is not published again" {
+    make_score "$REPO" "2026-09-01T120000-acme" acme 2026-09-01
+    publish
+    [ "$status" -eq 0 ]
+    # Merge it into the base the way the repo does: a squash, so the branch is
+    # not an ancestor afterwards.
+    git -C "$REPO" fetch -q origin
+    git -C "$REPO" merge -q --squash FETCH_HEAD 2>/dev/null || true
+    git -C "$REPO" checkout -q develop
+    git -C "$REPO" merge -q --squash origin/benchmark/scores
+    git -C "$REPO" commit -q -m "benchmark records"
+    git -C "$REPO" push -q origin develop
+
+    # A later run with a new record must publish that one alone.
+    rm -f "$REPO/benchmarks/scores/2026-09-01T120000-acme.json"
+    make_score "$REPO" "2026-09-02T120000-acme" acme 2026-09-02
+    GH_EXISTING_PR=77 publish
+    [ "$status" -eq 0 ]
+    run bash -c "git -C '$REMOTE' diff --name-only develop benchmark/scores -- benchmarks/scores"
+    assert_contains "$output" "2026-09-02T120000-acme.json"
+    assert_not_contains "$output" "2026-09-01T120000-acme.json"
+}
+
+@test "open-benchmark-pr: records the open PR still holds are carried forward" {
+    # Rebuilding from the base must not drop what is pending: a CI checkout has
+    # only the run that just happened.
+    make_score "$REPO" "2026-09-03T120000-acme" acme 2026-09-03
+    publish
+    [ "$status" -eq 0 ]
+    rm -f "$REPO/benchmarks/scores/2026-09-03T120000-acme.json"
+    make_score "$REPO" "2026-09-04T120000-acme" acme 2026-09-04
+    GH_EXISTING_PR=77 publish
+    [ "$status" -eq 0 ]
+    run bash -c "git -C '$REMOTE' ls-tree --name-only -r benchmark/scores -- benchmarks/scores"
+    assert_contains "$output" "2026-09-03T120000-acme.json"
+    assert_contains "$output" "2026-09-04T120000-acme.json"
+}
+
+@test "benchmark workflow: the pull request is opened by a person, not by Actions" {
+    # A pull request GitHub attributes to Actions raises no pull_request runs,
+    # and this repository requires two, so such a PR is permanently unmergeable
+    # while looking merely pending. Both of the first two needed a hand-pushed
+    # commit to start their checks.
+    require_python_yaml
+    run python3 -c '
+import sys, yaml
+steps = yaml.safe_load(open(sys.argv[1]))["jobs"]["benchmark"]["steps"]
+checkout = steps[0]
+publish = [s for s in steps if str(s.get("name","")).startswith("Publish")][0]
+bad = []
+if "RELEASE_PR_TOKEN" not in str(checkout.get("with", {})):
+    bad.append("checkout pushes with the default token, so a refresh raises no checks")
+if "RELEASE_PR_TOKEN" not in str(publish.get("env", {})):
+    bad.append("the PR is opened with the default token")
+if bad:
+    print("; ".join(bad)); sys.exit(1)
+' "$REPO_ROOT/.github/workflows/benchmark.yml"
+    [ "$status" -eq 0 ]
+}
+
+@test "benchmark workflow: a missing publishing token is caught before the model calls" {
+    # Finding out at the push means the run has already spent one model call per
+    # domain on a result it cannot deliver.
+    require_python_yaml
+    run python3 -c '
+import sys, yaml
+steps = yaml.safe_load(open(sys.argv[1]))["jobs"]["benchmark"]["steps"]
+names = [str(s.get("name","")) for s in steps]
+check = next(i for i, n in enumerate(names) if "publishing token" in n)
+score = next(i for i, n in enumerate(names) if n.startswith("Score every"))
+sys.exit(0 if check < score else 1)
+' "$REPO_ROOT/.github/workflows/benchmark.yml"
+    [ "$status" -eq 0 ]
+}

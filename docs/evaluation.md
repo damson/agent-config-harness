@@ -61,67 +61,86 @@ series, not a jump in an old one.
 
 ## The Scoring Rubric
 
-Five dimensions, each 1–5. Total 5–25. The full prompt lives at [`evals/prompts/config-quality.md`](../evals/prompts/config-quality.md).
+Five dimensions, each 1 to 5, total 5 to 25. The full prompt lives at
+[`evals/prompts/config-quality.md`](../evals/prompts/config-quality.md).
 
-### 1. Clarity
+**The scores are not judgements the model makes.** It lists what is wrong, tags
+each finding with one dimension and a severity, and the harness computes the
+five numbers from that list. A model asked for findings and numbers together
+returned numbers its own findings did not support, and nothing downstream could
+tell.
 
-**Are rules specific and unambiguous?** An agent should not have to guess.
-
-| Score | Description |
+| Findings in that dimension | Score |
 |---|---|
-| **5** | Every rule is precise. No interpretation needed. |
-| **4** | Mostly specific with the occasional vague line. |
-| **3** | Many rules are clear; some require judgment. |
-| **2** | Several rules are abstract. |
-| **1** | Mostly vague. "Follow best practices." |
+| two or more major | 1 |
+| one major | 2 |
+| two or more minor | 3 |
+| one minor | 4 |
+| none | 5 |
 
-### 2. Conciseness
+- **major**: an agent following the stack does the wrong thing, has to guess
+  about something that changes the outcome, or spends its attention on a whole
+  section that carries no instruction.
+- **minor**: an agent still lands in the right place, but the file made it
+  harder than it needed to be.
 
-**Free of bloat, summary sections, and restated material?**
+Majors dominate deliberately, and an untagged finding counts as major so an
+omitted tag cannot flatter a file. At most 3 findings per dimension and 12 in
+all, worst first: a global cap alone lets an unlisted dimension keep a 5 it has
+not earned.
 
-| Score | Description |
+### What counts as a finding
+
+| Dimension | major | minor |
+|---|---|---|
+| **Clarity** | a rule an agent cannot execute without guessing | a phrase that is loose but obvious from context |
+| **Conciseness** | a section restating rules stated elsewhere, or a passage carrying no instruction | a sentence or two of overlap |
+| **Completeness** | an area an agent in this domain will hit, with nothing said about it | an area covered thinly |
+| **Consistency** | two rules in the same scope that cannot both be followed | a tension that resolves with context |
+| **Actionability** | a rule needing a human: a judgement call with no test, a step naming no command | a rule needing a small inference |
+
+Length alone is not a conciseness finding, and layering is not a consistency
+finding: a narrower file overriding a broader one is the design, and so is a
+file that states a trade-off and picks a side. Completeness is judged against
+the scope a stack sets for itself, so a stack about a repository's workflow or a
+person's voice is not marked down for omitting a build command it was never
+about.
+
+## Calibration
+
+A rubric can be made stable by making it blind. Narrow what it can express and
+every file drifts toward the same comfortable number, which reads as a
+stability win right up until nothing fails.
+
+```bash
+just calibrate
+```
+
+scores the pair this repo already ships, the example config and
+[`degraded.md`](../evals/examples/degraded.md), and fails unless the good one
+still scores 20 or better, the rotted one 16 or worse, and the gap is at least
+6 points. Two model calls, so it is not in CI; run it whenever the rubric or the
+scoring code changes and put the numbers in the pull request.
+
+The arithmetic half of the same question does run in CI:
+`tests/scoring-derivation.bats` feeds synthetic findings to the deduction rule,
+including the shape `degraded.md` produces.
+
+## Rubric versions
+
+Every result and score record carries `rubric_version`, stamped by the harness
+rather than asked of the model, and `just benchmark` shows it as a column.
+
+| Version | Rubric |
 |---|---|
-| **5** | Lean. Every line earns its place. |
-| **3** | Some redundancy. |
-| **1** | Heavy duplication. Reminder sections that repeat rules. |
+| 1 | five gestalt judgements, anchored only at 5, 3 and 1 (still used by `skill-quality.md`) |
+| 2 | findings first, tagged major or minor, scores derived from them |
 
-### 3. Completeness
-
-**Does it cover the essential areas for this domain?**
-
-For a typical domain, "essential areas" include: language conventions, architecture, testing, git workflow, build commands. A backend domain may also need database/API conventions; a frontend domain may also need styling/a11y.
-
-| Score | Description |
-|---|---|
-| **5** | All major areas covered well. |
-| **3** | Core areas covered, notable gaps. |
-| **1** | Many areas missing; agent will frequently guess. |
-
-### 4. Consistency
-
-**Contradictions inside the file or with other files in the stack?**
-
-A common pattern is intentional layering: a global `CLAUDE.md` overrides a domain `CLAUDE.md` rule. That's not a contradiction; the prompt should recognise it. A genuine contradiction is two rules in the same scope that can't both be true.
-
-| Score | Description |
-|---|---|
-| **5** | Fully consistent. |
-| **3** | Minor tensions. |
-| **1** | Outright contradictions. |
-
-### 5. Actionability
-
-**Can an AI agent actually execute these rules?**
-
-"Use good judgment" is not actionable. "Run `./gradlew detektAll` before opening a PR" is.
-
-| Score | Description |
-|---|---|
-| **5** | Every rule is agent-executable. |
-| **3** | Most are executable; a few need human interpretation. |
-| **1** | Many rules require human judgment. |
-
----
+The version belongs to the prompt, so each runner sets it: `evals/run-eval.sh`
+declares 2, and `evals/run-skill-eval.sh` leaves the default of 1 because its
+rubric has not changed. Scores from different versions are different
+measurements in the same units, so compare within a version and read a jump at
+a boundary as the boundary.
 
 ## Grade Mapping
 
@@ -142,19 +161,21 @@ Example `evals/results/2026-05-25T103000-mobile.json`:
   "date": "2026-05-25T10:30:00Z",
   "domain": "mobile",
   "git_hash": "1477b4c",
+  "rubric_version": 2,
   "scores": {
-    "clarity": 4,
-    "conciseness": 3,
+    "clarity": 5,
+    "conciseness": 4,
     "completeness": 5,
-    "consistency": 4,
-    "actionability": 4
+    "consistency": 5,
+    "actionability": 5
   },
-  "total": 20,
-  "percentage": 80,
-  "grade": "B",
+  "total": 24,
+  "percentage": 96,
+  "grade": "A",
   "findings": [
     {
       "dimension": "conciseness",
+      "severity": "minor",
       "file": "AGENTS.md",
       "section": "Build & Gradle",
       "issue": "Command table restates commands already listed inline above it",
@@ -163,6 +184,9 @@ Example `evals/results/2026-05-25T103000-mobile.json`:
   ]
 }
 ```
+
+One minor conciseness finding, so conciseness scores 4 and everything else
+scores 5. The numbers follow the list; they are not a separate opinion.
 
 Read the findings as actionable PR items. After fixing them, re-run `just eval` and watch the score move up.
 
@@ -210,10 +234,15 @@ Two things worth knowing about it:
 
 - **It needs the same `ANTHROPIC_API_KEY` secret** the CI action does, and
   skips loudly without one.
-- **That pull request arrives with no checks**, because a pull request opened
-  with `GITHUB_TOKEN` does not get them and the review bot skips bot authors.
-  Acceptable for machine-written JSON whose only decision is keep or discard,
-  and not acceptable for a change to the harness itself.
+- **It publishes as a person, using `RELEASE_PR_TOKEN`.** A pull request GitHub
+  attributes to Actions raises no `pull_request` runs at all, and this repo
+  requires two, so such a pull request is permanently unmergeable while looking
+  merely pending. The token needs Contents: write as well as Pull requests:
+  write, and the job checks for it before spending a model call per domain.
+- **The branch is rebuilt from `develop` every run**, carrying forward whatever
+  the open pull request still holds. Grown from itself it kept every record it
+  had ever carried, because the base merges it by squash and the branch never
+  becomes an ancestor.
 
 ---
 
@@ -266,6 +295,18 @@ everyone to re-run until green.
 
 ## Caveats
 
-- AI scoring is non-deterministic. Run multiple times for sensitive comparisons.
+- **AI scoring is non-deterministic**, and a rerun over an unchanged tree can
+  move the total by enough to change the grade. Deriving the scores from tagged
+  findings narrows that and does not remove it. Read a one-point move as noise,
+  and prefer the findings to the total, which are the more stable half of the
+  output.
+- **Stability is not the only thing to measure.** A rubric that cannot express a
+  bad config is perfectly stable. `just calibrate` is the check that asks the
+  other half of the question, and a rubric change is not finished until it has
+  passed.
+- **A stack the rubric cannot place is the least stable of all.** A file about a
+  repository's own workflow is not a language and a build, and scoring it as
+  though it were makes the model pick a framing rather than measure a file. If a
+  score swings hard, suspect the question before the file.
 - The model interpretation depends on the prompt. If a score feels wrong, the fix is usually in [`evals/prompts/config-quality.md`](../evals/prompts/config-quality.md), not the file under test.
 - Schema validation (via `ajv-cli`) is optional. Without it, malformed output is detected by `jq` parse but not field-level checked.

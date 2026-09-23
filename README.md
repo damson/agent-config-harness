@@ -57,8 +57,10 @@ isn't an eval (linking, health checks, the test suite) runs offline too.
 (24/25), and [`scored-F.json`](evals/examples/scored-F.json) is
 [`degraded.md`](evals/examples/degraded.md): the same config plus two sections
 of familiar rot: a platitude section hiding a contradiction, and an "important
-reminders" block restating seven rules verbatim (13/25). Diff the two findings
-lists and watch the rubric name every sin.
+reminders" block restating seven rules verbatim (12/25). Diff the two findings
+lists and watch the rubric name every sin. `just calibrate` re-runs that pair
+and fails if the two ever stop being twelve points apart, because a rubric that
+cannot fail the rotted one cannot grade the good one either.
 
 </details>
 
@@ -231,6 +233,7 @@ Everything is driven through [`just`](Justfile); run bare `just` to list these:
 | `just eval [domain]` | Score config quality. Needs the Claude CLI |
 | `just eval-skills [skill]` | Score a skill against the skill rubric |
 | `just benchmark` | Print the score trend per domain |
+| `just calibrate` | Check the rubric still fails a bad config. Two model calls |
 | `just benchmark-pr` | Publish the score snapshots as a standing PR. Never merges |
 | `just skills-install` | Install third-party skill bundles from the registry |
 | `just marketplaces-status` | What skill marketplaces are registered, and what is installed |
