@@ -59,8 +59,9 @@ isn't an eval (linking, health checks, the test suite) runs offline too.
 of familiar rot: a platitude section hiding a contradiction, and an "important
 reminders" block restating seven rules verbatim (12/25). Diff the two findings
 lists and watch the rubric name every sin. `just calibrate` re-runs that pair
-and fails if the two ever stop being twelve points apart, because a rubric that
-cannot fail the rotted one cannot grade the good one either.
+and fails unless the good one still scores 20 or better, the rotted one 16 or
+worse, and at least 6 points separate them, because a rubric that cannot fail
+the rotted one cannot grade the good one either.
 
 </details>
 

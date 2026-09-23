@@ -32,14 +32,10 @@ domain registry and what this repo is for. Don't duplicate that here.
   trailing slash or it 404s on a path it just reported, and its `line_coverage`
   pairs encode **0 = hit, 1 = miss**. That reads backwards, and taking it at
   face value returns exactly the wrong set of lines.
-  **An embedded awk or jq program reads as uncovered bash**, and no test moves
-  it: the jq deduction rule took `lib/scoring.sh` from 92% to 61%. Mark foreign
-  source with `# kcov-ignore-start/end` inside the literal, and keep a command
-  substitution on one line. Never wrap bash: a statement inside a region stops
-  being measured.
-- **A rubric change is not finished until `just calibrate` passes.** Stability
-  can be bought by narrowing what the rubric can say: the version that made
-  scores deterministic also moved this repo's own degraded example from F to B.
+- **An embedded awk or jq program reads as uncovered bash**, and no test moves
+  it: the jq deduction rule cost `lib/scoring.sh` 31 points. Wrap foreign source
+  in `# kcov-ignore-start/end` inside the literal, keep command substitutions on
+  one line, and never wrap bash: a statement inside a region stops being measured.
 - **The eval's `consistency` dimension cannot tell disclosure from
   contradiction.** A skill that documents an unresolved dispute scores below one
   that silently asserts a side. State the trade-off; don't degrade the skill to
