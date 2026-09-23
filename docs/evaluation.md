@@ -266,11 +266,10 @@ everyone to re-run until green.
 
 ## Caveats
 
-- AI scoring is non-deterministic, and by more than it looks. Three runs over an
-  identical tree (`user-pers`, 2026-09-17) returned 21, 24 and 24 out of 25:
-  a 3-point spread, which crosses a grade boundary. Two runs that agree are not
-  evidence either, as the same domain returned 21 twice before the files changed.
-  Compare medians over three or more runs, or compare findings rather than
-  totals: they are more stable than the number is.
+- AI scoring is non-deterministic, and by more than it looks: a rerun over an
+  unchanged tree can move the total by enough to change the grade. Two runs that
+  agree are not evidence either. Compare medians over three or more runs, or
+  compare findings rather than totals, which are the more stable half of the
+  output.
 - The model interpretation depends on the prompt. If a score feels wrong, the fix is usually in [`evals/prompts/config-quality.md`](../evals/prompts/config-quality.md), not the file under test.
 - Schema validation (via `ajv-cli`) is optional. Without it, malformed output is detected by `jq` parse but not field-level checked.
