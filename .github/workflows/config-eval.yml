@@ -119,12 +119,14 @@ jobs:
 
       # The RELEASED action, pinned by commit: this job runs with the API key in
       # its environment, so the code it runs must not be code the pull request
-      # can edit. The pull request's CLAUDE.md is read as data, which is the
+      # can edit. Move it with each release, or pull requests keep being graded
+      # by a rubric this repository no longer ships: it sat four releases back
+      # and scored them on the gestalt rubric that v1.5.0 replaced. The pull request's CLAUDE.md is read as data, which is the
       # whole job. An explicit `if:` replaces the implicit success() gate, so it
       # is spelled out rather than assumed.
       - name: Score
         if: success() && steps.preflight.outputs.skipped != 'true'
-        uses: damson/agent-config-harness@a09adb78d39e14cb7890cc1b7bf85b5d67bf80df # v1
+        uses: damson/agent-config-harness@e83365d04c13084ad0de6a4c5a20e653c32e3491 # v1.5.0
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         with:
