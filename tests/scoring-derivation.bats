@@ -84,3 +84,22 @@ EOF
     assert_contains "$output" '"t":19'
     assert_contains "$output" '"g":"C"'
 }
+
+@test "derive: the rule's jq is marked as foreign source, not as unrun bash" {
+    # kcov counts every line of a multi-line literal as a statement bash never
+    # executed. Unmarked, this one statement reported 27 uncovered lines and
+    # took lib/scoring.sh from 92% to 61%, which is a number no test can move
+    # and which sends the next reader off to write tests for code that seven
+    # already cover.
+    local lib="$REPO_ROOT/lib/scoring.sh"
+    # The markers wrap the jq program and nothing else: the `if` that runs it
+    # stays measured, so a regression in the bash around the rule still shows.
+    run bash -c "awk '/kcov-ignore-start/{s=NR} /kcov-ignore-end/{print NR-s}' '$lib'"
+    [ "$status" -eq 0 ]
+    [ -n "$output" ]
+    # A region that swallowed the whole function would be far longer than the
+    # program itself.
+    [ "$output" -lt 40 ]
+    grep -q "kcov-ignore-start" "$lib"
+    grep -q "kcov-ignore-end" "$lib"
+}

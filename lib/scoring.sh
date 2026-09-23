@@ -112,7 +112,13 @@ append_scored_file() {
 derive_scores() {
     local file="$1" tmp
     tmp=$(mktemp)
+    # The rule is jq, and kcov counts every line of a multi-line literal as bash
+    # that never ran: these lines took this file from 92% to 61% while the
+    # function around them is exercised by seven tests. Marked the way the awk
+    # programs in lib/common.sh are, start inside the literal where `#` is a
+    # comment to jq as well.
     if ! jq '
+        # kcov-ignore-start
         def dim_score($d):
             [.findings[]? | select(.dimension == $d)] as $f
             | ([$f[] | select(.severity != "minor")] | length) as $M
@@ -141,6 +147,7 @@ derive_scores() {
                     else "F" end)
         }
     ' "$file" >"$tmp" 2>/dev/null; then
+    # kcov-ignore-end
         rm -f "$tmp"
         return 1
     fi
