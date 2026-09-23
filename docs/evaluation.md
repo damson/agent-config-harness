@@ -258,28 +258,15 @@ everyone to re-run until green.
 
 ## Caveats
 
-- **AI scoring is non-deterministic, and rubric 2 exists because of how much.**
-  Measured over identical trees on 2026-09-17, four runs per domain for rubric 2
-  and three for rubric 1:
-
-  | Domain | Rubric 1 | Rubric 2 |
-  |---|---|---|
-  | `mobile` | 21, 24, 21 (B, A, B) | 22, 20, 20, 21 (B, B, B, B) |
-  | `user-pers` | 21, 24, 24 (B, A, A) | 23, 23, 23, 23 (A, A, A, A) |
-
-  Rubric 1 crossed the A/B boundary on both domains without a file changing,
-  which is the failure that matters: a grade nobody can reproduce. Deriving the
-  scores from tagged findings narrowed the spread to 2 points and 0, and the
-  grade held across every run.
-- **It is narrower, not gone.** `mobile` still moves by 2. Do not read a
-  1-point move as a result, and prefer the findings to the total: they were the
-  stable half even under rubric 1, which is why the scores are now computed from
-  them.
-- **A file the rubric cannot place scores worst of all.** This repository's own
-  root `CLAUDE.md` is about a repository's workflow, not a language and a build,
-  and the CI gate scored it 23, 22 and then 16 out of 25 on barely changed
-  content: the model was picking a framing, not measuring a file. Completeness
-  is now judged against the scope a stack sets for itself. If a score swings
-  that far, suspect the question before the file.
+- **AI scoring is non-deterministic**, and a rerun over an unchanged tree can
+  move the total by enough to change the grade. Deriving the scores from tagged
+  findings narrows that, and does not remove it: read a one-point move as noise,
+  and prefer the findings to the total, which are the more stable half of the
+  output.
+- **A stack the rubric cannot place is the least stable of all.** A file about a
+  repository's own workflow is not a language and a build, and scoring it as
+  though it were makes the model pick a framing rather than measure a file.
+  Completeness is judged against the scope a stack sets for itself for that
+  reason. If a score swings hard, suspect the question before the file.
 - The model interpretation depends on the prompt. If a score feels wrong, the fix is usually in [`evals/prompts/config-quality.md`](../evals/prompts/config-quality.md), not the file under test.
 - Schema validation (via `ajv-cli`) is optional. Without it, malformed output is detected by `jq` parse but not field-level checked.
