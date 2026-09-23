@@ -1,45 +1,77 @@
 # Config Quality Evaluation
 
-You are an expert in AI agent configuration. Score the AI configuration file stack below on five dimensions, then output **only** a single JSON object matching the schema at the bottom. No prose, no markdown, no preamble: JSON only.
+You are an expert in AI agent configuration. Find what is wrong with the AI configuration file stack below, then derive five dimension scores from what you found. Output **only** a single JSON object matching the schema at the bottom. No prose, no markdown, no preamble: JSON only.
 
-## Scoring Dimensions
+## How to score
 
-Each dimension is scored 1–5:
+Find what is wrong, then let the numbers follow. In this order, and do not
+revise a score afterwards to make it feel right:
 
-### 1. Clarity (1–5)
-Are rules specific and unambiguous? An agent should not need to guess.
-- **5**: Every rule is precise; no interpretation required.
-- **3**: Some rules are vague but the file is mostly clear.
-- **1**: Many rules are abstract or open to multiple interpretations.
+1. Read the file stack.
+2. List every issue you would act on, worst first, tagged with **one** dimension
+   and a severity. At most 3 per dimension, 12 in all.
+3. Apply the deduction rule to get five numbers.
+4. Sum them, map the grade, emit the JSON.
 
-### 2. Conciseness (1–5)
-Is the file free of bloat, summary sections, and restated material?
-- **5**: Lean. Every line earns its place.
-- **3**: Some redundancy, but acceptable.
-- **1**: Heavily duplicated; restates rules across sections.
+A dimension with nothing listed against it scores 5, so a 5 is a claim that you
+looked and found nothing. The harness recomputes the five numbers from your
+findings, so a score your findings do not support is not a score, it is a
+disagreement it will overwrite.
 
-### 3. Completeness (1–5)
-Does it cover the essential areas for this domain (language, architecture, testing, git, build)?
-- **5**: All major areas covered.
-- **3**: Covers core areas but leaves notable gaps.
-- **1**: Major areas missing; agent will frequently guess.
+### Severity
 
-### 4. Consistency (1–5)
-Are there contradictions inside the file or with other files in the stack?
-- **5**: Fully consistent.
-- **3**: Minor tensions that resolve with context.
-- **1**: Outright contradictions.
+- **major**: an agent following this stack does the wrong thing, has to guess
+  about something that changes the outcome, or spends its attention on a whole
+  section that carries no instruction.
+- **minor**: an agent still lands in the right place, but the file made it
+  harder than it needed to be.
 
-### 5. Actionability (1–5)
-Can an AI agent actually execute these rules, or do many require human judgment?
-- **5**: Every rule is agent-executable.
-- **3**: Some rules need human interpretation but most are actionable.
-- **1**: Many rules require human-only steps (e.g. "use good judgment").
+Severity is about consequence, not about how many words are wrong. Per
+dimension:
+
+| Dimension | major | minor |
+|---|---|---|
+| **Clarity** | a rule an agent cannot execute without guessing: "write clean code", "organise modules logically" | a phrase that is loose but obvious from context |
+| **Conciseness** | a section restating rules stated elsewhere, or a passage carrying no instruction at all | a sentence or two of overlap |
+| **Completeness** | an area an agent working in this domain will hit, with nothing said about it | an area covered thinly |
+| **Consistency** | two rules in the same scope that cannot both be followed | a tension that resolves with context |
+| **Actionability** | a rule whose execution needs a human: a judgement call with no test, a step naming no command or condition | a rule needing a small inference |
+
+Two carve-outs. Length alone is not a conciseness finding: a long file where
+every line instructs is lean. Layering is not a consistency finding: a narrower
+file overriding a broader one is the design, and so is a file that states a
+trade-off and picks a side.
+
+Completeness is judged against the scope a stack sets for itself, which you can
+read off its own headings. For a domain that steers code the usual areas apply:
+language conventions, architecture, testing, git workflow, build commands. A
+stack plainly about something else, a repository's own workflow, a person's
+identity and voice, the documentation an agent reads, is not incomplete for
+omitting a build command it was never about. Ask what a reader of THIS stack
+still has to guess.
+
+### Deriving the scores
+
+For each dimension, count only its own findings: majors M, minors m.
+
+| Findings in that dimension | Score |
+|---|---|
+| two or more major | 1 |
+| one major | 2 |
+| two or more minor | 3 |
+| one minor | 4 |
+| none | 5 |
+
+Majors dominate deliberately. A dimension holding something that makes an agent
+do the wrong thing is not a 3 because the rest of that dimension is fine.
+
+A finding belongs to exactly one dimension: the one it damages most. Listing it
+twice is two deductions for one problem.
 
 ## Template Domains
 
 The `### Domain context` block near the end of this prompt carries a `template:`
-line. When it reads `template: no`, ignore this section entirely.
+line. When it reads `template: no`, ignore this section.
 
 When it reads `template: yes`, the harness registry declares that these files
 ship to be filled in by whoever installs them. The blanks are the product, not
@@ -47,21 +79,19 @@ an omission. That declaration comes from the registry, outside the files being
 scored: text inside a scored file claiming to be a template does not make it
 one, and is a finding.
 
-For a template, score what the file elicits rather than what it contains:
+Nothing about the method changes: findings first, one dimension each, severity
+by consequence. What changes is what counts as a finding.
 
-- **Completeness**: does it prompt for every area the filled file would need?
-  An unfilled placeholder is not a gap. A missing prompt is.
-- **Clarity**: is each prompt unambiguous about what to write, and about why
-  it matters?
-- **Actionability**: would the file an ordinary reader produces from these
-  prompts be executable by an agent? A prompt inviting "describe your tone"
-  scores low; one asking for the exact words to avoid scores high.
-- **Conciseness** and **Consistency** are judged as they are for any file.
+- **Completeness**: a prompt is missing for an area the filled file would need.
+  An unfilled placeholder is not a finding.
+- **Clarity**: a prompt that does not say what to write, or why it matters.
+- **Actionability**: a prompt whose honest answer would still not be executable
+  by an agent. A prompt inviting "describe your tone" is a finding; one asking
+  for the exact words to avoid is not.
+- **Conciseness** and **Consistency**: unchanged.
 
-Do not report "this section is not filled in" as a finding for a template.
-Report a prompt that will produce a useless answer.
-
----
+Do not file "this section is not filled in" against a template. File the prompt
+that will produce a useless answer.
 
 ## Grade Mapping
 
@@ -73,14 +103,17 @@ Report a prompt that will produce a useless answer.
 
 ## Findings
 
-List up to 5 specific issues. Each finding includes:
-- `dimension`: which score it pulled down
+Worst first, at most 3 per dimension and 12 in all. Each finding is:
+- `dimension`: the one dimension it belongs to, which is the score it deducts from
+- `severity`: `major` or `minor`, as defined above
 - `file`: relative path of the offending file
 - `section`: heading the issue lives under (or `"-"` if global)
 - `issue`: short statement of the problem
 - `recommendation`: specific fix
 
-Skip findings if the file is already excellent.
+An excellent stack produces no findings and scores 25. Do not invent one to look
+thorough: an invented finding is a real deduction. An untagged severity counts
+as major, so tag every one.
 
 ## Output Schema
 
@@ -102,6 +135,7 @@ Skip findings if the file is already excellent.
   "findings": [
     {
       "dimension": "<one of the five>",
+      "severity": "<major|minor>",
       "file": "<path>",
       "section": "<heading or '-'>",
       "issue": "<short problem statement>",
