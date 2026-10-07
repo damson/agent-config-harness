@@ -235,3 +235,91 @@ path_without_vendors() {
     run ./bin/install-external-skills.sh --wat </dev/null
     [ "$status" -ne 0 ]
 }
+
+# ── Staleness and --refresh ───────────────────────────────
+#
+# The gap these cover: an installed bundle reported "installed" forever, and
+# nothing ever re-ran the vendor installer, so a bundle could sit frozen for
+# months while upstream moved. Presence was being reported as currency.
+
+@test "--list: a freshly created install is not reported stale" {
+    . lib/common.sh
+    mkdir -p "$(get_external_probe impeccable)"
+    run ./bin/install-external-skills.sh --list --only impeccable </dev/null
+    [ "$status" -eq 0 ]
+    assert_contains "$output" "installed"
+    assert_not_contains "$output" "days ago"
+}
+
+@test "--list: an old install is reported stale, with its age" {
+    . lib/common.sh
+    probe="$(get_external_probe impeccable)"
+    mkdir -p "$probe"
+    touch -t 202501010000 "$probe"
+    run ./bin/install-external-skills.sh --list --only impeccable </dev/null
+    [ "$status" -eq 0 ]
+    # log_warn writes to stderr; bats merges it into $output.
+    assert_contains "$output" "days ago"
+    assert_contains "$output" "refresh with:"
+}
+
+@test "--list: EXTERNAL_SKILLS_STALE_DAYS moves the threshold" {
+    . lib/common.sh
+    probe="$(get_external_probe impeccable)"
+    mkdir -p "$probe"
+    touch -t 202501010000 "$probe"
+    EXTERNAL_SKILLS_STALE_DAYS=99999 run ./bin/install-external-skills.sh \
+        --list --only impeccable </dev/null
+    [ "$status" -eq 0 ]
+    assert_not_contains "$output" "days ago"
+}
+
+@test "--refresh --yes: re-invokes the installer for an installed provider" {
+    stub_installer "npx" "$HOME/.claude/skills/impeccable"
+    run ./bin/install-external-skills.sh --yes --only impeccable </dev/null
+    [ "$status" -eq 0 ]
+    [ "$(grep -c . "$TEST_HOME/stub.log")" -eq 1 ]
+
+    # Without --refresh this second run is a no-op; with it, the installer runs
+    # again. That difference is the whole point of the flag.
+    run ./bin/install-external-skills.sh --yes --only impeccable </dev/null
+    [ "$status" -eq 0 ]
+    [ "$(grep -c . "$TEST_HOME/stub.log")" -eq 1 ]
+
+    run ./bin/install-external-skills.sh --yes --refresh --only impeccable </dev/null
+    [ "$status" -eq 0 ]
+    [ "$(grep -c . "$TEST_HOME/stub.log")" -eq 2 ]
+    assert_contains "$output" "refreshed"
+}
+
+@test "--refresh --yes: refreshes a stale provider too" {
+    . lib/common.sh
+    stub_installer "npx" "$HOME/.claude/skills/impeccable"
+    probe="$(get_external_probe impeccable)"
+    mkdir -p "$probe"
+    touch -t 202501010000 "$probe"
+    run ./bin/install-external-skills.sh --yes --refresh --only impeccable </dev/null
+    [ "$status" -eq 0 ]
+    [ "$(grep -c . "$TEST_HOME/stub.log")" -eq 1 ]
+}
+
+@test "--refresh: still skips a provider whose vendor CLI is absent" {
+    . lib/common.sh
+    probe="$(get_external_probe impeccable)"
+    mkdir -p "$probe"
+    rm -rf "$probe"
+    path_without_vendors
+    run ./bin/install-external-skills.sh --yes --refresh --only impeccable </dev/null
+    [ "$status" -eq 0 ]
+    assert_contains "$output" "not on PATH"
+}
+
+@test "no args without a TTY: warns about a stale provider" {
+    . lib/common.sh
+    probe="$(get_external_probe impeccable)"
+    mkdir -p "$probe"
+    touch -t 202501010000 "$probe"
+    run ./bin/install-external-skills.sh --only impeccable </dev/null
+    [ "$status" -eq 0 ]
+    assert_contains "$output" "--refresh"
+}
