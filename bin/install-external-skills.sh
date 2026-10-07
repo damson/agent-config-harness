@@ -68,15 +68,32 @@ fi
 # from brew answers to -c, so try both rather than branching on uname.
 age_days() {
     local m now
-    m=$(stat -f %m "$1" 2>/dev/null || stat -c %Y "$1" 2>/dev/null) || return 1
-    [ -n "$m" ] || return 1
+    m=$(mtime_epoch "$1") || return 1
     now=$(date +%s)
     printf '%s\n' $(( (now - m) / 86400 ))
 }
 
-# An epoch second as YYYY-MM-DD. BSD date takes -r, GNU takes -d @.
+# An epoch second as YYYY-MM-DD. GNU takes -d @, BSD takes -r. GNU is tried
+# first for the reason mtime_epoch gives below; BSD rejects -d outright, which
+# is a clean miss.
 epoch_date() {
-    date -r "$1" +%Y-%m-%d 2>/dev/null || date -d "@$1" +%Y-%m-%d 2>/dev/null
+    date -d "@$1" +%Y-%m-%d 2>/dev/null || date -r "$1" +%Y-%m-%d 2>/dev/null
+}
+
+# A path's mtime in epoch seconds, or nothing.
+#
+# GNU FIRST, and the order is load-bearing: BSD's `-f` selects an output format
+# while GNU's `-f` means --file-system, so `stat -f %m` SUCCEEDS on Linux and
+# prints a mount point. Trying BSD first therefore does not fall through on
+# Linux, it takes a non-numeric answer and carries on. BSD rejects `-c` as an
+# illegal option, so GNU-first fails cleanly in the other direction. The digit
+# check is the belt: a wrong answer here reads as a date, and a wrong date is
+# exactly the lie the caller exists to prevent.
+mtime_epoch() {
+    local m
+    m=$(stat -c %Y "$1" 2>/dev/null || stat -f %m "$1" 2>/dev/null) || return 1
+    case "$m" in ''|*[!0-9]*) return 1 ;; esac
+    printf '%s\n' "$m"
 }
 
 # The best date a skill directory can offer about itself: what its own
@@ -98,7 +115,7 @@ skill_stamp() {
             return 0
         fi
     fi
-    m=$(stat -f %m "$1" 2>/dev/null || stat -c %Y "$1" 2>/dev/null) || m=""
+    m=$(mtime_epoch "$1") || m=""
     if [ -z "$m" ]; then
         printf 'unknown\n'
         return 0
