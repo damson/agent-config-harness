@@ -122,15 +122,40 @@ the right trade for a bundle with its own update channel.
 
 ## Refreshing
 
-The registry installs; it does not upgrade. Use the vendor CLI:
+**The registry upgrades as well as installs.** It used to only install, leaving
+upgrades to whoever remembered, and that did not work: one bundle in a consuming
+repo ran two months behind, missing five skills the vendor had published and
+still carrying two it had retired, while the status check printed a tick for it
+the whole time.
+
+```bash
+./bin/install-external-skills.sh --list                        # status, with each install's age
+./bin/install-external-skills.sh --yes --refresh               # re-run every installer
+./bin/install-external-skills.sh --yes --refresh --only <id>   # one provider
+```
+
+`--refresh` is what makes an already-installed provider actionable. Without it
+an install is left alone, which is what keeps `just setup` cheap to re-run, and
+a plain `--yes` therefore never reinstalls anything behind your back.
+
+An install older than 30 days reports as `stale` rather than `installed`, both
+from `--list` and from the unattended path `just setup` takes, so the warning
+arrives without anyone remembering to ask for it. `EXTERNAL_SKILLS_STALE_DAYS`
+moves the interval.
+
+**Age is a proxy for drift, not drift.** A bundle the vendor has not touched in
+a year is old and correct. For the real answer, ask the vendor:
 
 ```bash
 android skills list          # installed and available
-android skills add --all     # add anything new
-android skills add <id>      # add one
 npx impeccable check         # is a newer version published?
-npx impeccable update
 ```
+
+**One thing refreshing cannot fix.** A skill the vendor has RETIRED is in no
+catalogue any more, so no installer will ever touch it again and no status check
+can see it: it stays on disk at its last version indefinitely. Compare the
+vendor's catalogue against what is installed from time to time, and delete the
+leftovers by hand.
 
 ## Adding a provider
 

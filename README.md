@@ -237,6 +237,7 @@ Everything is driven through [`just`](Justfile); run bare `just` to list these:
 | `just calibrate` | Check the rubric still fails a bad config. Two model calls |
 | `just benchmark-pr` | Publish the score snapshots as a standing PR. Never merges |
 | `just skills-install` | Install third-party skill bundles from the registry |
+| `just skills-refresh` | Re-run their installers so an installed bundle stops drifting |
 | `just marketplaces-status` | What skill marketplaces are registered, and what is installed |
 | `just marketplaces-install` | Add registered marketplaces and install their plugins |
 | `just validate-skills [dir]` | Structural check on a skills tree |
