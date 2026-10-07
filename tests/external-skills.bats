@@ -323,3 +323,81 @@ path_without_vendors() {
     [ "$status" -eq 0 ]
     assert_contains "$output" "--refresh"
 }
+
+# ── --lock ────────────────────────────────────────────────
+#
+# The lock exists so drift is visible in a diff. A bundle that stopped moving
+# shows up as lines that do not change while their neighbours do, which is the
+# one signal neither a probe nor an age can give.
+
+# Point the script at a throwaway config root so a test never writes a lock
+# into this repository.
+lock_root() {
+    LOCK_ROOT="$TEST_HOME/cfgroot"
+    mkdir -p "$LOCK_ROOT/config"
+    cp "$REPO_ROOT/config/external-skills.conf" "$LOCK_ROOT/config/"
+    export AGENT_CONFIG_ROOT="$LOCK_ROOT"
+}
+
+@test "--lock: writes a lock with a header and one line per provider" {
+    lock_root
+    run ./bin/install-external-skills.sh --lock </dev/null
+    [ "$status" -eq 0 ]
+    [ -f "$LOCK_ROOT/config/external-skills.lock" ]
+    assert_contains "$(cat "$LOCK_ROOT/config/external-skills.lock")" "Do not edit by hand"
+    assert_contains "$(cat "$LOCK_ROOT/config/external-skills.lock")" "provider impeccable"
+}
+
+@test "--lock: a provider that is not installed records 'absent'" {
+    lock_root
+    run ./bin/install-external-skills.sh --lock </dev/null
+    [ "$status" -eq 0 ]
+    run grep '^provider impeccable' "$LOCK_ROOT/config/external-skills.lock"
+    assert_contains "$output" "absent"
+}
+
+@test "--lock: prefers a skill's own stamp over the directory mtime" {
+    lock_root
+    . lib/common.sh
+    probe="$(get_external_probe impeccable)"
+    mkdir -p "$probe"
+    printf -- '---\nname: impeccable\nversion: 9.9.9\n---\nbody\n' >"$probe/SKILL.md"
+    run ./bin/install-external-skills.sh --lock </dev/null
+    [ "$status" -eq 0 ]
+    run grep '^provider impeccable' "$LOCK_ROOT/config/external-skills.lock"
+    assert_contains "$output" "9.9.9"
+}
+
+@test "--lock: reads a stamp nested under metadata, not only a top-level key" {
+    lock_root
+    . lib/common.sh
+    probe="$(get_external_probe impeccable)"
+    mkdir -p "$probe"
+    printf -- '---\nname: impeccable\nmetadata:\n  last-updated: %s\n---\nbody\n' \
+        "'2026-01-02'" >"$probe/SKILL.md"
+    run ./bin/install-external-skills.sh --lock </dev/null
+    [ "$status" -eq 0 ]
+    run grep '^provider impeccable' "$LOCK_ROOT/config/external-skills.lock"
+    assert_contains "$output" "2026-01-02"
+}
+
+@test "--lock: does not record a symlinked skill, which git already tracks" {
+    lock_root
+    . lib/common.sh
+    probe="$(get_external_probe impeccable)"
+    mkdir -p "$probe" "$TEST_HOME/elsewhere/mine"
+    printf -- '---\nname: mine\n---\nbody\n' >"$TEST_HOME/elsewhere/mine/SKILL.md"
+    ln -s "$TEST_HOME/elsewhere/mine" "$(dirname "$probe")/mine"
+    run ./bin/install-external-skills.sh --lock </dev/null
+    [ "$status" -eq 0 ]
+    assert_contains "$(cat "$LOCK_ROOT/config/external-skills.lock")" "skill    impeccable"
+    assert_not_contains "$(cat "$LOCK_ROOT/config/external-skills.lock")" "skill    mine"
+}
+
+@test "--lock: installs nothing" {
+    lock_root
+    stub_installer "npx" "$HOME/.claude/skills/impeccable"
+    run ./bin/install-external-skills.sh --lock </dev/null
+    [ "$status" -eq 0 ]
+    [ ! -f "$TEST_HOME/stub.log" ]
+}

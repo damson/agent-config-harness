@@ -157,6 +157,28 @@ can see it: it stays on disk at its last version indefinitely. Compare the
 vendor's catalogue against what is installed from time to time, and delete the
 leftovers by hand.
 
+### The lock file
+
+`--lock` records what is installed into `config/external-skills.lock` in the
+consuming repo: one line per provider and one per externally-installed skill,
+each with the best stamp it can offer, which is the skill's own `last-updated`
+or `version` where it has one and the date its directory was written otherwise.
+
+```bash
+./bin/install-external-skills.sh --lock
+```
+
+It exists because an age and a probe can both only answer about now, while a
+committed file answers about change. **A bundle that has stopped moving shows up
+as lines that do not change while their neighbours do**, which is the signal
+that catches a retired skill as well as a frozen one. It is machine-local state
+committed deliberately, the same bargain the benchmark score snapshots make, so
+it is never checked in CI: a runner has no skills directory and would only ever
+report every line missing.
+
+Symlinked entries are skipped. Those belong to the consuming repo and are
+already tracked in git, so recording them would duplicate what a diff shows.
+
 ## Adding a provider
 
 Append one line to `config/external-skills.conf`.
