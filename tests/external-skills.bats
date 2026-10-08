@@ -401,3 +401,54 @@ lock_root() {
     [ "$status" -eq 0 ]
     [ ! -f "$TEST_HOME/stub.log" ]
 }
+
+# ── Review findings, each seen red before it was seen green ──────────────
+
+@test "stale: a nonnumeric threshold warns and falls back, never hides staleness" {
+    . lib/common.sh
+    probe="$(get_external_probe impeccable)"
+    mkdir -p "$probe"
+    touch -t 202501010000 "$probe"
+    EXTERNAL_SKILLS_STALE_DAYS=abc run ./bin/install-external-skills.sh \
+        --list --only impeccable </dev/null
+    [ "$status" -eq 0 ]
+    assert_contains "$output" "not a whole number"
+    # The point of the fix: it must still be reported stale.
+    assert_contains "$output" "stale"
+}
+
+@test "stale: age comes from the newest file inside, not the directory mtime" {
+    . lib/common.sh
+    probe="$(get_external_probe impeccable)"
+    mkdir -p "$probe"
+    printf 'fresh\n' >"$probe/SKILL.md"       # written now
+    touch -t 202501010000 "$probe"            # directory looks ancient
+    run ./bin/install-external-skills.sh --list --only impeccable </dev/null
+    [ "$status" -eq 0 ]
+    # An installer that overwrites files in place does not touch the directory
+    # mtime, so reading the directory alone would call this stale for ever.
+    assert_not_contains "$output" "stale"
+}
+
+@test "--list: a stale provider is labelled stale, as the docs say" {
+    . lib/common.sh
+    probe="$(get_external_probe impeccable)"
+    mkdir -p "$probe"
+    printf 'old\n' >"$probe/SKILL.md"
+    touch -t 202501010000 "$probe/SKILL.md" "$probe"
+    run ./bin/install-external-skills.sh --list --only impeccable </dev/null
+    [ "$status" -eq 0 ]
+    assert_contains "$output" "stale"
+    assert_contains "$output" "days ago"
+}
+
+@test "--refresh: an installed provider whose CLI has gone is skipped, not run" {
+    . lib/common.sh
+    probe="$(get_external_probe impeccable)"
+    mkdir -p "$probe"                 # installed...
+    path_without_vendors              # ...but the vendor CLI is gone
+    run ./bin/install-external-skills.sh --yes --refresh --only impeccable </dev/null
+    [ "$status" -eq 0 ]
+    assert_contains "$output" "not on PATH"
+    assert_not_contains "$output" "install command failed"
+}

@@ -38,6 +38,15 @@ refresh=0          # 1 = act on providers that are already installed
 # not drift itself, so this is a warning, never a failure, and it is overridable
 # because a sensible interval is the vendor's business rather than ours.
 STALE_DAYS="${EXTERNAL_SKILLS_STALE_DAYS:-30}"
+# A nonnumeric value makes `[ "$age" -ge "$STALE_DAYS" ]` error, and because it
+# runs as an `if` condition `set -e` does not stop anything: the test reads
+# false and every provider reports `installed` for ever. A threshold nobody can
+# see is worse than a wrong one, so say so and fall back.
+case "$STALE_DAYS" in
+    ''|*[!0-9]*)
+        log_warn "EXTERNAL_SKILLS_STALE_DAYS='$STALE_DAYS' is not a whole number of days; using 30"
+        STALE_DAYS=30 ;;
+esac
 
 while [ $# -gt 0 ]; do
     case "$1" in
@@ -66,9 +75,31 @@ fi
 # Whole days since <path> was last modified, or nothing if it cannot be read.
 # BSD and GNU stat reject each other's flags, and a Linux box with coreutils
 # from brew answers to -c, so try both rather than branching on uname.
+# The NEWEST mtime at or just inside a path.
+#
+# A directory's own mtime changes when an entry is added, renamed or removed,
+# and NOT when a file inside it is overwritten. An installer that rewrites
+# SKILL.md in place therefore leaves the probe directory looking untouched, and
+# a bundle refreshed five minutes ago goes on reporting stale for ever. Depth is
+# bounded because this runs on every status check and a skills tree can be big.
+newest_epoch() {
+    local best entry m
+    best=$(mtime_epoch "$1") || best=0
+    if [ -d "$1" ]; then
+        while IFS= read -r entry; do
+            m=$(mtime_epoch "$entry") || continue
+            [ "$m" -gt "$best" ] && best=$m
+        done <<EOF
+$(find "$1" -maxdepth 2 -type f 2>/dev/null)
+EOF
+    fi
+    [ "$best" -gt 0 ] || return 1
+    printf '%s\n' "$best"
+}
+
 age_days() {
     local m now
-    m=$(mtime_epoch "$1") || return 1
+    m=$(newest_epoch "$1") || return 1
     now=$(date +%s)
     printf '%s\n' $(( (now - m) / 86400 ))
 }
@@ -217,7 +248,7 @@ if [ "$mode" = "list" ]; then
             installed)
                 log_ok "$id: installed ($(get_external_probe "$id"))" ;;
             stale)
-                log_warn "$id: installed $(age_days "$(get_external_probe "$id")") days ago — refresh with: $(get_external_install "$id")" ;;
+                log_warn "$id: stale — last changed $(age_days "$(get_external_probe "$id")") days ago; refresh with: $(get_external_install "$id")" ;;
             missing)
                 log_info "$id: missing — install with: $(get_external_install "$id")" ;;
             tool-missing)
@@ -258,6 +289,14 @@ for id in "${providers[@]}"; do
         installed|stale)
             if [ "$refresh" -eq 0 ]; then
                 log_ok "$id: already installed"
+                continue
+            fi
+            # `status_of` only reports tool-missing when the probe is ABSENT,
+            # so an installed provider whose CLI has since left PATH arrives
+            # here as installed. Running its command would fail and be reported
+            # as a broken installer rather than as the missing tool it is.
+            if ! command -v "$(get_external_requires "$id")" >/dev/null 2>&1; then
+                log_info "$id: '$(get_external_requires "$id")' not on PATH — cannot refresh. See $(get_external_docs "$id")"
                 continue
             fi
             # Every registered installer overwrites in place, so re-running one

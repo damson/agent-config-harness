@@ -141,7 +141,14 @@ a plain `--yes` therefore never reinstalls anything behind your back.
 An install older than 30 days reports as `stale` rather than `installed`, both
 from `--list` and from the unattended path `just setup` takes, so the warning
 arrives without anyone remembering to ask for it. `EXTERNAL_SKILLS_STALE_DAYS`
-moves the interval.
+moves the interval, and a value that is not a whole number of days is refused
+out loud rather than quietly disabling the check.
+
+**Age is the newest file at or just inside the probe, not the probe itself.** A
+directory's mtime changes when an entry is added, renamed or removed, and not
+when a file inside it is overwritten, so an installer that rewrites `SKILL.md`
+in place leaves the directory looking untouched and a bundle refreshed minutes
+ago would report stale for ever.
 
 **Age is a proxy for drift, not drift.** A bundle the vendor has not touched in
 a year is old and correct. For the real answer, ask the vendor:
