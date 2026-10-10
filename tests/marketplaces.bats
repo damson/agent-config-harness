@@ -252,12 +252,12 @@ EOF
     assert_contains "$output" "pass all structural checks"
 }
 
-@test "validate-skills: a frontmatter name that overrides the folder fails" {
+@test "validate-skills: a frontmatter name that differs from the folder fails" {
     make_skill "$TREE" good-skill
     make_skill "$TREE" mismatched some-other-name
     run ./bin/validate-skills.sh "$TREE"
     [ "$status" -ne 0 ]
-    assert_contains "$output" "answers to that, not to the folder"
+    assert_contains "$output" "the / menu shows that and not the folder"
 }
 
 @test "validate-skills: a missing When to STOP section fails" {

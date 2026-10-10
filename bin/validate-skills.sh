@@ -9,14 +9,16 @@
 #
 # None of these stops a skill loading. That is the point: each one leaves a
 # skill that works and is not the skill you wrote. `name:` is optional and
-# OVERRIDES the folder, so a mismatch answers to a name the directory never
-# shows. An omitted `description:` falls back to the first non-empty line of
-# the body, so the trigger is whatever that line happens to say. A missing
-# `## When to STOP` removes what stops a skill firing on work it should
-# decline. And a duplicate leaf name collides for personal and project skills,
-# which share one flat namespace and resolve by priority, leaving the loser
-# simply absent; plugin skills are namespaced `plugin:skill` and do not
-# collide. See https://code.claude.com/docs/en/skills .
+# sets the command the `/` menu shows, while the folder name goes on invoking
+# the skill too, so a mismatch lists it under a name its directory never shows
+# and gives up that name entirely to any command already holding it. An omitted
+# `description:` falls back to the first non-empty line of the body, so the
+# trigger is whatever that line happens to say; what an empty one does instead
+# is documented nowhere. A missing `## When to STOP` removes what stops a skill
+# firing on work it should decline. And a duplicate leaf name collides for
+# personal and project skills, which share one flat namespace and resolve by
+# priority, leaving the loser simply absent; plugin skills are namespaced
+# `plugin:skill` and do not collide. See https://code.claude.com/docs/en/skills .
 #
 # Usage:
 #   ./bin/validate-skills.sh                      # this repo's user-dev/skills
@@ -92,7 +94,7 @@ for p in "${skills[@]}"; do
     if [ -z "$name" ]; then
         problem "$leaf: frontmatter has no 'name:'"
     elif [ "$name" != "$leaf" ]; then
-        problem "$leaf: frontmatter name is '$name', so it answers to that, not to the folder"
+        problem "$leaf: frontmatter name is '$name', so the / menu shows that and not the folder"
     fi
 
     # A description can be a folded block (description: >), so accept any
@@ -109,7 +111,7 @@ for p in "${skills[@]}"; do
         END { exit(found ? 0 : 1) }
         # kcov-ignore-end
     ' "$f"; then
-        problem "$leaf: frontmatter 'description:' is missing or empty, so the trigger falls back to the first line of the body"
+        problem "$leaf: frontmatter 'description:' is missing or empty; an omitted one falls back to the first line of the body, and an empty one is undocumented"
     fi
 
     grep -qE '^## +(Procedure|Step [0-9])' "$f" \
