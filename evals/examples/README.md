@@ -17,8 +17,10 @@ The rot is the kind config files actually accumulate, not sabotage:
   the second copy that drifts.
 
 The rubric caught all of it by name: the contradiction under `consistency`,
-the verbatim restatement under `conciseness`, the platitudes under
-`actionability`. Diff the two configs, then diff the two findings lists.
+the verbatim restatement under `conciseness`, and the platitudes under
+`clarity`, as two majors. Note that `actionability` scores 5 in the degraded
+run, its only perfect dimension, which is worth knowing about the rubric. Diff
+the two configs, then diff the two findings lists.
 
 Reproduce (needs the Claude CLI and an API key):
 

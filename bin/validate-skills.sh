@@ -7,11 +7,18 @@
 # ones a marketplace installs, which arrive from someone else and are held to
 # no standard on the way in.
 #
-# A skill that trips any of these fails in a way that is quiet at install time
-# and confusing later: the wrong `name:` makes a skill unaddressable, a missing
-# `## When to STOP` is what stops a skill firing on work it should decline, and
-# a duplicate leaf name silently shadows another skill because skills install
-# FLAT into ~/.claude/skills/ and share one namespace.
+# None of these stops a skill loading. That is the point: each one leaves a
+# skill that works and is not the skill you wrote. `name:` is optional and
+# sets the command the `/` menu shows, while the folder name goes on invoking
+# the skill too, so a mismatch lists it under a name its directory never shows
+# and gives up that name entirely to any command already holding it. An omitted
+# `description:` falls back to the first non-empty line of the body, so the
+# trigger is whatever that line happens to say; what an empty one does instead
+# is documented nowhere. A missing `## When to STOP` removes what stops a skill
+# firing on work it should decline. And a duplicate leaf name collides for
+# personal and project skills, which share one flat namespace and resolve by
+# priority, leaving the loser simply absent; plugin skills are namespaced
+# `plugin:skill` and do not collide. See https://code.claude.com/docs/en/skills .
 #
 # Usage:
 #   ./bin/validate-skills.sh                      # this repo's user-dev/skills
@@ -87,7 +94,7 @@ for p in "${skills[@]}"; do
     if [ -z "$name" ]; then
         problem "$leaf: frontmatter has no 'name:'"
     elif [ "$name" != "$leaf" ]; then
-        problem "$leaf: frontmatter name is '$name' — it must match the folder name"
+        problem "$leaf: frontmatter name is '$name', so the / menu shows that and not the folder"
     fi
 
     # A description can be a folded block (description: >), so accept any
@@ -104,7 +111,7 @@ for p in "${skills[@]}"; do
         END { exit(found ? 0 : 1) }
         # kcov-ignore-end
     ' "$f"; then
-        problem "$leaf: frontmatter 'description:' is missing or empty"
+        problem "$leaf: frontmatter 'description:' is missing or empty; an omitted one falls back to the first line of the body, and an empty one is undocumented"
     fi
 
     grep -qE '^## +(Procedure|Step [0-9])' "$f" \
@@ -114,7 +121,7 @@ for p in "${skills[@]}"; do
         || problem "$leaf: no '## When to STOP' section"
 
     for s in ${seen_leaves[@]+"${seen_leaves[@]}"}; do
-        [ "$s" = "$leaf" ] && problem "$leaf: duplicate leaf name — skills install flat and would shadow each other"
+        [ "$s" = "$leaf" ] && problem "$leaf: duplicate leaf name; personal and project skills share one namespace, so one of these wins and the other is absent"
     done
     seen_leaves+=("$leaf")
 done
