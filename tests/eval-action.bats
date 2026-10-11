@@ -140,3 +140,54 @@ run_action() {
     run bash -c "ls '$TARGET/evals/results/' | head -1"
     assert_contains "$output" "acme.json"
 }
+
+# A failed call must say WHY. The stub exits non-zero on each of the three
+# shapes a real CLI failure takes, and the run has to carry the cause out.
+# Reporting stderr alone let a real gate fail three times and diagnose nothing.
+fail_with() {
+    # $1 = stream (stdout|stderr|silent), $2 = exit status, $3 = message
+    cat > "$STUB/claude" <<EOF
+#!/usr/bin/env bash
+case "$1" in
+    stdout) printf '%s\n' "$3" ;;
+    stderr) printf '%s\n' "$3" >&2 ;;
+esac
+exit $2
+EOF
+    chmod +x "$STUB/claude"
+}
+
+@test "eval action: a CLI failing on stdout has its message reported, not discarded" {
+    fail_with stdout 1 "Invalid API key - please run /login"
+    run_action
+    [ "$status" -ne 0 ]
+    assert_contains "$output" "exit 1"
+    assert_contains "$output" "claude stdout:"
+    assert_contains "$output" "Invalid API key"
+}
+
+@test "eval action: a CLI failing on stderr is still reported" {
+    fail_with stderr 2 "network unreachable"
+    run_action
+    [ "$status" -ne 0 ]
+    assert_contains "$output" "exit 2"
+    assert_contains "$output" "claude stderr:"
+    assert_contains "$output" "network unreachable"
+}
+
+@test "eval action: a CLI that fails in silence says so, with its exit status" {
+    fail_with silent 7 ""
+    run_action
+    [ "$status" -ne 0 ]
+    assert_contains "$output" "exit 7"
+    # The diagnosis in this case is that there was nothing to report, which has
+    # to be distinguishable from the code not having looked.
+    assert_contains "$output" "wrote nothing to either stream"
+}
+
+@test "eval action: a long failure message is bounded and says it was cut" {
+    fail_with stderr 1 "$(printf 'x%.0s' $(seq 1 1200))"
+    run_action
+    [ "$status" -ne 0 ]
+    assert_contains "$output" "truncated, 1200 characters"
+}

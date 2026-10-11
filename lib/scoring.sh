@@ -163,6 +163,25 @@ derive_scores() {
 #
 # Returns non-zero when the CLI call fails or the reply holds no parsable JSON
 # object (raw reply saved as <stamp>-<domain>-RAW.txt in that case).
+# Fold whatever a failed CLI call wrote into one bounded log line. A CLI error
+# is a sentence; a stray full reply is not, and an unbounded log line is its own
+# problem. Truncation is announced with the real length, so a reader can tell a
+# short error from a long one that was cut.
+cli_failure_excerpt() {
+    local text
+    text=$(tr '\n' ' ' | tr -s ' ')
+    # `tr -s` leaves at most one space at each end, and the trailing one comes
+    # from the newline the CLI ended its message with. Trim both, so the length
+    # announced below describes the message and not its line ending.
+    text="${text# }"
+    text="${text% }"
+    if [ "${#text}" -gt 500 ]; then
+        printf '%s... (truncated, %s characters)\n' "${text:0:500}" "${#text}"
+    else
+        printf '%s\n' "$text"
+    fi
+}
+
 score_prompt() {
     local label="$1" domain="$2" prompt_file="$3" findings_filter="$4"
 
@@ -174,15 +193,28 @@ score_prompt() {
     stamp="${stamp//:/}"
     stamp="${stamp%Z}"
 
-    # Call Claude CLI; expect raw JSON in the response. Keep stderr — it is the
-    # only diagnostic when the call fails (bad API key, network, rate limit).
-    local response stderr_file
+    # Call Claude CLI; expect raw JSON in the response. Report BOTH streams and
+    # the exit status when it fails: a CLI that writes its error to stdout and
+    # exits non-zero leaves stderr empty, and reporting stderr alone then says
+    # a call failed and nothing about why. Three runs of the pull-request gate
+    # diagnosed nothing for exactly that reason.
+    local response stderr_file status
     stderr_file=$(mktemp)
-    if ! response=$(claude --print --model "$EVAL_MODEL" <"$prompt_file" 2>"$stderr_file"); then
-        log_warn "Claude CLI invocation failed for $label"
+    response=$(claude --print --model "$EVAL_MODEL" <"$prompt_file" 2>"$stderr_file") || status=$?
+    if [ -n "${status:-}" ]; then
+        log_warn "Claude CLI invocation failed for $label (exit $status)"
+        local said=0
         if [ -s "$stderr_file" ]; then
-            log_warn "  claude stderr: $(cat "$stderr_file")"
+            log_warn "  claude stderr: $(cli_failure_excerpt <"$stderr_file")"
+            said=1
         fi
+        if [ -n "$response" ]; then
+            log_warn "  claude stdout: $(printf '%s' "$response" | cli_failure_excerpt)"
+            said=1
+        fi
+        # Said explicitly, because "it exited N in silence" is the diagnosis in
+        # that case and is otherwise indistinguishable from not having looked.
+        [ "$said" -eq 1 ] || log_warn "  claude wrote nothing to either stream"
         rm -f "$prompt_file" "$stderr_file"
         return 1
     fi
