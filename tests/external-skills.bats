@@ -235,3 +235,220 @@ path_without_vendors() {
     run ./bin/install-external-skills.sh --wat </dev/null
     [ "$status" -ne 0 ]
 }
+
+# ── Staleness and --refresh ───────────────────────────────
+#
+# The gap these cover: an installed bundle reported "installed" forever, and
+# nothing ever re-ran the vendor installer, so a bundle could sit frozen for
+# months while upstream moved. Presence was being reported as currency.
+
+@test "--list: a freshly created install is not reported stale" {
+    . lib/common.sh
+    mkdir -p "$(get_external_probe impeccable)"
+    run ./bin/install-external-skills.sh --list --only impeccable </dev/null
+    [ "$status" -eq 0 ]
+    assert_contains "$output" "installed"
+    assert_not_contains "$output" "days ago"
+}
+
+@test "--list: an old install is reported stale, with its age" {
+    . lib/common.sh
+    probe="$(get_external_probe impeccable)"
+    mkdir -p "$probe"
+    touch -t 202501010000 "$probe"
+    run ./bin/install-external-skills.sh --list --only impeccable </dev/null
+    [ "$status" -eq 0 ]
+    # log_warn writes to stderr; bats merges it into $output.
+    assert_contains "$output" "days ago"
+    assert_contains "$output" "refresh with:"
+}
+
+@test "--list: EXTERNAL_SKILLS_STALE_DAYS moves the threshold" {
+    . lib/common.sh
+    probe="$(get_external_probe impeccable)"
+    mkdir -p "$probe"
+    touch -t 202501010000 "$probe"
+    EXTERNAL_SKILLS_STALE_DAYS=99999 run ./bin/install-external-skills.sh \
+        --list --only impeccable </dev/null
+    [ "$status" -eq 0 ]
+    assert_not_contains "$output" "days ago"
+}
+
+@test "--refresh --yes: re-invokes the installer for an installed provider" {
+    stub_installer "npx" "$HOME/.claude/skills/impeccable"
+    run ./bin/install-external-skills.sh --yes --only impeccable </dev/null
+    [ "$status" -eq 0 ]
+    [ "$(grep -c . "$TEST_HOME/stub.log")" -eq 1 ]
+
+    # Without --refresh this second run is a no-op; with it, the installer runs
+    # again. That difference is the whole point of the flag.
+    run ./bin/install-external-skills.sh --yes --only impeccable </dev/null
+    [ "$status" -eq 0 ]
+    [ "$(grep -c . "$TEST_HOME/stub.log")" -eq 1 ]
+
+    run ./bin/install-external-skills.sh --yes --refresh --only impeccable </dev/null
+    [ "$status" -eq 0 ]
+    [ "$(grep -c . "$TEST_HOME/stub.log")" -eq 2 ]
+    assert_contains "$output" "refreshed"
+}
+
+@test "--refresh --yes: refreshes a stale provider too" {
+    . lib/common.sh
+    stub_installer "npx" "$HOME/.claude/skills/impeccable"
+    probe="$(get_external_probe impeccable)"
+    mkdir -p "$probe"
+    touch -t 202501010000 "$probe"
+    run ./bin/install-external-skills.sh --yes --refresh --only impeccable </dev/null
+    [ "$status" -eq 0 ]
+    [ "$(grep -c . "$TEST_HOME/stub.log")" -eq 1 ]
+}
+
+@test "--refresh: still skips a provider whose vendor CLI is absent" {
+    . lib/common.sh
+    probe="$(get_external_probe impeccable)"
+    mkdir -p "$probe"
+    rm -rf "$probe"
+    path_without_vendors
+    run ./bin/install-external-skills.sh --yes --refresh --only impeccable </dev/null
+    [ "$status" -eq 0 ]
+    assert_contains "$output" "not on PATH"
+}
+
+@test "no args without a TTY: warns about a stale provider" {
+    . lib/common.sh
+    probe="$(get_external_probe impeccable)"
+    mkdir -p "$probe"
+    touch -t 202501010000 "$probe"
+    run ./bin/install-external-skills.sh --only impeccable </dev/null
+    [ "$status" -eq 0 ]
+    assert_contains "$output" "--refresh"
+}
+
+# ── --lock ────────────────────────────────────────────────
+#
+# The lock exists so drift is visible in a diff. A bundle that stopped moving
+# shows up as lines that do not change while their neighbours do, which is the
+# one signal neither a probe nor an age can give.
+
+# Point the script at a throwaway config root so a test never writes a lock
+# into this repository.
+lock_root() {
+    LOCK_ROOT="$TEST_HOME/cfgroot"
+    mkdir -p "$LOCK_ROOT/config"
+    cp "$REPO_ROOT/config/external-skills.conf" "$LOCK_ROOT/config/"
+    export AGENT_CONFIG_ROOT="$LOCK_ROOT"
+}
+
+@test "--lock: writes a lock with a header and one line per provider" {
+    lock_root
+    run ./bin/install-external-skills.sh --lock </dev/null
+    [ "$status" -eq 0 ]
+    [ -f "$LOCK_ROOT/config/external-skills.lock" ]
+    assert_contains "$(cat "$LOCK_ROOT/config/external-skills.lock")" "Do not edit by hand"
+    assert_contains "$(cat "$LOCK_ROOT/config/external-skills.lock")" "provider impeccable"
+}
+
+@test "--lock: a provider that is not installed records 'absent'" {
+    lock_root
+    run ./bin/install-external-skills.sh --lock </dev/null
+    [ "$status" -eq 0 ]
+    run grep '^provider impeccable' "$LOCK_ROOT/config/external-skills.lock"
+    assert_contains "$output" "absent"
+}
+
+@test "--lock: prefers a skill's own stamp over the directory mtime" {
+    lock_root
+    . lib/common.sh
+    probe="$(get_external_probe impeccable)"
+    mkdir -p "$probe"
+    printf -- '---\nname: impeccable\nversion: 9.9.9\n---\nbody\n' >"$probe/SKILL.md"
+    run ./bin/install-external-skills.sh --lock </dev/null
+    [ "$status" -eq 0 ]
+    run grep '^provider impeccable' "$LOCK_ROOT/config/external-skills.lock"
+    assert_contains "$output" "9.9.9"
+}
+
+@test "--lock: reads a stamp nested under metadata, not only a top-level key" {
+    lock_root
+    . lib/common.sh
+    probe="$(get_external_probe impeccable)"
+    mkdir -p "$probe"
+    printf -- '---\nname: impeccable\nmetadata:\n  last-updated: %s\n---\nbody\n' \
+        "'2026-01-02'" >"$probe/SKILL.md"
+    run ./bin/install-external-skills.sh --lock </dev/null
+    [ "$status" -eq 0 ]
+    run grep '^provider impeccable' "$LOCK_ROOT/config/external-skills.lock"
+    assert_contains "$output" "2026-01-02"
+}
+
+@test "--lock: does not record a symlinked skill, which git already tracks" {
+    lock_root
+    . lib/common.sh
+    probe="$(get_external_probe impeccable)"
+    mkdir -p "$probe" "$TEST_HOME/elsewhere/mine"
+    printf -- '---\nname: mine\n---\nbody\n' >"$TEST_HOME/elsewhere/mine/SKILL.md"
+    ln -s "$TEST_HOME/elsewhere/mine" "$(dirname "$probe")/mine"
+    run ./bin/install-external-skills.sh --lock </dev/null
+    [ "$status" -eq 0 ]
+    assert_contains "$(cat "$LOCK_ROOT/config/external-skills.lock")" "skill    impeccable"
+    assert_not_contains "$(cat "$LOCK_ROOT/config/external-skills.lock")" "skill    mine"
+}
+
+@test "--lock: installs nothing" {
+    lock_root
+    stub_installer "npx" "$HOME/.claude/skills/impeccable"
+    run ./bin/install-external-skills.sh --lock </dev/null
+    [ "$status" -eq 0 ]
+    [ ! -f "$TEST_HOME/stub.log" ]
+}
+
+# ── Review findings, each seen red before it was seen green ──────────────
+
+@test "stale: a nonnumeric threshold warns and falls back, never hides staleness" {
+    . lib/common.sh
+    probe="$(get_external_probe impeccable)"
+    mkdir -p "$probe"
+    touch -t 202501010000 "$probe"
+    EXTERNAL_SKILLS_STALE_DAYS=abc run ./bin/install-external-skills.sh \
+        --list --only impeccable </dev/null
+    [ "$status" -eq 0 ]
+    assert_contains "$output" "not a whole number"
+    # The point of the fix: it must still be reported stale.
+    assert_contains "$output" "stale"
+}
+
+@test "stale: age comes from the newest file inside, not the directory mtime" {
+    . lib/common.sh
+    probe="$(get_external_probe impeccable)"
+    mkdir -p "$probe"
+    printf 'fresh\n' >"$probe/SKILL.md"       # written now
+    touch -t 202501010000 "$probe"            # directory looks ancient
+    run ./bin/install-external-skills.sh --list --only impeccable </dev/null
+    [ "$status" -eq 0 ]
+    # An installer that overwrites files in place does not touch the directory
+    # mtime, so reading the directory alone would call this stale for ever.
+    assert_not_contains "$output" "stale"
+}
+
+@test "--list: a stale provider is labelled stale, as the docs say" {
+    . lib/common.sh
+    probe="$(get_external_probe impeccable)"
+    mkdir -p "$probe"
+    printf 'old\n' >"$probe/SKILL.md"
+    touch -t 202501010000 "$probe/SKILL.md" "$probe"
+    run ./bin/install-external-skills.sh --list --only impeccable </dev/null
+    [ "$status" -eq 0 ]
+    assert_contains "$output" "stale"
+    assert_contains "$output" "days ago"
+}
+
+@test "--refresh: an installed provider whose CLI has gone is skipped, not run" {
+    . lib/common.sh
+    probe="$(get_external_probe impeccable)"
+    mkdir -p "$probe"                 # installed...
+    path_without_vendors              # ...but the vendor CLI is gone
+    run ./bin/install-external-skills.sh --yes --refresh --only impeccable </dev/null
+    [ "$status" -eq 0 ]
+    assert_contains "$output" "not on PATH"
+    assert_not_contains "$output" "install command failed"
+}
