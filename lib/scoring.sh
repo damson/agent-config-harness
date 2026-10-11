@@ -115,8 +115,10 @@ derive_scores() {
     # The rule is jq, and kcov counts every line of a multi-line literal as bash
     # that never ran: these lines took this file from 92% to 61% while the
     # function around them is exercised by seven tests. Marked the way the awk
-    # programs in lib/common.sh are, start inside the literal where `#` is a
-    # comment to jq as well.
+    # programs in lib/common.sh are: BOTH markers inside the literal, where `#`
+    # opens a comment to jq as well. The end one has to be inside, because
+    # kcov excludes its stop line too, and the line below it is the one that
+    # decides whether this function takes its failure path.
     if ! jq '
         # kcov-ignore-start
         def dim_score($d):
@@ -146,8 +148,8 @@ derive_scores() {
                     elif $total >= 14 then "D"
                     else "F" end)
         }
+        # kcov-ignore-end
     ' "$file" >"$tmp" 2>/dev/null; then
-    # kcov-ignore-end
         rm -f "$tmp"
         return 1
     fi
