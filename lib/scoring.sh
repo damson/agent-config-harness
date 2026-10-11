@@ -169,7 +169,10 @@ derive_scores() {
 # short error from a long one that was cut.
 cli_failure_excerpt() {
     local text
-    text=$(tr '\n' ' ' | tr -s ' ')
+    # Carriage returns too, not only newlines: a CLI that failed part way
+    # through progress output leaves one behind, and a log line carrying `\r`
+    # overwrites what precedes it instead of reading as one line.
+    text=$(tr '\n\r' '  ' | tr -s ' ')
     # `tr -s` leaves at most one space at each end, and the trailing one comes
     # from the newline the CLI ended its message with. Trim both, so the length
     # announced below describes the message and not its line ending.

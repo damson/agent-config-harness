@@ -185,6 +185,19 @@ EOF
     assert_contains "$output" "wrote nothing to either stream"
 }
 
+@test "eval action: a carriage return in a failure message is folded, not logged" {
+    # A `\r` reaching the log overwrites the text before it, so the one line
+    # this helper promises becomes an unreadable one on a terminal and in the
+    # Actions log. Progress output that died part way through carries them.
+    fail_with stderr 1 "$(printf 'downloading\rInvalid API key')"
+    run_action
+    [ "$status" -ne 0 ]
+    assert_contains "$output" "Invalid API key"
+    # Both halves survive as text, on one line, with no carriage return left.
+    assert_contains "$output" "downloading Invalid API key"
+    [[ "$output" != *$'\r'* ]]
+}
+
 @test "eval action: a long failure message is bounded and says it was cut" {
     fail_with stderr 1 "$(printf 'x%.0s' $(seq 1 1200))"
     run_action
