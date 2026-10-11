@@ -252,12 +252,12 @@ EOF
     assert_contains "$output" "pass all structural checks"
 }
 
-@test "validate-skills: frontmatter name must match the folder name" {
+@test "validate-skills: a frontmatter name that differs from the folder fails" {
     make_skill "$TREE" good-skill
     make_skill "$TREE" mismatched some-other-name
     run ./bin/validate-skills.sh "$TREE"
     [ "$status" -ne 0 ]
-    assert_contains "$output" "must match the folder name"
+    assert_contains "$output" "the / menu shows that and not the folder"
 }
 
 @test "validate-skills: a missing When to STOP section fails" {
@@ -299,7 +299,8 @@ EOF
 }
 
 @test "validate-skills: a duplicate leaf name across a group fails" {
-    # Skills install FLAT, so two dirs with the same leaf shadow each other.
+    # Personal and project skills share one flat namespace, so two dirs with
+    # the same leaf collide and one of them is simply absent.
     make_skill "$TREE" collide
     mkdir -p "$TREE/group"
     make_skill "$TREE/group" collide
