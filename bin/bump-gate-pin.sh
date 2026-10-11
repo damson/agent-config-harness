@@ -45,6 +45,13 @@ emit() {
     printf '%s=%s\n' "$1" "$2" >> "$GITHUB_OUTPUT"
 }
 
+# `|| true`: grep exits 1 on no match, and under `set -o pipefail` that took
+# the script down before it could say what was wrong, which is the failure this
+# guard exists to report.
+current=$(grep -oE 'agent-config-harness@[0-9a-f]{40}' "$WORKFLOW" | head -1 | cut -d@ -f2 || true)
+[ -n "$current" ] || log_error "No pinned commit found in $(basename "$WORKFLOW")"
+
+
 # The release the gate should run. Resolved from the tag rather than from
 # `target_commitish`, which is a branch name on a release cut from a branch, and
 # a branch name is not a pin.
@@ -61,11 +68,22 @@ if [ -z "$tag" ] || [ -z "$ref" ]; then
     # not due yet. Reporting them as the same thing is what made this trigger
     # a no-op on every release it was supposed to act on.
     if [ -n "${GATE_FOR_COMMIT:-}" ] && [ -z "$tag" ]; then
-        tag=$(gh api "repos/$repo/tags" --paginate \
-                --jq ".[] | select(.commit.sha == \"$GATE_FOR_COMMIT\") | .name" \
-              | head -1) || tag=""
+        # The call and the answer are separated on purpose. Folding them
+        # together (`... | head -1) || tag=""`) makes a 403, a timeout or a 500
+        # arrive as "nothing tags this commit", which is the benign state, so a
+        # dead credential would read as a release not tagged yet and the pin
+        # would sit stale while every run reported success. That is the exact
+        # failure this whole change exists to remove, one level up.
+        if ! matching=$(gh api "repos/$repo/tags" --paginate \
+                          --jq ".[] | select(.commit.sha == \"$GATE_FOR_COMMIT\") | .name"); then
+            log_error "Could not list the tags of $repo, so whether $GATE_FOR_COMMIT is released is unknown. Not reporting that as 'no release yet'."
+        fi
+        tag=$(printf '%s\n' "$matching" | head -1)
         if [ -z "$tag" ]; then
             log_info "Nothing tags $GATE_FOR_COMMIT yet, so there is no release to pin to. The bump happens when the release is published."
+            emit current "$current"
+            emit latest ""
+            emit tag ""
             emit changed false
             exit 0
         fi
@@ -81,12 +99,6 @@ fi
 # point of the pin is that it names one immutable commit of trusted code.
 printf '%s' "$ref" | grep -qE '^[0-9a-f]{40}$' \
     || log_error "Refusing to pin something that is not a full commit sha: $ref"
-
-# `|| true`: grep exits 1 on no match, and under `set -o pipefail` that took
-# the script down before it could say what was wrong, which is the failure this
-# guard exists to report.
-current=$(grep -oE 'agent-config-harness@[0-9a-f]{40}' "$WORKFLOW" | head -1 | cut -d@ -f2 || true)
-[ -n "$current" ] || log_error "No pinned commit found in $(basename "$WORKFLOW")"
 
 emit current "$current"
 emit latest "$ref"
