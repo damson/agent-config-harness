@@ -452,3 +452,35 @@ lock_root() {
     assert_contains "$output" "not on PATH"
     assert_not_contains "$output" "install command failed"
 }
+
+# Coverage, not behaviour: kcov counts every line of an embedded awk program as
+# bash that never ran, and no test can move those lines. The markers tell it
+# otherwise, and this asserts what the markers must cover rather than only that
+# they exist: the awk source inside, the shell that runs it outside.
+@test "coverage markers wrap the awk program and leave the shell around it measured" {
+    local f="$REPO_ROOT/bin/install-external-skills.sh"
+    start=$(grep -n 'kcov-ignore-start' "$f" | head -1 | cut -d: -f1)
+    end=$(grep -n 'kcov-ignore-end' "$f" | head -1 | cut -d: -f1)
+    # One assertion per line: `[ -n "$a" ] && [ -n "$b" ]` does not abort the
+    # test when it fails, so the next line errors on an empty integer and the
+    # report blames the comparison rather than the missing marker.
+    [ -n "$start" ]
+    [ -n "$end" ]
+    [ "$start" -lt "$end" ]
+
+    # The awk program's own lines are inside the region.
+    body=$(grep -n '^[[:space:]]*/\^---\$/ { n++; next }' "$f" | head -1 | cut -d: -f1)
+    [ -n "$body" ]
+    [ "$body" -gt "$start" ]
+    [ "$body" -lt "$end" ]
+
+    # The two shell lines around it are NOT: the assignment that opens the
+    # command substitution, and the line that closes it. A region swallowing
+    # either stops measuring the statement that decides whether awk runs.
+    opens=$(grep -n 'v=\$(awk' "$f" | head -1 | cut -d: -f1)
+    [ -n "$opens" ]
+    [ "$opens" -lt "$start" ]
+    closes=$(awk -v e="$end" 'NR > e && /^[[:space:]]*'\''[[:space:]]*"\$f"\)/ { print NR; exit }' "$f")
+    [ -n "$closes" ]
+    [ "$closes" -gt "$end" ]
+}
