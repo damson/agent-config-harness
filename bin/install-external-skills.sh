@@ -136,11 +136,18 @@ skill_stamp() {
         # awk, not sed: BSD sed has no \| alternation in a basic regex and
         # fails by matching NOTHING, so every stamp silently became the file's
         # mtime and the lock reported today's date for a two-month-old bundle.
+        # The markers wrap the awk program and nothing else: kcov counts every
+        # line of a foreign literal as bash that never ran, and no test can
+        # move them. `#` opens a comment in awk as well, so they sit inside the
+        # quotes; the line that closes the substitution is bash and stays
+        # measured, so a regression in the shell around the program still shows.
         v=$(awk '
+            # kcov-ignore-start
             /^---$/ { n++; next }
             n == 1 && /^[[:space:]]*(last-updated|version):/ {
-                sub(/^[^:]*:[[:space:]]*/, ""); gsub(/["'"'"']/, ""); print; exit
-            }' "$f")
+                sub(/^[^:]*:[[:space:]]*/, ""); gsub(/["'"'"']/, ""); print; exit }
+            # kcov-ignore-end
+            ' "$f")
         if [ -n "$v" ]; then
             printf '%s\n' "$v"
             return 0
