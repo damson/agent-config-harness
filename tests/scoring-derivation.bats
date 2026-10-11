@@ -92,14 +92,38 @@ EOF
     # and which sends the next reader off to write tests for code that seven
     # already cover.
     local lib="$REPO_ROOT/lib/scoring.sh"
-    # The markers wrap the jq program and nothing else: the `if` that runs it
-    # stays measured, so a regression in the bash around the rule still shows.
-    run bash -c "awk '/kcov-ignore-start/{s=NR} /kcov-ignore-end/{print NR-s}' '$lib'"
-    [ "$status" -eq 0 ]
-    [ -n "$output" ]
-    # A region that swallowed the whole function would be far longer than the
-    # program itself.
-    [ "$output" -lt 40 ]
-    grep -q "kcov-ignore-start" "$lib"
-    grep -q "kcov-ignore-end" "$lib"
+    # This asserts WHERE the markers are, not that they exist. A region is only
+    # right if it covers the jq program and neither shell line around it: kcov
+    # excludes its stop line too, so an end marker one line lower stops
+    # measuring the statement that decides whether the rule ran at all.
+    #
+    # One assertion per line: `[ -n "$a" ] && [ -n "$b" ]` does not abort a bats
+    # test when it fails, so the next line errors on an empty integer and the
+    # report blames the comparison rather than the missing marker.
+    start=$(grep -n 'kcov-ignore-start' "$lib" | head -1 | cut -d: -f1)
+    end=$(grep -n 'kcov-ignore-end' "$lib" | head -1 | cut -d: -f1)
+    [ -n "$start" ]
+    [ -n "$end" ]
+    [ "$start" -lt "$end" ]
+
+    # The jq program's own lines are inside the region.
+    body=$(grep -n 'def dim_score' "$lib" | head -1 | cut -d: -f1)
+    [ -n "$body" ]
+    [ "$body" -gt "$start" ]
+    [ "$body" -lt "$end" ]
+
+    # The two shell lines are outside it: the `if` that opens the literal, and
+    # the line that closes it and carries `; then`.
+    opens=$(grep -n 'if ! jq' "$lib" | head -1 | cut -d: -f1)
+    [ -n "$opens" ]
+    [ "$opens" -lt "$start" ]
+    # Anchored on the line that closes THIS literal, not on the next `; then`
+    # anywhere in the file: there are nine of those, so a loose match finds one
+    # below any end marker and passes on the very placement this rejects.
+    closes=$(grep -n "^[[:space:]]*' \"\$file\"" "$lib" | head -1 | cut -d: -f1)
+    [ -n "$closes" ]
+    [ "$closes" -gt "$end" ]
+
+    # And the region still covers only the program, not the function around it.
+    [ $((end - start)) -lt 40 ]
 }

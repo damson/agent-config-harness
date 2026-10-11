@@ -115,10 +115,31 @@ push is what the standing PR actually rests on.
 
 **It is opened with a personal access token, not `GITHUB_TOKEN`.** The reason
 is review, not CI. The workflow reads `RELEASE_PR_TOKEN`, a fine-grained token
-scoped to this repository with *Pull requests: read and write*, so the release
-PR is authored by a person. A step asserts the secret is present before the
-script runs, so an expired token fails loudly on the next merge rather than
-silently ceasing to open releases.
+scoped to this repository, so the release PR is authored by a person. A step
+asserts the token can do the job before the script runs, so a dead or
+under-scoped token fails loudly on the next merge rather than silently ceasing
+to open releases.
+
+`RELEASE_PR_TOKEN` needs three permissions, and the third is the one that gets
+forgotten:
+
+| Permission | Why |
+|---|---|
+| Contents: read and write | pushes the branch the pull request is opened from |
+| Pull requests: read and write | opens and refreshes the pull request itself |
+| Workflows: read and write | `gate-pin.yml` commits `.github/workflows/config-eval.yml`, and GitHub refuses any token-driven push that touches `.github/workflows/` without it |
+
+A classic token spells the third one `workflow`, and **GitHub refuses a push
+missing it with a bare 403 naming no permission**, which reads like a Contents
+problem and is not. Two steps cover that between them:
+
+- the preflight checks Contents directly, and the scope list where a classic
+  token publishes one, so such a token is refused before the job installs
+  anything or runs a test;
+- a fine-grained token publishes no scope list, so nothing can be asserted
+  about Workflows up front. That token reaches the push, and the push step
+  reports its own failure and names the permission, since Contents has already
+  been proved.
 
 **A release PR the Actions app opens is silently never reviewed.** Release PR
 #71 was opened by the delayed scheduled run, before that token change landed,

@@ -50,7 +50,7 @@ What happens when things go wrong:
 | Vendor CLI not on `PATH` | Reported as `tool-missing`, skipped, exit 0 |
 | Install command exits non-zero | Warns with the docs URL, continues to the next provider, exit 0 |
 | `--only <unknown-id>` | Errors and exits non-zero, listing the registered ids |
-| Probe path exists | Counted as installed, **even if the install is stale or partial**. The script has no version check; repair or upgrade with the vendor CLI (see [Refreshing](#refreshing)) |
+| Probe path exists | Counted as present, and reported as `stale` once it is old enough (see [Refreshing](#refreshing)). Age is not a version check: a **partial** install reads as current, and only the vendor CLI can repair one |
 
 The probe is why `--yes` is safe to repeat. It is also why this script cannot add
 a *new* skill from a provider you already have: the probe path is already there,
@@ -122,15 +122,69 @@ the right trade for a bundle with its own update channel.
 
 ## Refreshing
 
-The registry installs; it does not upgrade. Use the vendor CLI:
+**The registry upgrades as well as installs.** It used to only install, leaving
+upgrades to whoever remembered, and that did not work: one bundle in a consuming
+repo ran two months behind, missing five skills the vendor had published and
+still carrying two it had retired, while the status check printed a tick for it
+the whole time.
+
+```bash
+./bin/install-external-skills.sh --list                        # status, with each install's age
+./bin/install-external-skills.sh --yes --refresh               # re-run every installer
+./bin/install-external-skills.sh --yes --refresh --only <id>   # one provider
+```
+
+`--refresh` is what makes an already-installed provider actionable. Without it
+an install is left alone, which is what keeps `just setup` cheap to re-run, and
+a plain `--yes` therefore never reinstalls anything behind your back.
+
+An install older than 30 days reports as `stale` rather than `installed`, both
+from `--list` and from the unattended path `just setup` takes, so the warning
+arrives without anyone remembering to ask for it. `EXTERNAL_SKILLS_STALE_DAYS`
+moves the interval, and a value that is not a whole number of days is refused
+out loud rather than quietly disabling the check.
+
+**Age is the newest file at or just inside the probe, not the probe itself.** A
+directory's mtime changes when an entry is added, renamed or removed, and not
+when a file inside it is overwritten, so an installer that rewrites `SKILL.md`
+in place leaves the directory looking untouched and a bundle refreshed minutes
+ago would report stale for ever.
+
+**Age is a proxy for drift, not drift.** A bundle the vendor has not touched in
+a year is old and correct. For the real answer, ask the vendor:
 
 ```bash
 android skills list          # installed and available
-android skills add --all     # add anything new
-android skills add <id>      # add one
 npx impeccable check         # is a newer version published?
-npx impeccable update
 ```
+
+**One thing refreshing cannot fix.** A skill the vendor has RETIRED is in no
+catalogue any more, so no installer will ever touch it again and no status check
+can see it: it stays on disk at its last version indefinitely. Compare the
+vendor's catalogue against what is installed from time to time, and delete the
+leftovers by hand.
+
+### The lock file
+
+`--lock` records what is installed into `config/external-skills.lock` in the
+consuming repo: one line per provider and one per externally-installed skill,
+each with the best stamp it can offer, which is the skill's own `last-updated`
+or `version` where it has one and the date its directory was written otherwise.
+
+```bash
+./bin/install-external-skills.sh --lock
+```
+
+It exists because an age and a probe can both only answer about now, while a
+committed file answers about change. **A bundle that has stopped moving shows up
+as lines that do not change while their neighbours do**, which is the signal
+that catches a retired skill as well as a frozen one. It is machine-local state
+committed deliberately, the same bargain the benchmark score snapshots make, so
+it is never checked in CI: a runner has no skills directory and would only ever
+report every line missing.
+
+Symlinked entries are skipped. Those belong to the consuming repo and are
+already tracked in git, so recording them would duplicate what a diff shows.
 
 ## Adding a provider
 
