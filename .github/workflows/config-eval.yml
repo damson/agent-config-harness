@@ -126,7 +126,7 @@ jobs:
       # is spelled out rather than assumed.
       - name: Score
         if: success() && steps.preflight.outputs.skipped != 'true'
-        uses: damson/agent-config-harness@95b36c3b9ac8b35d7091a71fd0ab539bade88483 # v1.6.0
+        uses: damson/agent-config-harness@1a2ce08df95b17df4afe1087e003ccb62c05d045 # v1.7.0
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         with:
