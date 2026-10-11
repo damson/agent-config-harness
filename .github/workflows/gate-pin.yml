@@ -43,14 +43,52 @@ jobs:
       # `pull_request` runs, and this repo requires two of them, so such a pull
       # request is permanently unmergeable while reading as merely pending. That
       # lesson cost three hand-pushed commits on the benchmark PR.
-      - name: Check the publishing token is present
+      # Asking what the token may DO, not only whether it exists. A token that
+      # can read and not write passes an emptiness check, and the job then runs
+      # its whole suite before dying at `git push` on a bare 403 that names no
+      # permission. That cost six runs and a wrong first hypothesis.
+      - name: Check the publishing token can do what this job needs
         env:
-          RELEASE_PR_TOKEN: ${{ secrets.RELEASE_PR_TOKEN }}
+          GH_TOKEN: ${{ secrets.RELEASE_PR_TOKEN }}
         run: |
-          if [ -z "$RELEASE_PR_TOKEN" ]; then
-            echo "::error::RELEASE_PR_TOKEN is not set. This opens a pull request, and one opened by Actions never gets the checks this repo requires. The token needs Contents: read and write and Pull requests: read and write."
+          set -euo pipefail
+
+          if [ -z "${GH_TOKEN:-}" ]; then
+            echo "::error::RELEASE_PR_TOKEN is not set. This opens a pull request, and one opened by Actions never gets the checks this repo requires. The token needs Contents: read and write, Pull requests: read and write, and Workflows: read and write, because the commit it pushes changes a file under .github/workflows/."
             exit 1
           fi
+
+          if ! login=$(gh api user --jq .login 2>&1); then
+            echo "::error::RELEASE_PR_TOKEN does not authenticate: ${login}. It is expired, revoked, or not a token at all."
+            exit 1
+          fi
+
+          # `permissions.push` is Contents: read and write under the name the
+          # REST API uses for it.
+          if ! writable=$(gh api "repos/${GITHUB_REPOSITORY}" --jq '.permissions.push' 2>&1); then
+            echo "::error::RELEASE_PR_TOKEN authenticates as ${login} but cannot read ${GITHUB_REPOSITORY}: ${writable}. Check the token's repository access."
+            exit 1
+          fi
+          if [ "$writable" != "true" ]; then
+            echo "::error::RELEASE_PR_TOKEN authenticates as ${login} but has no write access to ${GITHUB_REPOSITORY}. It needs Contents: read and write."
+            exit 1
+          fi
+
+          # Workflows is the permission this job dies on, and only a classic
+          # token publishes its scopes. A fine-grained one exposes nothing
+          # comparable, so this cannot be asserted here: the push step names it
+          # instead, which is why that step reports its own failure.
+          scopes=$(gh api -i user 2>/dev/null | tr -d '\r' \
+                   | awk -F': ' 'tolower($1) == "x-oauth-scopes" { print $2; exit }') || scopes=""
+          if [ -n "$scopes" ]; then
+            case ",${scopes// /}," in
+              *,workflow,*) ;;
+              *) echo "::error::RELEASE_PR_TOKEN is a classic token whose scopes (${scopes}) do not include 'workflow'. This job commits a file under .github/workflows/, which GitHub refuses without it."
+                 exit 1 ;;
+            esac
+          fi
+
+          echo "Token authenticates as ${login} with write access to ${GITHUB_REPOSITORY}."
 
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
@@ -96,7 +134,14 @@ jobs:
 
           Opened by the gate-pin workflow on the promotion of ${TAG}. The suite
           ran against the rewritten workflow before this was pushed."
-          git push -u origin "$branch" --force
+          # Reporting its own failure, because the preflight has already proved
+          # Contents: read and write, which leaves Workflows as the permission a
+          # bare 403 here is about, and GitHub does not say so.
+          if ! push_output=$(git push -u origin "$branch" --force 2>&1); then
+            printf '%s\n' "$push_output"
+            echo "::error::Pushing ${branch} failed. This commit changes .github/workflows/config-eval.yml, and the preflight already confirmed this token can write to the repository, so the permission left is Workflows: read and write on RELEASE_PR_TOKEN ('workflow' on a classic token)."
+            exit 1
+          fi
           existing=$(gh pr list --base develop --head "$branch" --state open --json number --jq '.[0].number // empty')
           body="\`${TAG}\` is out, so the gate should grade pull requests with it rather than with the release before.
 

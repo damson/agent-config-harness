@@ -110,3 +110,116 @@ if bad:
 ' "$REPO_ROOT/.github/workflows/gate-pin.yml"
     [ "$status" -eq 0 ]
 }
+
+# The preflight's job is to answer "can this token do what the push needs",
+# which an emptiness check cannot. These run its real script against a stub
+# `gh`, because a step that only parses is a step nobody has run.
+preflight_script() {
+    require_python_yaml
+    python3 -c '
+import sys, yaml
+steps = yaml.safe_load(open(sys.argv[1]))["jobs"]["bump"]["steps"]
+for s in steps:
+    if "token can do" in s.get("name", ""):
+        sys.stdout.write(s["run"]); break
+else:
+    sys.exit("preflight step not found by name")
+' "$REPO_ROOT/.github/workflows/gate-pin.yml" > "$WORK/preflight.sh"
+}
+
+# $1 = login or empty to fail auth, $2 = permissions.push, $3 = X-OAuth-Scopes
+stub_gh() {
+    mkdir -p "$WORK/bin"
+    printf '%s\n' "$1" > "$WORK/login"
+    printf '%s\n' "$2" > "$WORK/push"
+    printf '%s\n' "$3" > "$WORK/scopes"
+    cat > "$WORK/bin/gh" <<'EOF'
+#!/usr/bin/env bash
+d=$(dirname "$0")/..
+login=$(cat "$d/login"); push=$(cat "$d/push"); scopes=$(cat "$d/scopes")
+case "$*" in
+    *"-i user"*)  [ -n "$scopes" ] && printf 'X-OAuth-Scopes: %s\r\n' "$scopes"; exit 0 ;;
+    *"api user"*) [ -n "$login" ] || { echo "HTTP 401: Bad credentials" >&2; exit 1; }
+                  printf '%s\n' "$login"; exit 0 ;;
+    *permissions*) printf '%s\n' "$push"; exit 0 ;;
+esac
+exit 0
+EOF
+    chmod +x "$WORK/bin/gh"
+}
+
+run_preflight() {
+    run env PATH="$WORK/bin:$PATH" GITHUB_REPOSITORY=damson/agent-config-harness \
+        GH_TOKEN="$1" bash "$WORK/preflight.sh"
+}
+
+@test "gate-pin preflight: a missing token names every permission it needs" {
+    preflight_script
+    stub_gh "" "" ""
+    run_preflight ""
+    [ "$status" -ne 0 ]
+    assert_contains "$output" "Contents: read and write"
+    assert_contains "$output" "Pull requests: read and write"
+    # The one the old message left out, and the one the push actually dies on.
+    assert_contains "$output" "Workflows: read and write"
+}
+
+@test "gate-pin preflight: a token that does not authenticate says so" {
+    preflight_script
+    stub_gh "" "" ""
+    run_preflight "dead-token"
+    [ "$status" -ne 0 ]
+    assert_contains "$output" "does not authenticate"
+}
+
+@test "gate-pin preflight: a read-only token is refused before the suite runs" {
+    preflight_script
+    stub_gh "damson" "false" ""
+    run_preflight "read-only-token"
+    [ "$status" -ne 0 ]
+    assert_contains "$output" "no write access"
+    assert_contains "$output" "Contents: read and write"
+}
+
+@test "gate-pin preflight: a classic token without the workflow scope is refused" {
+    preflight_script
+    stub_gh "damson" "true" "repo, read:org"
+    run_preflight "classic-token"
+    [ "$status" -ne 0 ]
+    assert_contains "$output" "workflow"
+}
+
+@test "gate-pin preflight: a token that can do the job passes" {
+    preflight_script
+    stub_gh "damson" "true" "repo, workflow"
+    run_preflight "good-token"
+    [ "$status" -eq 0 ]
+    assert_contains "$output" "authenticates as damson"
+}
+
+@test "gate-pin preflight: a fine-grained token passes, since its scopes cannot be read" {
+    # No X-OAuth-Scopes header at all. Workflows is not introspectable here, so
+    # the preflight must not invent a verdict; the push step names it instead.
+    preflight_script
+    stub_gh "damson" "true" ""
+    run_preflight "fine-grained-token"
+    [ "$status" -eq 0 ]
+}
+
+@test "gate-pin workflow: the push reports which permission a bare 403 means" {
+    require_python_yaml
+    run python3 -c '
+import sys, yaml
+steps = yaml.safe_load(open(sys.argv[1]))["jobs"]["bump"]["steps"]
+step = [s for s in steps if s.get("name") == "Open or refresh the pull request"][0]
+run = step["run"]
+bad = []
+if "git push" in run and "push_output" not in run:
+    bad.append("the push failure is not captured")
+if "Workflows: read and write" not in run:
+    bad.append("the push failure does not name the Workflows permission")
+if bad:
+    print("; ".join(bad)); sys.exit(1)
+' "$REPO_ROOT/.github/workflows/gate-pin.yml"
+    [ "$status" -eq 0 ]
+}
