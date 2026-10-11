@@ -50,7 +50,7 @@ What happens when things go wrong:
 | Vendor CLI not on `PATH` | Reported as `tool-missing`, skipped, exit 0 |
 | Install command exits non-zero | Warns with the docs URL, continues to the next provider, exit 0 |
 | `--only <unknown-id>` | Errors and exits non-zero, listing the registered ids |
-| Probe path exists | Counted as installed, **even if the install is stale or partial**. The script has no version check; repair or upgrade with the vendor CLI (see [Refreshing](#refreshing)) |
+| Probe path exists | Counted as present, and reported as `stale` once it is old enough (see [Refreshing](#refreshing)). Age is not a version check: a **partial** install reads as current, and only the vendor CLI can repair one |
 
 The probe is why `--yes` is safe to repeat. It is also why this script cannot add
 a *new* skill from a provider you already have: the probe path is already there,
