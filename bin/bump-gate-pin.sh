@@ -17,6 +17,13 @@
 #   GATE_WORKFLOW  file holding the pin (default .github/workflows/config-eval.yml)
 #   GATE_REF       commit to pin to; default is the latest release's commit
 #   GATE_TAG       label for the comment beside it; default is that release's tag
+#   GATE_FOR_COMMIT
+#                  resolve the target from the release tagging THIS commit
+#                  rather than from whichever release is newest. The push to
+#                  main passes the promoted commit, because "latest" there is
+#                  the release BEFORE the one being promoted: comparing against
+#                  it reported the pin as current while it was a release behind,
+#                  so the trigger could never bump anything.
 #
 # Requires: gh (authenticated) unless both GATE_REF and GATE_TAG are given.
 
@@ -32,6 +39,12 @@ DRY_RUN=0
 
 [ -f "$WORKFLOW" ] || log_error "No such workflow: $WORKFLOW"
 
+# Defined before the resolution below, which has one clean exit of its own.
+emit() {
+    [ -n "${GITHUB_OUTPUT:-}" ] || return 0
+    printf '%s=%s\n' "$1" "$2" >> "$GITHUB_OUTPUT"
+}
+
 # The release the gate should run. Resolved from the tag rather than from
 # `target_commitish`, which is a branch name on a release cut from a branch, and
 # a branch name is not a pin.
@@ -40,6 +53,24 @@ ref="${GATE_REF:-}"
 if [ -z "$tag" ] || [ -z "$ref" ]; then
     require gh "brew install gh"
     repo=$(gh repo view --json nameWithOwner --jq .nameWithOwner)
+
+    # Asked for the release that tags one specific commit, answer about that
+    # commit or about nothing. A promotion reaches main before anybody tags it,
+    # so "no tag yet" is the common answer, and it is a different state from
+    # "the pin is already current": the pin is a release behind and the bump is
+    # not due yet. Reporting them as the same thing is what made this trigger
+    # a no-op on every release it was supposed to act on.
+    if [ -n "${GATE_FOR_COMMIT:-}" ] && [ -z "$tag" ]; then
+        tag=$(gh api "repos/$repo/tags" --paginate \
+                --jq ".[] | select(.commit.sha == \"$GATE_FOR_COMMIT\") | .name" \
+              | head -1) || tag=""
+        if [ -z "$tag" ]; then
+            log_info "Nothing tags $GATE_FOR_COMMIT yet, so there is no release to pin to. The bump happens when the release is published."
+            emit changed false
+            exit 0
+        fi
+    fi
+
     [ -n "$tag" ] || tag=$(gh api "repos/$repo/releases/latest" --jq .tag_name) \
         || log_error "Could not read the latest release of $repo"
     [ -n "$ref" ] || ref=$(gh api "repos/$repo/commits/$tag" --jq .sha) \
@@ -57,10 +88,6 @@ printf '%s' "$ref" | grep -qE '^[0-9a-f]{40}$' \
 current=$(grep -oE 'agent-config-harness@[0-9a-f]{40}' "$WORKFLOW" | head -1 | cut -d@ -f2 || true)
 [ -n "$current" ] || log_error "No pinned commit found in $(basename "$WORKFLOW")"
 
-emit() {
-    [ -n "${GITHUB_OUTPUT:-}" ] || return 0
-    printf '%s=%s\n' "$1" "$2" >> "$GITHUB_OUTPUT"
-}
 emit current "$current"
 emit latest "$ref"
 emit tag "$tag"

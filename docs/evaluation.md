@@ -285,6 +285,19 @@ Three more things about it are deliberate:
   pin on `develop`, runs the suite against the rewritten workflow, and opens a
   pull request; it never merges. Before it existed the pin sat four releases
   behind, so pull requests were graded by a rubric the repo no longer shipped.
+- **Each of those three triggers asks about a different release**, and that is
+  deliberate. The push knows the promoted commit and nothing about tags, so it
+  resolves the release tagging that commit; the release event carries its own
+  tag; the cron knows only that time has passed, so it falls back to whichever
+  release is newest. Routing all three through "newest" is what made the push
+  trigger useless: at that moment the newest release is the one *before* the
+  promotion, so it compared the pin against a release the gate already ran and
+  reported success having changed nothing.
+- **A promotion nobody has tagged yet is reported as not due, not as current.**
+  Tagging is a step after the merge, so the usual answer on a push is that no
+  release points at that commit. The job says so and exits, which reads
+  differently from the pin already being up to date, and the published release
+  then does the work.
 - **It is path-filtered, so it must never be a required status check.** GitHub
   holds a required check that never runs as pending forever, which would block
   every pull request outside those paths.
