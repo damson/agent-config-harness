@@ -242,3 +242,115 @@ if bad:
 ' "$REPO_ROOT/.github/workflows/gate-pin.yml"
     [ "$status" -eq 0 ]
 }
+
+# The push to main resolves the release that tags the promoted commit, not the
+# newest release, which at that moment is the one BEFORE it. Routing the push
+# through "latest" made the trigger compare the pin against a release it
+# already ran and report success having done nothing, on every release.
+stub_gh_tags() {
+    # $1 = tag pointing at the commit, or empty for none. $2 = that tag's sha.
+    mkdir -p "$WORK/bin"
+    printf '%s\n' "$1" > "$WORK/tagname"
+    printf '%s\n' "$2" > "$WORK/tagsha"
+    cat > "$WORK/bin/gh" <<'EOF'
+#!/usr/bin/env bash
+d=$(dirname "$0")/..
+case "$*" in
+    *"repo view"*)  printf 'damson/agent-config-harness\n' ;;
+    *"/tags"*)      if [ -f "$d/tagsfail" ]; then
+                        echo "HTTP 403: Bad credentials" >&2; exit 1
+                    fi
+                    t=$(cat "$d/tagname"); [ -n "$t" ] && printf '%s\n' "$t" ;;
+    *"/commits/"*)  cat "$d/tagsha" ;;
+esac
+exit 0
+EOF
+    chmod +x "$WORK/bin/gh"
+}
+
+bump_for_commit() {
+    run env PATH="$WORK/bin:$PATH" GATE_WORKFLOW="$WORK/config-eval.yml" \
+        GITHUB_OUTPUT="$WORK/out" GATE_FOR_COMMIT="$1" ./bin/bump-gate-pin.sh
+}
+
+@test "gate pin: a promotion nothing has tagged yet is not reported as current" {
+    stub_gh_tags "" ""
+    bump_for_commit "$NEW"
+    [ "$status" -eq 0 ]
+    # The distinction that matters: not due yet, rather than already done.
+    assert_contains "$output" "Nothing tags $NEW yet"
+    assert_not_contains "$output" "already runs"
+    grep -q 'changed=false' "$WORK/out"
+    # And the pin is untouched, since there was nothing to move it to.
+    grep -q "agent-config-harness@$OLD" "$WORK/config-eval.yml"
+}
+
+@test "gate pin: a failed tag lookup is an error, never 'no release yet'" {
+    # The two states look identical from the outside and could not be more
+    # different: one means the bump is not due, the other that nobody knows,
+    # and reporting the second as the first leaves the pin stale while every
+    # run says success. That is the bug this whole change removes, so it must
+    # not be reintroduced inside it.
+    stub_gh_tags "" ""
+    : > "$WORK/tagsfail"
+    bump_for_commit "$NEW"
+    [ "$status" -ne 0 ]
+    assert_contains "$output" "Could not list the tags"
+    assert_not_contains "$output" "Nothing tags"
+    # And nothing claims the job finished its comparison. The file may not
+    # exist at all, which is the same answer: no verdict was emitted.
+    if [ -f "$WORK/out" ]; then
+        run grep -q 'changed=' "$WORK/out"
+        [ "$status" -ne 0 ]
+    fi
+}
+
+@test "gate pin: the not-due exit reports the same outputs as every other path" {
+    # A later step reading steps.bump.outputs.current must not see an empty
+    # string just because this exit came early.
+    stub_gh_tags "" ""
+    bump_for_commit "$NEW"
+    [ "$status" -eq 0 ]
+    grep -q "current=$OLD" "$WORK/out"
+    grep -q 'changed=false' "$WORK/out"
+}
+
+@test "gate pin: a promotion that is already tagged bumps to that release" {
+    stub_gh_tags "v9.9.9" "$NEW"
+    bump_for_commit "$NEW"
+    [ "$status" -eq 0 ]
+    assert_contains "$output" "v9.9.9"
+    grep -q 'changed=true' "$WORK/out"
+    grep -q "agent-config-harness@$NEW # v9.9.9" "$WORK/config-eval.yml"
+}
+
+@test "gate pin: a commit that is already the pin stays a quiet no-op" {
+    # The honest "nothing to do", kept distinct from the one above.
+    stub_gh_tags "v1.0.0" "$OLD"
+    bump_for_commit "$OLD"
+    [ "$status" -eq 0 ]
+    assert_contains "$output" "already runs"
+    grep -q 'changed=false' "$WORK/out"
+}
+
+@test "gate-pin workflow: each trigger resolves the release it knows about" {
+    require_python_yaml
+    run python3 -c '
+import sys, yaml
+steps = yaml.safe_load(open(sys.argv[1]))["jobs"]["bump"]["steps"]
+step = [s for s in steps if s.get("id") == "bump"][0]
+env = step.get("env", {})
+bad = []
+if "GATE_FOR_COMMIT" not in env:
+    bad.append("the push does not pass the promoted commit")
+elif "push" not in env["GATE_FOR_COMMIT"] or "github.sha" not in env["GATE_FOR_COMMIT"]:
+    bad.append("GATE_FOR_COMMIT is not the pushed commit, gated on the push event")
+if "GATE_TAG" not in env:
+    bad.append("the release event does not pass its own tag")
+elif "release" not in env["GATE_TAG"]:
+    bad.append("GATE_TAG is not gated on the release event")
+if bad:
+    print("; ".join(bad)); sys.exit(1)
+' "$REPO_ROOT/.github/workflows/gate-pin.yml"
+    [ "$status" -eq 0 ]
+}

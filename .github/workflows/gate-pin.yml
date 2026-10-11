@@ -100,10 +100,18 @@ jobs:
           ref: develop
           token: ${{ secrets.RELEASE_PR_TOKEN }}
 
-      - name: Compare the gate's pin with the latest release
+      # Each trigger resolves the release it actually knows about. The push
+      # knows the promoted commit and nothing about tags, the release event
+      # carries its own tag, and the cron knows only that time has passed, so
+      # it falls back to whichever release is newest. Routing all three through
+      # "latest" is what made the push trigger a permanent no-op: at that
+      # moment "latest" is the release before the one being promoted.
+      - name: Compare the gate's pin with the release this event is about
         id: bump
         env:
           GH_TOKEN: ${{ secrets.RELEASE_PR_TOKEN }}
+          GATE_FOR_COMMIT: ${{ github.event_name == 'push' && github.sha || '' }}
+          GATE_TAG: ${{ github.event_name == 'release' && github.event.release.tag_name || '' }}
         run: ./bin/bump-gate-pin.sh
 
       - name: Install bats and jq
