@@ -129,12 +129,17 @@ forgotten:
 | Pull requests: read and write | opens and refreshes the pull request itself |
 | Workflows: read and write | `gate-pin.yml` commits `.github/workflows/config-eval.yml`, and GitHub refuses any token-driven push that touches `.github/workflows/` without it |
 
-A classic token spells the third one `workflow`. **A token missing it fails at
-`git push` with a bare 403 naming no permission**, after the job has run its
-whole suite, and the message reads like a Contents problem. The preflight checks
-Contents directly and the scope list where a classic token publishes it; a
-fine-grained token exposes nothing comparable, so the push step names the
-permission itself when it fails.
+A classic token spells the third one `workflow`, and **GitHub refuses a push
+missing it with a bare 403 naming no permission**, which reads like a Contents
+problem and is not. Two steps cover that between them:
+
+- the preflight checks Contents directly, and the scope list where a classic
+  token publishes one, so such a token is refused before the job installs
+  anything or runs a test;
+- a fine-grained token publishes no scope list, so nothing can be asserted
+  about Workflows up front. That token reaches the push, and the push step
+  reports its own failure and names the permission, since Contents has already
+  been proved.
 
 **A release PR the Actions app opens is silently never reviewed.** Release PR
 #71 was opened by the delayed scheduled run, before that token change landed,

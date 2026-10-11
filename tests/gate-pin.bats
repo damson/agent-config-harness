@@ -189,6 +189,25 @@ run_preflight() {
     assert_contains "$output" "workflow"
 }
 
+@test "gate-pin preflight: the scope list is matched whatever case it arrives in" {
+    # Rejecting a valid token because a header arrived capitalised is the worst
+    # shape of failure here: it blocks the release bump and blames the token.
+    preflight_script
+    stub_gh "damson" "true" "Repo, WORKFLOW"
+    run_preflight "classic-token-shouting"
+    [ "$status" -eq 0 ]
+    assert_contains "$output" "authenticates as damson"
+}
+
+@test "gate-pin preflight: a scope carrying its own colon does not confuse the parse" {
+    # `read:org` has a colon in it, so splitting the header on every colon
+    # truncates the list and loses the scope that matters.
+    preflight_script
+    stub_gh "damson" "true" "repo, read:org, workflow"
+    run_preflight "classic-token-with-colons"
+    [ "$status" -eq 0 ]
+}
+
 @test "gate-pin preflight: a token that can do the job passes" {
     preflight_script
     stub_gh "damson" "true" "repo, workflow"

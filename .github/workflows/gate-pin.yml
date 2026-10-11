@@ -78,8 +78,12 @@ jobs:
           # token publishes its scopes. A fine-grained one exposes nothing
           # comparable, so this cannot be asserted here: the push step names it
           # instead, which is why that step reports its own failure.
+          #
+          # Lowercased, and split on the first colon only: a scope list holds
+          # colons of its own (`read:org`), and matching a case GitHub happens
+          # to send today would reject a valid token the day it sends another.
           scopes=$(gh api -i user 2>/dev/null | tr -d '\r' \
-                   | awk -F': ' 'tolower($1) == "x-oauth-scopes" { print $2; exit }') || scopes=""
+                   | awk 'tolower($0) ~ /^x-oauth-scopes:/ { sub(/^[^:]*:[[:space:]]*/, ""); print tolower($0); exit }') || scopes=""
           if [ -n "$scopes" ]; then
             case ",${scopes// /}," in
               *,workflow,*) ;;
