@@ -1,0 +1,16 @@
+{
+  "date": "2026-10-12T19:19:07Z",
+  "domain": "user-pers",
+  "git_hash": "1a2ce08",
+  "scores": {
+    "clarity": 5,
+    "conciseness": 4,
+    "completeness": 5,
+    "consistency": 5,
+    "actionability": 4
+  },
+  "total": 23,
+  "percentage": 92,
+  "grade": "A",
+  "rubric_version": 2
+}
