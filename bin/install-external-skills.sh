@@ -130,6 +130,13 @@ mtime_epoch() {
 # The best date a skill directory can offer about itself: what its own
 # frontmatter claims, falling back to when it was written. A vendor that stamps
 # its skills tells you more than a filesystem can.
+#
+# The fallback reads `newest_epoch`, not the directory's own mtime, for the
+# reason given above it: an installer that rewrites SKILL.md in place leaves
+# the directory untouched, so a directory mtime would hold the stamp still
+# across a refresh. The lock exists to show a bundle that has stopped moving as
+# lines that do not change while their neighbours do, and a stamp that cannot
+# move makes a refreshed bundle read exactly like an abandoned one.
 skill_stamp() {
     local f="$1/SKILL.md" v m
     if [ -f "$f" ]; then
@@ -153,7 +160,7 @@ skill_stamp() {
             return 0
         fi
     fi
-    m=$(mtime_epoch "$1") || m=""
+    m=$(newest_epoch "$1") || m=""
     if [ -z "$m" ]; then
         printf 'unknown\n'
         return 0
@@ -203,7 +210,7 @@ write_lock() {
         printf '# Machine-local, committed deliberately: a bundle that has stopped moving\n'
         printf '# shows up here as lines that do not change while their neighbours do.\n'
         printf '# A stamp is the skill'"'"'s own last-updated or version where it has one,\n'
-        printf '# otherwise the date its directory was written.\n'
+        printf '# otherwise the date of the newest file at or just inside it.\n'
         printf '#\n'
         LC_ALL=C sort -u "$body"
     } > "$out"

@@ -169,7 +169,10 @@ leftovers by hand.
 `--lock` records what is installed into `config/external-skills.lock` in the
 consuming repo: one line per provider and one per externally-installed skill,
 each with the best stamp it can offer, which is the skill's own `last-updated`
-or `version` where it has one and the date its directory was written otherwise.
+or `version` where it has one, and otherwise the date of the newest file at or
+just inside the skill's directory. Not the directory's own date: that does not
+move when an installer rewrites a file in place, so it would hold a stamp still
+across the very refresh this file exists to show.
 
 ```bash
 ./bin/install-external-skills.sh --lock

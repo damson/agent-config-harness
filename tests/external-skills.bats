@@ -484,3 +484,32 @@ lock_root() {
     [ -n "$closes" ]
     [ "$closes" -gt "$end" ]
 }
+
+@test "--lock: a refresh in place moves the stamp, which a directory mtime cannot" {
+    # The failure this guards is silent and the wrong way round: the lock exists
+    # to show a bundle that has stopped moving as lines that do not change, so a
+    # stamp that cannot move makes a REFRESHED bundle read like an abandoned one.
+    #
+    # A directory's mtime moves when an entry is added, renamed or removed, and
+    # not when a file in it is overwritten. So: create the file, age both, then
+    # rewrite the file in place. The directory stays old; the file is new.
+    lock_root
+    . lib/common.sh
+    probe="$(get_external_probe impeccable)"
+    mkdir -p "$probe"
+    printf 'body with no frontmatter stamp\n' >"$probe/SKILL.md"
+    touch -t 202001010000 "$probe/SKILL.md" "$probe"
+    old_dir=$(stat -c %Y "$probe" 2>/dev/null || stat -f %m "$probe")
+
+    printf 'rewritten in place by the vendor installer\n' >"$probe/SKILL.md"
+    new_dir=$(stat -c %Y "$probe" 2>/dev/null || stat -f %m "$probe")
+    # The premise, asserted rather than assumed: if the rewrite moved the
+    # directory too, this test proves nothing and must say so instead of passing.
+    [ "$old_dir" = "$new_dir" ]
+
+    run ./bin/install-external-skills.sh --lock </dev/null
+    [ "$status" -eq 0 ]
+    run grep '^provider impeccable' "$LOCK_ROOT/config/external-skills.lock"
+    assert_not_contains "$output" "2020-01-01"
+    assert_contains "$output" "$(date +%Y-%m-%d)"
+}
