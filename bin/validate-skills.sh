@@ -11,11 +11,12 @@
 # skill that works and is not the skill you wrote. `name:` is optional and
 # sets the command the `/` menu shows, while the folder name goes on invoking
 # the skill too, so a mismatch lists it under a name its directory never shows
-# and gives up that name entirely to any command already holding it. An omitted
-# `description:` falls back to the first non-empty line of the body, so the
-# trigger is whatever that line happens to say; what an empty one does instead
-# is documented nowhere. A missing `## When to STOP` removes what stops a skill
-# firing on work it should decline. And a duplicate leaf name collides for
+# and may lose that name to a command already holding it, since which of the
+# two wins depends on where each came from. An omitted `description:` falls
+# back to the first non-empty line of the body, so the trigger is whatever that
+# line happens to say; what an empty one does instead is documented nowhere.
+# A missing `## When to STOP` removes what stops a skill firing on work it
+# should decline. And a duplicate leaf name collides for
 # personal and project skills, which share one flat namespace and resolve by
 # priority, leaving the loser simply absent; plugin skills are namespaced
 # `plugin:skill` and do not collide. See https://code.claude.com/docs/en/skills .
