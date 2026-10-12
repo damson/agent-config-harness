@@ -81,7 +81,11 @@ fi
 # and NOT when a file inside it is overwritten. An installer that rewrites
 # SKILL.md in place therefore leaves the probe directory looking untouched, and
 # a bundle refreshed five minutes ago goes on reporting stale for ever. Depth is
-# bounded because this runs on every status check and a skills tree can be big.
+# bounded because this runs on every status check and a skills tree can be big,
+# and the cost of that bound is worth naming: a refresh that touches only a file
+# three or more levels down is invisible here. The directory's own mtime is the
+# floor and not a fallback, because removing or renaming an entry moves the
+# directory and no file, and a files-only maximum would call that untouched.
 newest_epoch() {
     local best entry m
     best=$(mtime_epoch "$1") || best=0

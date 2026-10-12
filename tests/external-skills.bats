@@ -500,16 +500,51 @@ lock_root() {
     printf 'body with no frontmatter stamp\n' >"$probe/SKILL.md"
     touch -t 202001010000 "$probe/SKILL.md" "$probe"
     old_dir=$(stat -c %Y "$probe" 2>/dev/null || stat -f %m "$probe")
+    # Non-empty first: with both stat spellings failing, the comparison below
+    # would be "" = "" and pass while proving nothing.
+    [ -n "$old_dir" ]
 
     printf 'rewritten in place by the vendor installer\n' >"$probe/SKILL.md"
     new_dir=$(stat -c %Y "$probe" 2>/dev/null || stat -f %m "$probe")
+    [ -n "$new_dir" ]
     # The premise, asserted rather than assumed: if the rewrite moved the
     # directory too, this test proves nothing and must say so instead of passing.
     [ "$old_dir" = "$new_dir" ]
+
+    # The expected date comes from the file's own mtime, converted the way the
+    # script converts it. Asserting on `date +%Y-%m-%d` instead would compare a
+    # stamp made before midnight against a date read after it.
+    file_epoch=$(stat -c %Y "$probe/SKILL.md" 2>/dev/null || stat -f %m "$probe/SKILL.md")
+    expected=$(date -d "@$file_epoch" +%Y-%m-%d 2>/dev/null || date -r "$file_epoch" +%Y-%m-%d)
 
     run ./bin/install-external-skills.sh --lock </dev/null
     [ "$status" -eq 0 ]
     run grep '^provider impeccable' "$LOCK_ROOT/config/external-skills.lock"
     assert_not_contains "$output" "2020-01-01"
-    assert_contains "$output" "$(date +%Y-%m-%d)"
+    assert_contains "$output" "$expected"
+}
+
+@test "--lock: a deletion moves the stamp, which is why the directory counts too" {
+    # `newest_epoch` starts from the directory's own mtime and raises it from
+    # the files. That floor is load-bearing rather than incidental: removing or
+    # renaming an entry moves the DIRECTORY and no file, so a files-only
+    # maximum would report a bundle that lost a skill seconds ago as untouched.
+    # Without this test, dropping the floor passes the suite.
+    lock_root
+    . lib/common.sh
+    probe="$(get_external_probe impeccable)"
+    mkdir -p "$probe"
+    printf 'body with no frontmatter stamp\n' >"$probe/SKILL.md"
+    printf 'a skill the vendor later retires\n' >"$probe/RETIRED.md"
+    touch -t 202001010000 "$probe/SKILL.md" "$probe/RETIRED.md" "$probe"
+
+    rm "$probe/RETIRED.md"          # moves the directory, no surviving file
+    survivor=$(stat -c %Y "$probe/SKILL.md" 2>/dev/null || stat -f %m "$probe/SKILL.md")
+    expected=$(date -d "@$survivor" +%Y-%m-%d 2>/dev/null || date -r "$survivor" +%Y-%m-%d)
+    [ "$expected" = "2020-01-01" ]  # every remaining file is still old
+
+    run ./bin/install-external-skills.sh --lock </dev/null
+    [ "$status" -eq 0 ]
+    run grep '^provider impeccable' "$LOCK_ROOT/config/external-skills.lock"
+    assert_not_contains "$output" "2020-01-01"
 }
