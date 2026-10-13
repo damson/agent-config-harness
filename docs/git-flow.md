@@ -97,6 +97,12 @@ warning, which was survivable weekly and is not now the refresh runs on every
 merge. A description with no such heading in it, hand-rewritten from scratch,
 is kept whole and the block appended.
 
+**The refresh rewrites the inventory and never the title.** Release #107 still
+read "6 commits from develop" with twenty-three listed in the inventory below
+it, because the script only edits the body. Retitle by hand before promoting: on a merge commit the title is what the
+Releases page and every later reader see, and a wrong count there is the first
+thing they read.
+
 **Why a push rather than a schedule.** A `schedule` is best-effort, and the
 delay it is allowed is unbounded in practice. On the first Monday this workflow
 was eligible, the 09:00 UTC run started at **14:30 UTC**, five and a half hours
@@ -128,6 +134,14 @@ forgotten:
 | Contents: read and write | pushes the branch the pull request is opened from |
 | Pull requests: read and write | opens and refreshes the pull request itself |
 | Workflows: read and write | `gate-pin.yml` commits `.github/workflows/config-eval.yml`, and GitHub refuses any token-driven push that touches `.github/workflows/` without it |
+
+**A review can happen and still not cover the head.** CodeRabbit's summary
+carries a watermark, `Merge Risk: ... up to <sha>`, and that sha is how far it
+read. On release #116 it said "No actionable comments" with the watermark on
+the pin bump, four commits below the head, so everything #117 added was
+reviewed on its own pull request and not on that one. That is what a
+promotion claims, so it is not a gap, but read the watermark before reporting a
+release PR as reviewed: the colour and the sentence are both green either way.
 
 A classic token spells the third one `workflow`, and **GitHub refuses a push
 missing it with a bare 403 naming no permission**, which reads like a Contents

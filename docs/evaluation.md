@@ -131,6 +131,13 @@ including the shape `degraded.md` produces.
 Every result and score record carries `rubric_version`, stamped by the harness
 rather than asked of the model, and `just benchmark` shows it as a column.
 
+**A record does not carry the files it scored.** It holds the domain, the
+rubric version and the numbers, so what a domain covered on a given date comes
+from `config/domains.conf` as it stood then, not from the record. Three of the six
+domains score a `CLAUDE.md` alone, `mobile` scores three files together, and
+`user-pers` and `repo-docs` score no `CLAUDE.md` at all, so a total compared across a
+registry edit is comparing two different questions.
+
 | Version | Rubric |
 |---|---|
 | 1 | five gestalt judgements, anchored only at 5, 3 and 1 (still used by `skill-quality.md`) |
