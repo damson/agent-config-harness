@@ -1,0 +1,16 @@
+{
+  "date": "2026-10-12T19:19:07Z",
+  "domain": "repo-docs",
+  "git_hash": "1a2ce08",
+  "scores": {
+    "clarity": 4,
+    "conciseness": 5,
+    "completeness": 4,
+    "consistency": 2,
+    "actionability": 5
+  },
+  "total": 20,
+  "percentage": 80,
+  "grade": "B",
+  "rubric_version": 2
+}
