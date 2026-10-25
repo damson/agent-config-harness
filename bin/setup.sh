@@ -120,16 +120,46 @@ fi
 # A domain's CLAUDE.md auto-loads when the working directory is inside its
 # workspace folder. Driven by the registry, so adding a domain needs no edit
 # here — only a line in config/domains.conf.
+#
+# Every top-level file the domain registers is linked beside its CLAUDE.md, so
+# a relative link from that CLAUDE.md (to a guide, a gotchas file) resolves at
+# the linked path and not only inside this repo. A file under a subfolder
+# (`project/CLAUDE.md`) is a mirror of a project's own file, not something the
+# layer routes to, and stays unlinked. Each alias folder gets the same links as
+# the canonical one, so a project kept under an alias loads the domain too.
 for _domain in $(list_domains); do
     _ws=$(get_domain_workspace "$_domain")          # canonical subdir, e.g. workspace/mobile
     case "$_ws" in workspace/*) ;; *) continue ;; esac   # skip non-workspace domains
     [ -f "$REPO_ROOT/$_ws/CLAUDE.md" ] || continue
-    _leaf=${_ws#workspace/}
-    mkdir -p "$HOME/workspace/$_leaf"
-    link_file "$REPO_ROOT/$_ws/CLAUDE.md" "$HOME/workspace/$_leaf/CLAUDE.md"
-    log_ok "Linked $_domain layer → ~/workspace/$_leaf/CLAUDE.md"
+    while IFS= read -r _target; do
+        case "$_target" in workspace/*) ;; *) continue ;; esac
+        _leaf=${_target#workspace/}
+        mkdir -p "$HOME/workspace/$_leaf"
+        link_file "$REPO_ROOT/$_ws/CLAUDE.md" "$HOME/workspace/$_leaf/CLAUDE.md"
+        while IFS= read -r _f; do
+            case "$_f" in ""|CLAUDE.md|*/*) continue ;; esac
+            [ -f "$REPO_ROOT/$_ws/$_f" ] || continue
+            link_file "$REPO_ROOT/$_ws/$_f" "$HOME/workspace/$_leaf/$_f"
+        done < <(get_domain_files "$_domain")
+        log_ok "Linked $_domain layer → ~/workspace/$_leaf/"
+    done < <(get_domain_workspaces "$_domain")
 done
-unset _domain _ws _leaf
+unset _domain _ws _target _leaf _f
+
+# ── 1c. ~/docs, so the layers' links into docs/ resolve ───
+# ~/.claude/ and ~/workspace/<domain>/ sit at the same depth below $HOME as
+# user-dev/ and workspace/<domain>/ sit below the repo, so every `../docs/…`
+# and `../../docs/…` link in a linked file lands on ~/docs. A real ~/docs is the
+# user's own and is never moved: it is reported, and those links stay broken.
+if [ -d "$REPO_ROOT/docs" ]; then
+    if [ -e "$HOME/docs" ] && [ ! -L "$HOME/docs" ]; then
+        log_warn "~/docs exists and is not a link; links from the config into docs/ will not resolve"
+    else
+        refuse_foreign_link "$HOME/docs"
+        ln -sfn "$REPO_ROOT/docs" "$HOME/docs"
+        log_ok "Linked docs → ~/docs"
+    fi
+fi
 
 # ── 2. Skills (every directory under user-dev/skills/) ────
 mkdir -p "$HOME/.claude/skills"

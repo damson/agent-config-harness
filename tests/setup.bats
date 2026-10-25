@@ -45,6 +45,46 @@ teardown() {
     [ -e "$HOME/workspace/mobile/CLAUDE.md" ]   # resolves
 }
 
+@test "setup: links a domain's other top-level files beside its CLAUDE.md" {
+    ./bin/setup.sh >/dev/null
+    [ "$(readlink "$HOME/workspace/mobile/.cursorrules")" = "$REPO_ROOT/workspace/mobile/.cursorrules" ]
+    [ -e "$HOME/workspace/mobile/.cursorrules" ]
+}
+
+@test "setup: leaves a registered file under a subfolder unlinked" {
+    ./bin/setup.sh >/dev/null
+    [ ! -e "$HOME/workspace/mobile/project/CLAUDE.md" ]
+}
+
+@test "setup: links the domain into each alias folder too" {
+    ./bin/setup.sh >/dev/null
+    [ "$(readlink "$HOME/workspace/web/CLAUDE.md")" = "$REPO_ROOT/workspace/web-react/CLAUDE.md" ]
+    [ "$(readlink "$HOME/workspace/web-react/CLAUDE.md")" = "$REPO_ROOT/workspace/web-react/CLAUDE.md" ]
+}
+
+@test "setup: links ~/docs to the repo's docs" {
+    ./bin/setup.sh >/dev/null
+    [ "$(readlink "$HOME/docs")" = "$REPO_ROOT/docs" ]
+    [ -e "$HOME/docs/external-skills.md" ]
+}
+
+@test "setup: a relative link into docs/ resolves from the linked global CLAUDE.md" {
+    ./bin/setup.sh >/dev/null
+    # ~/.claude/../docs is where a `../docs/x.md` link written in user-dev/ lands
+    [ -e "$HOME/.claude/../docs/external-skills.md" ]
+}
+
+@test "setup: never moves a real ~/docs directory" {
+    mkdir -p "$HOME/docs"
+    echo mine > "$HOME/docs/notes.md"
+    run ./bin/setup.sh
+    [ "$status" -eq 0 ]
+    [ ! -L "$HOME/docs" ]
+    [ "$(cat "$HOME/docs/notes.md")" = mine ]
+    [[ "$output" == *"~/docs exists and is not a link"* ]]
+    [ -z "$(find "$HOME" -maxdepth 1 -name 'docs.bak.*')" ]
+}
+
 @test "setup: backs up a pre-existing real file before linking over it" {
     mkdir -p "$HOME/.claude"
     printf 'my own config\n' > "$HOME/.claude/CLAUDE.md"
