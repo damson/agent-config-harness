@@ -91,6 +91,21 @@ link_file() {
     ln -sf "$src" "$dest"
 }
 
+# Link only where nothing of the user's is in the way: an absent path, or a
+# link this repo already owns. Anything else is reported and left alone, which
+# is the rule for a place setup does not own (an alias folder, $HOME itself),
+# where link_file's backup would move the user's own file aside.
+link_if_free() {
+    local src="$1" dest="$2"
+    if [ -e "$dest" ] || [ -L "$dest" ]; then
+        if ! link_is_owned "$dest"; then
+            log_warn "$dest is not this repo's; left as it is"
+            return 0
+        fi
+    fi
+    ln -sfn "$src" "$dest"
+}
+
 # ── 1. Global links (user-dev = developer, user-pers = personal identity) ──
 mkdir -p "$HOME/.claude"
 
@@ -134,28 +149,36 @@ for _domain in $(list_domains); do
     while IFS= read -r _target; do
         case "$_target" in workspace/*) ;; *) continue ;; esac
         _leaf=${_target#workspace/}
+        # One level only: a link written for workspace/<domain>/ assumes that
+        # depth, and `..` would place the links outside ~/workspace/.
+        case "$_leaf" in ""|*/*|..|.) log_warn "skipped $_target: not a folder directly under workspace/"; continue ;; esac
+        # The canonical folder is setup's own; an alias folder is where the
+        # user keeps projects, so nothing of theirs there is moved.
+        if [ "$_target" = "$_ws" ]; then _link=link_file; else _link=link_if_free; fi
         mkdir -p "$HOME/workspace/$_leaf"
-        link_file "$REPO_ROOT/$_ws/CLAUDE.md" "$HOME/workspace/$_leaf/CLAUDE.md"
+        "$_link" "$REPO_ROOT/$_ws/CLAUDE.md" "$HOME/workspace/$_leaf/CLAUDE.md"
         while IFS= read -r _f; do
             case "$_f" in ""|CLAUDE.md|*/*) continue ;; esac
             [ -f "$REPO_ROOT/$_ws/$_f" ] || continue
-            link_file "$REPO_ROOT/$_ws/$_f" "$HOME/workspace/$_leaf/$_f"
+            "$_link" "$REPO_ROOT/$_ws/$_f" "$HOME/workspace/$_leaf/$_f"
         done < <(get_domain_files "$_domain")
         log_ok "Linked $_domain layer → ~/workspace/$_leaf/"
     done < <(get_domain_workspaces "$_domain")
 done
-unset _domain _ws _target _leaf _f
+unset _domain _ws _target _leaf _f _link
 
 # ── 1c. ~/docs, so the layers' links into docs/ resolve ───
 # ~/.claude/ and ~/workspace/<domain>/ sit at the same depth below $HOME as
 # user-dev/ and workspace/<domain>/ sit below the repo, so every `../docs/…`
-# and `../../docs/…` link in a linked file lands on ~/docs. A real ~/docs is the
-# user's own and is never moved: it is reported, and those links stay broken.
+# and `../../docs/…` link in a linked file lands on ~/docs. Anything already at
+# ~/docs that is not this repo's link is the user's, and is never moved or
+# repointed: it is reported, and those links stay broken.
 if [ -d "$REPO_ROOT/docs" ]; then
-    if [ -e "$HOME/docs" ] && [ ! -L "$HOME/docs" ]; then
-        log_warn "$HOME/docs exists and is not a link; links from the config into docs/ will not resolve"
+    if { [ -e "$HOME/docs" ] || [ -L "$HOME/docs" ]; } && ! link_is_owned "$HOME/docs"; then
+        log_warn "$HOME/docs exists and is not this repo's link; links from the config into docs/ will not resolve"
     else
-        refuse_foreign_link "$HOME/docs"
+        # -n: on a rerun ~/docs is a link to a directory, and without it ln
+        # would write a second link inside the repo's docs/
         ln -sfn "$REPO_ROOT/docs" "$HOME/docs"
         log_ok "Linked docs → ~/docs"
     fi

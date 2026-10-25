@@ -62,10 +62,31 @@ teardown() {
     [ "$(readlink "$HOME/workspace/web-react/CLAUDE.md")" = "$REPO_ROOT/workspace/web-react/CLAUDE.md" ]
 }
 
-@test "setup: links ~/docs to the repo's docs" {
+@test "setup: links ~/docs to the repo's docs, and a rerun writes nothing inside it" {
+    ./bin/setup.sh >/dev/null
     ./bin/setup.sh >/dev/null
     [ "$(readlink "$HOME/docs")" = "$REPO_ROOT/docs" ]
     [ -e "$HOME/docs/external-skills.md" ]
+    [ ! -e "$REPO_ROOT/docs/docs" ]
+}
+
+@test "setup: leaves a ~/docs link that points elsewhere, and still finishes" {
+    mkdir -p "$HOME/elsewhere"
+    ln -s "$HOME/elsewhere" "$HOME/docs"
+    run ./bin/setup.sh
+    [ "$status" -eq 0 ]
+    [ "$(readlink "$HOME/docs")" = "$HOME/elsewhere" ]
+    [ -L "$HOME/.claude/skills/$(basename "$(list_skill_paths | head -1)")" ]
+}
+
+@test "setup: never moves a real file in an alias folder" {
+    mkdir -p "$HOME/workspace/web"
+    echo mine > "$HOME/workspace/web/CLAUDE.md"
+    run ./bin/setup.sh
+    [ "$status" -eq 0 ]
+    [ ! -L "$HOME/workspace/web/CLAUDE.md" ]
+    [ "$(cat "$HOME/workspace/web/CLAUDE.md")" = mine ]
+    [ -z "$(find "$HOME/workspace/web" -name 'CLAUDE.md.bak.*')" ]
 }
 
 @test "setup: a relative link into docs/ resolves from the linked global CLAUDE.md" {
@@ -86,7 +107,7 @@ teardown() {
     [ ! -e "$HOME/docs/docs" ]
     [ -z "$(find "$HOME" -maxdepth 1 -name 'docs.bak.*')" ]
     # `[[ ]]` cannot fail a bats test on bash 3.2 unless it is the last command
-    echo "$output" | grep -qF "$HOME/docs exists and is not a link"
+    echo "$output" | grep -qF "$HOME/docs exists and is not this repo's link"
 }
 
 @test "setup: backs up a pre-existing real file before linking over it" {
