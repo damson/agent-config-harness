@@ -138,6 +138,12 @@ domains score a `CLAUDE.md` alone, `mobile` scores three files together, and
 `user-pers` and `repo-docs` score no `CLAUDE.md` at all, so a total compared across a
 registry edit is comparing two different questions.
 
+**And the registry is an upper bound, not the answer.** `evals/run-eval.sh`
+appends a configured file to the prompt only when it exists on disk, and has no
+else branch, so a path that was missing on the day was skipped and neither the
+record nor the run says which. Coverage is the registry intersected with the
+files actually present in the mapped workspace.
+
 | Version | Rubric |
 |---|---|
 | 1 | five gestalt judgements, anchored only at 5, 3 and 1 (still used by `skill-quality.md`) |
