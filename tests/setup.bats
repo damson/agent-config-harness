@@ -86,7 +86,7 @@ teardown() {
     [ ! -e "$HOME/docs/docs" ]
     [ -z "$(find "$HOME" -maxdepth 1 -name 'docs.bak.*')" ]
     # `[[ ]]` cannot fail a bats test on bash 3.2 unless it is the last command
-    echo "$output" | grep -qF '~/docs exists and is not a link'
+    echo "$output" | grep -qF "$HOME/docs exists and is not a link"
 }
 
 @test "setup: backs up a pre-existing real file before linking over it" {

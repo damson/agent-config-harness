@@ -153,7 +153,7 @@ unset _domain _ws _target _leaf _f
 # user's own and is never moved: it is reported, and those links stay broken.
 if [ -d "$REPO_ROOT/docs" ]; then
     if [ -e "$HOME/docs" ] && [ ! -L "$HOME/docs" ]; then
-        log_warn "~/docs exists and is not a link; links from the config into docs/ will not resolve"
+        log_warn "$HOME/docs exists and is not a link; links from the config into docs/ will not resolve"
     else
         refuse_foreign_link "$HOME/docs"
         ln -sfn "$REPO_ROOT/docs" "$HOME/docs"
