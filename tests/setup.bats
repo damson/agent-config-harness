@@ -81,8 +81,12 @@ teardown() {
     [ "$status" -eq 0 ]
     [ ! -L "$HOME/docs" ]
     [ "$(cat "$HOME/docs/notes.md")" = mine ]
-    [[ "$output" == *"~/docs exists and is not a link"* ]]
+    # nothing written into the user's folder either: `ln` onto a real
+    # directory puts the link inside it
+    [ ! -e "$HOME/docs/docs" ]
     [ -z "$(find "$HOME" -maxdepth 1 -name 'docs.bak.*')" ]
+    # `[[ ]]` cannot fail a bats test on bash 3.2 unless it is the last command
+    echo "$output" | grep -qF '~/docs exists and is not a link'
 }
 
 @test "setup: backs up a pre-existing real file before linking over it" {
