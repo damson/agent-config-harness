@@ -45,6 +45,71 @@ teardown() {
     [ -e "$HOME/workspace/mobile/CLAUDE.md" ]   # resolves
 }
 
+@test "setup: links a domain's other top-level files beside its CLAUDE.md" {
+    ./bin/setup.sh >/dev/null
+    [ "$(readlink "$HOME/workspace/mobile/.cursorrules")" = "$REPO_ROOT/workspace/mobile/.cursorrules" ]
+    [ -e "$HOME/workspace/mobile/.cursorrules" ]
+}
+
+@test "setup: leaves a registered file under a subfolder unlinked" {
+    ./bin/setup.sh >/dev/null
+    [ ! -e "$HOME/workspace/mobile/project/CLAUDE.md" ]
+}
+
+@test "setup: links the domain into each alias folder too" {
+    ./bin/setup.sh >/dev/null
+    [ "$(readlink "$HOME/workspace/web/CLAUDE.md")" = "$REPO_ROOT/workspace/web-react/CLAUDE.md" ]
+    [ "$(readlink "$HOME/workspace/web-react/CLAUDE.md")" = "$REPO_ROOT/workspace/web-react/CLAUDE.md" ]
+}
+
+@test "setup: links ~/docs to the repo's docs, and a rerun writes nothing inside it" {
+    ./bin/setup.sh >/dev/null
+    ./bin/setup.sh >/dev/null
+    [ "$(readlink "$HOME/docs")" = "$REPO_ROOT/docs" ]
+    [ -e "$HOME/docs/external-skills.md" ]
+    [ ! -e "$REPO_ROOT/docs/docs" ]
+}
+
+@test "setup: leaves a ~/docs link that points elsewhere, and still finishes" {
+    mkdir -p "$HOME/elsewhere"
+    ln -s "$HOME/elsewhere" "$HOME/docs"
+    run ./bin/setup.sh
+    [ "$status" -eq 0 ]
+    [ "$(readlink "$HOME/docs")" = "$HOME/elsewhere" ]
+    [ -L "$HOME/.claude/skills/$(basename "$(list_skill_paths | head -1)")" ]
+}
+
+@test "setup: never moves a real file in an alias folder" {
+    mkdir -p "$HOME/workspace/web"
+    echo mine > "$HOME/workspace/web/CLAUDE.md"
+    run ./bin/setup.sh
+    [ "$status" -eq 0 ]
+    [ ! -L "$HOME/workspace/web/CLAUDE.md" ]
+    [ "$(cat "$HOME/workspace/web/CLAUDE.md")" = mine ]
+    [ -z "$(find "$HOME/workspace/web" -name 'CLAUDE.md.bak.*')" ]
+}
+
+@test "setup: a relative link into docs/ resolves from the linked global CLAUDE.md" {
+    ./bin/setup.sh >/dev/null
+    # ~/.claude/../docs is where a `../docs/x.md` link written in user-dev/ lands
+    [ -e "$HOME/.claude/../docs/external-skills.md" ]
+}
+
+@test "setup: never moves a real ~/docs directory" {
+    mkdir -p "$HOME/docs"
+    echo mine > "$HOME/docs/notes.md"
+    run ./bin/setup.sh
+    [ "$status" -eq 0 ]
+    [ ! -L "$HOME/docs" ]
+    [ "$(cat "$HOME/docs/notes.md")" = mine ]
+    # nothing written into the user's folder either: `ln` onto a real
+    # directory puts the link inside it
+    [ ! -e "$HOME/docs/docs" ]
+    [ -z "$(find "$HOME" -maxdepth 1 -name 'docs.bak.*')" ]
+    # `[[ ]]` cannot fail a bats test on bash 3.2 unless it is the last command
+    echo "$output" | grep -qF "$HOME/docs exists and is not this repo's link"
+}
+
 @test "setup: backs up a pre-existing real file before linking over it" {
     mkdir -p "$HOME/.claude"
     printf 'my own config\n' > "$HOME/.claude/CLAUDE.md"
