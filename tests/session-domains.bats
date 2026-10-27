@@ -91,6 +91,22 @@ make_project() {
     [ -z "$output" ]
 }
 
+@test "session-domains: the right file name with none of the domain's content is no match" {
+    p=$(make_project lodash)
+    printf '{ "dependencies": { "lodash": "4.17.21" } }\n' > "$p/package.json"
+    hook_in "$p"
+    [ "$status" -eq 0 ]
+    [ -z "$output" ]
+}
+
+@test "session-domains: a dot in a glob matches only a dot" {
+    p=$(make_project lookalike)
+    printf 'plugins { id("com.android.application") }\n' > "$p/buildXgradle.kts"
+    hook_in "$p"
+    [ "$status" -eq 0 ]
+    [ -z "$output" ]
+}
+
 @test "session-domains: a project matching nothing prints nothing" {
     p=$(make_project plain)
     printf 'hello\n' > "$p/README.md"
