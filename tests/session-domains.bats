@@ -62,6 +62,25 @@ make_project() {
     assert_not_contains "$output" "web-react"
 }
 
+@test "session-domains: a monorepo's package is found two folders down" {
+    p=$(make_project mono)
+    mkdir -p "$p/apps/web"
+    printf '{ "workspaces": ["apps/*"] }\n' > "$p/package.json"
+    printf '{ "dependencies": { "next": "16.0.0" } }\n' > "$p/apps/web/package.json"
+    hook_in "$p"
+    assert_contains "$output" "- web-react:"
+}
+
+@test "session-domains: a monorepo with a web app and a React Native app names both" {
+    p=$(make_project both)
+    mkdir -p "$p/apps/web" "$p/apps/mobile"
+    printf '{ "dependencies": { "next": "16.0.0", "react": "19.0.0" } }\n' > "$p/apps/web/package.json"
+    printf '{ "dependencies": { "react": "19.0.0", "expo": "54.0.0" } }\n' > "$p/apps/mobile/package.json"
+    hook_in "$p"
+    assert_contains "$output" "- web-react:"
+    assert_contains "$output" "- mobile:"
+}
+
 @test "session-domains: a file under node_modules is not a signal" {
     p=$(make_project deps)
     # within the search depth, so only the node_modules exclusion keeps it out
@@ -82,12 +101,23 @@ make_project() {
 
 @test "session-domains: a session already inside the domain's folder is not told again" {
     mkdir -p "$HOME/workspace/mobile/inside"
+    printf '# mobile\n' > "$HOME/workspace/mobile/CLAUDE.md"
     p="$HOME/workspace/mobile/inside"
     ( cd "$p" && git init -q . )
     printf 'plugins { id("com.android.application") }\n' > "$p/build.gradle.kts"
     hook_in "$p"
     [ "$status" -eq 0 ]
     [ -z "$output" ]
+}
+
+@test "session-domains: a folder that does not load the domain yet is no reason to stay quiet" {
+    # an alias folder full of projects, before setup has linked a CLAUDE.md into it
+    mkdir -p "$HOME/workspace/web/site"
+    p="$HOME/workspace/web/site"
+    ( cd "$p" && git init -q . )
+    printf '{ "dependencies": { "react": "19.0.0" } }\n' > "$p/package.json"
+    hook_in "$p"
+    assert_contains "$output" "- web-react:"
 }
 
 @test "session-domains: a subfolder of the project is detected from the repository root" {

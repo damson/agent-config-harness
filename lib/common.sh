@@ -404,12 +404,14 @@ detect_domain() {
 # folder. Optional: without the file nothing is detected and nothing fails.
 #
 #   <domain> = <signal> ; <signal> ; ...
-#   <signal> = <file name glob>            the file exists
-#            | <file name glob> ~ <ERE>    the file exists and a line matches
-#            | ! <either form above>        rules the domain out when it holds
+#   <signal> = <file name glob>                     the file exists
+#            | <file name glob> ~ <ERE>             ...and a line of it matches
+#            | <file name glob> ~ <ERE> !~ <ERE>    ...and no line matches the second
 #
-# A domain matches when any plain signal holds and no `!` signal does. `;`
-# separates signals because a regular expression may contain a comma.
+# A domain matches when any signal holds in any one file. The exclusion is per
+# file, so a monorepo whose web app and mobile app each have a package.json
+# matches both domains. `;` separates signals because a regular expression may
+# contain a comma.
 
 # list_signal_domains → each domain that has signals, one per line
 list_signal_domains() {
@@ -444,36 +446,36 @@ get_domain_signals() {
 }
 
 # project_matches_domain <dir> <domain> → status 0 when any of the domain's
-# signals holds in <dir>. A glob is looked for at the project's root and one
-# folder below, which covers a module directory (app/build.gradle.kts) without
-# walking a tree; dependency and VCS folders are never searched.
+# signals holds in <dir>. A glob is looked for at the project's root and up to
+# two folders below, which covers a module (app/build.gradle.kts) and a
+# monorepo's packages (apps/web/package.json) without walking the whole tree;
+# dependency, build and VCS folders are pruned, never searched.
 project_matches_domain() {
-    local dir="$1" domain="$2" signal matched=1
+    local dir="$1" domain="$2" signal
     while IFS= read -r signal; do
         [ -n "$signal" ] || continue
-        case "$signal" in
-            "!"*) _signal_holds "$dir" "${signal#!}" && return 1 ;;
-            *)    [ "$matched" -eq 0 ] || { _signal_holds "$dir" "$signal" && matched=0; } ;;
-        esac
+        _signal_holds "$dir" "$signal" && return 0
     done < <(get_domain_signals "$domain")
-    return "$matched"
+    return 1
 }
 
 # Internal: _signal_holds <dir> <signal> → status 0 when that one signal holds.
 _signal_holds() {
-    local dir="$1" signal glob pattern file
-    signal="${2#"${2%%[![:space:]]*}"}"
+    local dir="$1" signal="$2" glob pattern="" exclude="" file
+    case "$signal" in
+        *" !~ "*) exclude="${signal#* !~ }"; signal="${signal%% !~ *}" ;;
+    esac
     case "$signal" in
         *" ~ "*) glob="${signal%% ~ *}"; pattern="${signal#* ~ }" ;;
-        *)       glob="$signal";         pattern="" ;;
+        *)       glob="$signal" ;;
     esac
     while IFS= read -r file; do
         [ -n "$file" ] || continue
-        if [ -z "$pattern" ] || grep -Eq -- "$pattern" "$file" 2>/dev/null; then
-            return 0
-        fi
-    done < <(find "$dir" -maxdepth 2 -type f -name "$glob" \
-                -not -path '*/node_modules/*' -not -path '*/.git/*' 2>/dev/null)
+        if [ -n "$pattern" ] && ! grep -Eq -- "$pattern" "$file" 2>/dev/null; then continue; fi
+        if [ -n "$exclude" ] && grep -Eq -- "$exclude" "$file" 2>/dev/null; then continue; fi
+        return 0
+    done < <(find "$dir" -maxdepth 3 \( -name node_modules -o -name .git -o -name build \
+                -o -name dist -o -name .gradle \) -prune -o -type f -name "$glob" -print 2>/dev/null)
     return 1
 }
 

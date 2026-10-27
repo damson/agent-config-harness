@@ -181,7 +181,7 @@ session, wherever the project sits and however many stacks it spans:
 ```
 # config/domain-signals.conf
 backend-node = package.json ~ "(express|fastify)"[[:space:]]*:
-web-react    = package.json ~ "(react|next)"[[:space:]]*: ; ! package.json ~ "react-native"
+web-react    = package.json ~ "(react|next)"[[:space:]]*: !~ "react-native"
 ```
 
 The file is optional: without it nothing is wired and nothing is detected.

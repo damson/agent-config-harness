@@ -43,13 +43,15 @@ project=$(cd "$project" 2>/dev/null && pwd -P) || exit 0
 [ "$project" = "$(cd "$REPO_ROOT" && pwd -P)" ] && exit 0
 
 # True when the session already sits under a folder that loads this domain's
-# CLAUDE.md, canonical or alias, so naming it again would only repeat it.
+# CLAUDE.md, canonical or alias, so naming it again would only repeat it. The
+# folder existing is not enough: an alias folder holds projects long before
+# setup links the domain's CLAUDE.md into it.
 loaded_by_folder() {
     local domain="$1" ws here
     here=$(cd "$cwd" && pwd -P)
     while IFS= read -r ws; do
         case "$ws" in workspace/*) ;; *) continue ;; esac
-        [ -d "$HOME/$ws" ] || continue
+        [ -f "$HOME/$ws/CLAUDE.md" ] || continue
         case "$here/" in "$(cd "$HOME/$ws" && pwd -P)/"*) return 0 ;; esac
     done < <(get_domain_workspaces "$domain")
     return 1

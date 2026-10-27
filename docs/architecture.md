@@ -57,7 +57,7 @@ Adding a domain is a one-line change here plus a new workspace folder. **No scri
 
 ### Domain signals (`config/domain-signals.conf`)
 
-Optional. What each domain's projects contain, so `bin/session-domains.sh`, a SessionStart hook that `bin/setup.sh` wires into `~/.claude/settings.json`, can name a project's domains wherever it sits. A signal is a file name glob, searched at the project's root and one folder below, optionally followed by `~ <ERE>` that one of its lines must match; a signal starting with `!` rules the domain out. A project matches every domain with a plain signal that holds and no exclusion that does, and the hook leaves out a domain whose folder already holds the session.
+Optional. What each domain's projects contain, so `bin/session-domains.sh`, a SessionStart hook that `bin/setup.sh` wires into `~/.claude/settings.json`, can name a project's domains wherever it sits. A signal is a file name glob, searched at the project's root and up to two folders below, optionally followed by `~ <ERE>` that one of its lines must match and `!~ <ERE>` that none may. A project matches every domain with a signal that holds in some file, so a monorepo's web and mobile apps each count, and the hook leaves out a domain whose folder already loads its `CLAUDE.md`.
 
 ### Shared Library (`lib/common.sh`)
 
