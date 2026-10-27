@@ -413,70 +413,71 @@ detect_domain() {
 # matches both domains. `;` separates signals because a regular expression may
 # contain a comma.
 
-# list_signal_domains → each domain that has signals, one per line
-list_signal_domains() {
+# list_matching_domains <dir> → each domain with a signal that holds in <dir>,
+# in the order the signals file lists them. A glob is looked for at the
+# project's root and up to two folders below, which covers a module
+# (app/build.gradle.kts) and a monorepo's packages (apps/web/package.json)
+# without walking the whole tree; dependency, build and VCS folders are pruned.
+# One walk and one awk pass serve every signal: a hook runs this at every
+# session start, so it must not fork per signal.
+list_matching_domains() {
+    local dir="$1"
     [ -f "$DOMAIN_SIGNALS_CONF" ] || return 0
-    awk -F= '
+    find "$dir" -maxdepth 3 \( -name node_modules -o -name .git -o -name build \
+        -o -name dist -o -name .gradle \) -prune -o -type f -print 2>/dev/null |
+    awk -v conf="$DOMAIN_SIGNALS_CONF" '
         # kcov-ignore-start
-        /^[[:space:]]*#/ || /^[[:space:]]*$/ { next }
-        { gsub(/[[:space:]]/, "", $1); if ($1 != "") print $1 }
-    ' "$DOMAIN_SIGNALS_CONF"
-    # kcov-ignore-end
-}
-
-# get_domain_signals <domain> → one signal per line, trimmed
-get_domain_signals() {
-    [ -f "$DOMAIN_SIGNALS_CONF" ] || return 0
-    awk -v d="$1" '
-        # kcov-ignore-start
-        /^[[:space:]]*#/ || /^[[:space:]]*$/ { next }
+        function trim(t) { gsub(/^[[:space:]]+|[[:space:]]+$/, "", t); return t }
+        function glob2re(g,   i, c, r) {
+            r = "^"
+            for (i = 1; i <= length(g); i++) {
+                c = substr(g, i, 1)
+                if (c == "*") r = r "[^/]*"
+                else if (c == "?") r = r "[^/]"
+                else if (index(".[]^$+(){}|\\", c)) r = r "\\" c
+                else r = r c
+            }
+            return r "$"
+        }
+        # true when some line of file matches re
+        function has(file, re,   line, found) {
+            found = 0
+            while ((getline line < file) > 0) if (line ~ re) { found = 1; break }
+            close(file)
+            return found
+        }
+        BEGIN {
+            n = 0; nd = 0
+            while ((getline row < conf) > 0) {
+                if (row ~ /^[[:space:]]*#/ || row ~ /^[[:space:]]*$/) continue
+                eq = index(row, "="); if (eq == 0) continue
+                d = trim(substr(row, 1, eq - 1)); if (d == "") continue
+                if (!(d in seen)) { seen[d] = 1; order[++nd] = d }
+                k = split(substr(row, eq + 1), parts, ";")
+                for (m = 1; m <= k; m++) {
+                    sig = trim(parts[m]); if (sig == "") continue
+                    ex = ""; x = index(sig, " !~ ")
+                    if (x) { ex = trim(substr(sig, x + 4)); sig = trim(substr(sig, 1, x - 1)) }
+                    pat = ""; y = index(sig, " ~ ")
+                    if (y) { pat = trim(substr(sig, y + 3)); sig = trim(substr(sig, 1, y - 1)) }
+                    n++; sd[n] = d; sg[n] = glob2re(sig); sp[n] = pat; sx[n] = ex
+                }
+            }
+            close(conf)
+        }
         {
-            i = index($0, "=")
-            if (i == 0) next
-            name = substr($0, 1, i - 1); gsub(/[[:space:]]/, "", name)
-            if (name != d) next
-            n = split(substr($0, i + 1), parts, ";")
-            for (k = 1; k <= n; k++) {
-                gsub(/^[[:space:]]+|[[:space:]]+$/, "", parts[k])
-                if (parts[k] != "") print parts[k]
+            base = $0; sub(/.*\//, "", base)
+            for (m = 1; m <= n; m++) {
+                if (sd[m] in hit) continue
+                if (base !~ sg[m]) continue
+                if (sp[m] != "" && !has($0, sp[m])) continue
+                if (sx[m] != "" && has($0, sx[m])) continue
+                hit[sd[m]] = 1
             }
         }
-    ' "$DOMAIN_SIGNALS_CONF"
+        END { for (m = 1; m <= nd; m++) if (order[m] in hit) print order[m] }
+    '
     # kcov-ignore-end
-}
-
-# project_matches_domain <dir> <domain> → status 0 when any of the domain's
-# signals holds in <dir>. A glob is looked for at the project's root and up to
-# two folders below, which covers a module (app/build.gradle.kts) and a
-# monorepo's packages (apps/web/package.json) without walking the whole tree;
-# dependency, build and VCS folders are pruned, never searched.
-project_matches_domain() {
-    local dir="$1" domain="$2" signal
-    while IFS= read -r signal; do
-        [ -n "$signal" ] || continue
-        _signal_holds "$dir" "$signal" && return 0
-    done < <(get_domain_signals "$domain")
-    return 1
-}
-
-# Internal: _signal_holds <dir> <signal> → status 0 when that one signal holds.
-_signal_holds() {
-    local dir="$1" signal="$2" glob pattern="" exclude="" file
-    case "$signal" in
-        *" !~ "*) exclude="${signal#* !~ }"; signal="${signal%% !~ *}" ;;
-    esac
-    case "$signal" in
-        *" ~ "*) glob="${signal%% ~ *}"; pattern="${signal#* ~ }" ;;
-        *)       glob="$signal" ;;
-    esac
-    while IFS= read -r file; do
-        [ -n "$file" ] || continue
-        if [ -n "$pattern" ] && ! grep -Eq -- "$pattern" "$file" 2>/dev/null; then continue; fi
-        if [ -n "$exclude" ] && grep -Eq -- "$exclude" "$file" 2>/dev/null; then continue; fi
-        return 0
-    done < <(find "$dir" -maxdepth 3 \( -name node_modules -o -name .git -o -name build \
-                -o -name dist -o -name .gradle \) -prune -o -type f -name "$glob" -print 2>/dev/null)
-    return 1
 }
 
 # ── Skills ────────────────────────────────────────────────

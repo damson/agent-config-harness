@@ -60,7 +60,6 @@ loaded_by_folder() {
 lines=""
 while IFS= read -r domain; do
     [ -n "$domain" ] || continue
-    project_matches_domain "$project" "$domain" || continue
     loaded_by_folder "$domain" && continue
     ws=$(get_domain_workspace "$domain") || continue
     files=""
@@ -70,7 +69,7 @@ while IFS= read -r domain; do
         [ -f "$REPO_ROOT/$ws/$f" ] && files="$files${files:+, }$REPO_ROOT/$ws/$f"
     done < <(get_domain_files "$domain")
     [ -n "$files" ] && lines="$lines- $domain: $files"$'\n'
-done < <(list_signal_domains)
+done < <(list_matching_domains "$project")
 
 [ -n "$lines" ] || exit 0
 printf 'This project matches these domains by what it contains, not by where it sits. Read each file before designing or reviewing a change here; a project CLAUDE.md still wins where it differs:\n%s' "$lines"
