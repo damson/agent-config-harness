@@ -28,6 +28,7 @@ REPO_ROOT="${AGENT_CONFIG_ROOT:-$HARNESS_ROOT}"
 [ -d "$REPO_ROOT" ] || { printf 'AGENT_CONFIG_ROOT is not a directory: %s\n' "$REPO_ROOT" >&2; exit 1; }
 DOMAINS_CONF="$REPO_ROOT/config/domains.conf"
 EXTERNAL_SKILLS_CONF="$REPO_ROOT/config/external-skills.conf"
+DOMAIN_SIGNALS_CONF="$REPO_ROOT/config/domain-signals.conf"
 
 # ── Logging ───────────────────────────────────────────────
 _use_color=1
@@ -395,6 +396,85 @@ detect_domain() {
         1) printf '%s\n' "$matched"; return 0 ;;
         *) log_warn "detect_domain: ambiguous path '$path' matched: $matched"; return 1 ;;
     esac
+}
+
+# ── Domain signals ────────────────────────────────────────
+# config/domain-signals.conf says what a project of each domain CONTAINS, so a
+# project is recognised wherever it sits rather than only under its domain's
+# folder. Optional: without the file nothing is detected and nothing fails.
+#
+#   <domain> = <signal> ; <signal> ; ...
+#   <signal> = <file name glob>            the file exists
+#            | <file name glob> ~ <ERE>    the file exists and a line matches
+#            | ! <either form above>        rules the domain out when it holds
+#
+# A domain matches when any plain signal holds and no `!` signal does. `;`
+# separates signals because a regular expression may contain a comma.
+
+# list_signal_domains → each domain that has signals, one per line
+list_signal_domains() {
+    [ -f "$DOMAIN_SIGNALS_CONF" ] || return 0
+    awk -F= '
+        # kcov-ignore-start
+        /^[[:space:]]*#/ || /^[[:space:]]*$/ { next }
+        { gsub(/[[:space:]]/, "", $1); if ($1 != "") print $1 }
+    ' "$DOMAIN_SIGNALS_CONF"
+    # kcov-ignore-end
+}
+
+# get_domain_signals <domain> → one signal per line, trimmed
+get_domain_signals() {
+    [ -f "$DOMAIN_SIGNALS_CONF" ] || return 0
+    awk -v d="$1" '
+        # kcov-ignore-start
+        /^[[:space:]]*#/ || /^[[:space:]]*$/ { next }
+        {
+            i = index($0, "=")
+            if (i == 0) next
+            name = substr($0, 1, i - 1); gsub(/[[:space:]]/, "", name)
+            if (name != d) next
+            n = split(substr($0, i + 1), parts, ";")
+            for (k = 1; k <= n; k++) {
+                gsub(/^[[:space:]]+|[[:space:]]+$/, "", parts[k])
+                if (parts[k] != "") print parts[k]
+            }
+        }
+    ' "$DOMAIN_SIGNALS_CONF"
+    # kcov-ignore-end
+}
+
+# project_matches_domain <dir> <domain> → status 0 when any of the domain's
+# signals holds in <dir>. A glob is looked for at the project's root and one
+# folder below, which covers a module directory (app/build.gradle.kts) without
+# walking a tree; dependency and VCS folders are never searched.
+project_matches_domain() {
+    local dir="$1" domain="$2" signal matched=1
+    while IFS= read -r signal; do
+        [ -n "$signal" ] || continue
+        case "$signal" in
+            "!"*) _signal_holds "$dir" "${signal#!}" && return 1 ;;
+            *)    [ "$matched" -eq 0 ] || { _signal_holds "$dir" "$signal" && matched=0; } ;;
+        esac
+    done < <(get_domain_signals "$domain")
+    return "$matched"
+}
+
+# Internal: _signal_holds <dir> <signal> → status 0 when that one signal holds.
+_signal_holds() {
+    local dir="$1" signal glob pattern file
+    signal="${2#"${2%%[![:space:]]*}"}"
+    case "$signal" in
+        *" ~ "*) glob="${signal%% ~ *}"; pattern="${signal#* ~ }" ;;
+        *)       glob="$signal";         pattern="" ;;
+    esac
+    while IFS= read -r file; do
+        [ -n "$file" ] || continue
+        if [ -z "$pattern" ] || grep -Eq -- "$pattern" "$file" 2>/dev/null; then
+            return 0
+        fi
+    done < <(find "$dir" -maxdepth 2 -type f -name "$glob" \
+                -not -path '*/node_modules/*' -not -path '*/.git/*' 2>/dev/null)
+    return 1
 }
 
 # ── Skills ────────────────────────────────────────────────

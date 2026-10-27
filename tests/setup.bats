@@ -45,6 +45,27 @@ teardown() {
     [ -e "$HOME/workspace/mobile/CLAUDE.md" ]   # resolves
 }
 
+@test "setup: wires the domain-detection hook once, keeping other SessionStart hooks" {
+    mkdir -p "$HOME/.claude"
+    printf '{"hooks":{"SessionStart":[{"hooks":[{"type":"command","command":"echo mine"}]}]}}\n' \
+        > "$HOME/.claude/settings.json"
+    ./bin/setup.sh >/dev/null
+    ./bin/setup.sh >/dev/null
+    [ "$(jq '[.hooks.SessionStart[].hooks[] | select(.command | contains("session-domains.sh"))] | length' "$HOME/.claude/settings.json")" -eq 1 ]
+    [ "$(jq '[.hooks.SessionStart[].hooks[] | select(.command == "echo mine")] | length' "$HOME/.claude/settings.json")" -eq 1 ]
+}
+
+@test "setup: the wired hook command runs as written" {
+    ./bin/setup.sh >/dev/null
+    cmd=$(jq -r '.hooks.SessionStart[].hooks[] | select(.command | contains("session-domains.sh")) | .command' "$HOME/.claude/settings.json")
+    p="$(mktemp -d)"
+    printf '{ "dependencies": { "express": "5.0.0" } }\n' > "$p/package.json"
+    run bash -c "printf '{\"cwd\": \"%s\"}' '$p' | $cmd"
+    rm -rf "$p"
+    [ "$status" -eq 0 ]
+    echo "$output" | grep -qF -- "- backend-node:"
+}
+
 @test "setup: backs up a pre-existing real file before linking over it" {
     mkdir -p "$HOME/.claude"
     printf 'my own config\n' > "$HOME/.claude/CLAUDE.md"

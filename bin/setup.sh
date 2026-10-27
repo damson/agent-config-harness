@@ -112,6 +112,24 @@ if command -v jq >/dev/null 2>&1; then
     jq '.statusLine = {"type":"command","command":"~/.claude/statusline.sh"}' \
         "$SETTINGS" >"$tmp" && mv "$tmp" "$SETTINGS"
     log_ok "Configured statusLine in ~/.claude/settings.json"
+
+    # The SessionStart hook that names a project's domains by its contents,
+    # wired only where the config repo says what the domains contain. Any
+    # earlier entry for it is replaced, so a rerun or a moved checkout leaves
+    # exactly one, and every other hook in the file is kept as it was.
+    if [ -f "$REPO_ROOT/config/domain-signals.conf" ]; then
+        # %q, so a path holding a space or a quote stays one word in the command
+        printf -v hook_cmd 'AGENT_CONFIG_ROOT=%q %q' "$REPO_ROOT" "$HARNESS_ROOT/bin/session-domains.sh"
+        tmp="$(mktemp)"
+        jq --arg cmd "$hook_cmd" '
+            .hooks.SessionStart = (
+                [ (.hooks.SessionStart // [])[]
+                  | .hooks = [ (.hooks // [])[] | select((.command // "") | contains("session-domains.sh") | not) ]
+                  | select((.hooks | length) > 0) ]
+                + [ { "hooks": [ { "type": "command", "command": $cmd } ] } ]
+            )' "$SETTINGS" >"$tmp" && mv "$tmp" "$SETTINGS"
+        log_ok "Wired the domain-detection hook into ~/.claude/settings.json"
+    fi
 else
     log_info "jq not found — skipped statusLine wiring in settings.json"
 fi
