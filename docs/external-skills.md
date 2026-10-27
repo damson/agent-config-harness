@@ -12,7 +12,7 @@ Installing is always optional. Nothing here is required for `just setup`,
 
 | Provider | Installs | Vendor CLI | Docs |
 |---|---|---|---|
-| `android-skills` | Google's Android skills (Compose, CameraX, Perfetto, Play policy, …) | `android` | [developer.android.com/studio/cli](https://developer.android.com/studio/cli) |
+| `android-skills` | Google's Android skills (Compose, CameraX, Perfetto, Play policy, …) | `android` | [developer.android.com/tools/agents](https://developer.android.com/tools/agents) |
 | `impeccable` | Design direction, critique and anti-pattern detection for frontend work | `npx` | [impeccable.style](https://impeccable.style) |
 
 Getting the vendor CLI when a provider reports `tool-missing`: `npx` ships with
