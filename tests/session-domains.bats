@@ -64,8 +64,9 @@ make_project() {
 
 @test "session-domains: a file under node_modules is not a signal" {
     p=$(make_project deps)
-    mkdir -p "$p/node_modules/fastify"
-    printf '{ "dependencies": { "fastify": "5.0.0" } }\n' > "$p/node_modules/fastify/package.json"
+    # within the search depth, so only the node_modules exclusion keeps it out
+    mkdir -p "$p/node_modules"
+    printf '{ "dependencies": { "fastify": "5.0.0" } }\n' > "$p/node_modules/package.json"
     hook_in "$p"
     [ "$status" -eq 0 ]
     [ -z "$output" ]
@@ -121,6 +122,9 @@ make_project() {
     consumer=$(make_project config-repo)
     mkdir -p "$consumer/config"
     cp "$REPO_ROOT/config/domains.conf" "$REPO_ROOT/config/domain-signals.conf" "$consumer/config/"
+    # a domain file to name, so only the config-repo check keeps it quiet
+    mkdir -p "$consumer/workspace/backend-node"
+    printf '# backend\n' > "$consumer/workspace/backend-node/CLAUDE.md"
     printf '{ "dependencies": { "express": "5.0.0" } }\n' > "$consumer/package.json"
     run bash -c "printf '{\"cwd\": \"%s\"}' '$consumer' | AGENT_CONFIG_ROOT='$consumer' '$REPO_ROOT/bin/session-domains.sh'"
     [ "$status" -eq 0 ]

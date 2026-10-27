@@ -172,6 +172,20 @@ to tank a domain's score, and the test suite fails when it happens.
 The `A > B` syntax maps a file the project calls `A` to `B` inside this repo, for
 when a project's `AGENTS.md` is your `project/CLAUDE.md`.
 
+A folder decides a domain only for a project kept inside it. [Domain
+signals](config/domain-signals.conf) say what a domain's projects **contain**
+(an Android Gradle plugin, `fastify` in `package.json`), and a SessionStart hook
+that `just setup` wires names every matching domain's files at the start of a
+session, wherever the project sits and however many stacks it spans:
+
+```
+# config/domain-signals.conf
+backend-node = package.json ~ "(express|fastify)"[[:space:]]*:
+web-react    = package.json ~ "(react|next)"[[:space:]]*: ; ! package.json ~ "react-native"
+```
+
+The file is optional: without it nothing is wired and nothing is detected.
+
 ## 🥞 Layers
 
 ```
