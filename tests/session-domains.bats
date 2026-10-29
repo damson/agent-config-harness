@@ -176,3 +176,20 @@ make_project() {
     [ "$status" -eq 0 ]
     [ -z "$output" ]
 }
+
+@test "session-domains: a web project's browser-test dependency is not a data-extraction signal" {
+    p=$(make_project webe2e)
+    printf '{ "dependencies": { "next": "16.0.0", "react": "19.0.0" } }\n' > "$p/package.json"
+    printf '[project]\nname = "web"\n[dependency-groups]\ndev = ["pytest", "pytest-playwright>=0.5"]\n' > "$p/pyproject.toml"
+    hook_in "$p"
+    [ "$status" -eq 0 ]
+    assert_contains "$output" "- web-react:"
+    assert_not_contains "$output" "- data-extraction:"
+}
+
+@test "session-domains: a pyproject naming the dependency itself still counts" {
+    p=$(make_project crawler)
+    printf '[project]\nname = "crawler"\ndependencies = ["scrapy>=2.11", "prefect"]\n' > "$p/pyproject.toml"
+    hook_in "$p"
+    assert_contains "$output" "- data-extraction:"
+}
