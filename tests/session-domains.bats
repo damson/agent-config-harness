@@ -193,3 +193,46 @@ make_project() {
     hook_in "$p"
     assert_contains "$output" "- data-extraction:"
 }
+
+@test "session-domains: a signal three folders down is out of the search" {
+    p=$(make_project deeper)
+    mkdir -p "$p/apps/web/sub"
+    printf '{ "dependencies": { "next": "16.0.0" } }\n' > "$p/apps/web/sub/package.json"
+    hook_in "$p"
+    [ "$status" -eq 0 ]
+    [ -z "$output" ]
+}
+
+@test "session-domains: a build output directory is pruned like node_modules" {
+    p=$(make_project built)
+    mkdir -p "$p/build"
+    printf '{ "dependencies": { "fastify": "5.0.0" } }\n' > "$p/build/package.json"
+    hook_in "$p"
+    [ "$status" -eq 0 ]
+    [ -z "$output" ]
+}
+
+@test "session-domains: a requirements file names the domain only on the dependency itself" {
+    p=$(make_project reqs)
+    printf 'scrapy==2.11\n' > "$p/requirements.txt"
+    hook_in "$p"
+    assert_contains "$output" "- data-extraction:"
+
+    q=$(make_project reqs-e2e)
+    printf 'pytest-playwright==0.5\n' > "$q/requirements.txt"
+    hook_in "$q"
+    [ "$status" -eq 0 ]
+    [ -z "$output" ]
+}
+
+@test "session-domains: a config repo with no domain registry stays silent" {
+    consumer="$(mktemp -d)"
+    mkdir -p "$consumer/config"
+    cp "$REPO_ROOT/config/domain-signals.conf" "$consumer/config/"
+    p=$(make_project noregistry)
+    printf '{ "dependencies": { "express": "5.0.0" } }\n' > "$p/package.json"
+    run bash -c "printf '{\"cwd\": \"%s\"}' '$p' | AGENT_CONFIG_ROOT='$consumer' '$REPO_ROOT/bin/session-domains.sh'"
+    rm -rf "$consumer"
+    [ "$status" -eq 0 ]
+    [ -z "$output" ]
+}
