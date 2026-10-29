@@ -187,11 +187,16 @@ make_project() {
     assert_not_contains "$output" "- data-extraction:"
 }
 
-@test "session-domains: a pyproject naming the dependency itself still counts" {
-    p=$(make_project crawler)
-    printf '[project]\nname = "crawler"\ndependencies = ["scrapy>=2.11", "prefect"]\n' > "$p/pyproject.toml"
-    hook_in "$p"
-    assert_contains "$output" "- data-extraction:"
+@test "session-domains: a pyproject naming any one of the dependencies counts" {
+    # One project per name, each listing only that one: a fixture carrying two
+    # of them passes while either is still in the pattern, which is how the
+    # first version of this test survived having a name taken out.
+    for dep in scrapy playwright apache-airflow dagster prefect; do
+        p=$(make_project "uses-$dep")
+        printf '[project]\nname = "x"\ndependencies = ["%s>=1"]\n' "$dep" > "$p/pyproject.toml"
+        hook_in "$p"
+        assert_contains "$output" "- data-extraction:"
+    done
 }
 
 @test "session-domains: a signal three folders down is out of the search" {
