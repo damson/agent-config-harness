@@ -5,8 +5,9 @@ domain registry and what this repo is for. Don't duplicate that here.
 
 ## Claude-only directives
 
-- **Adding a domain:** edit `config/domains.conf` only. Never modify scripts.
-  All tooling reads the registry through `lib/common.sh`.
+- **Adding a domain:** edit `config/domains.conf` only, plus a line in
+  `config/domain-signals.conf` if projects of it should be recognised by their
+  contents. Never modify scripts. All tooling reads both through `lib/common.sh`.
 - **Adding a third-party skill bundle:** edit `config/external-skills.conf` only.
   Never copy it into `user-dev/skills/`, which is authored skills that
   `tests/skills.bats` and `just eval-skills` both hold to a standard a vendored
