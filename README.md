@@ -274,9 +274,10 @@ hard-won-skills = damson/hard-won-skills :: * :: https://github.com/damson/hard-
 
 `bin/validate-skills.sh` enforces, on any skills tree (yours or a marketplace's):
 frontmatter `name` matching the folder, a non-empty `description`, a `## Procedure`
-(or `## Step N`) section, a **`## When to STOP`** section, and leaf names unique
+(or `## Step N`) section, a **`## When to STOP`** section, leaf names unique
 across groups because skills install *flat* into `~/.claude/skills/` and share one
-namespace. It reports every problem rather than the first.
+namespace, and no bare `$1` in the body, which the invocation's arguments replace.
+It reports every problem rather than the first.
 
 `user-dev/skills/` keeps only skills coupled to this repo's own tooling: today
 `refresh-domain-benchmark`, which drives `evals/run-eval.sh` and reads
