@@ -2,7 +2,7 @@
 #
 # AI Setup — validate the structure of a skills tree.
 #
-# The same four invariants the test suite enforces on this repo's own skills,
+# The same five invariants the test suite enforces on this repo's own skills,
 # extracted so they can be pointed at any skills directory — in particular the
 # ones a marketplace installs, which arrive from someone else and are held to
 # no standard on the way in.
@@ -16,10 +16,12 @@
 # back to the first non-empty line of the body, so the trigger is whatever that
 # line happens to say; what an empty one does instead is documented nowhere.
 # A missing `## When to STOP` removes what stops a skill firing on work it
-# should decline. And a duplicate leaf name collides for
+# should decline. A duplicate leaf name collides for
 # personal and project skills, which share one flat namespace and resolve by
 # priority, leaving the loser simply absent; plugin skills are namespaced
 # `plugin:skill` and do not collide. See https://code.claude.com/docs/en/skills .
+# And a bare `$` before a digit anywhere in the body is replaced by the words
+# the skill was invoked with, so the agent reads code nobody wrote.
 #
 # Usage:
 #   ./bin/validate-skills.sh                      # this repo's user-dev/skills
@@ -120,6 +122,14 @@ for p in "${skills[@]}"; do
 
     grep -qE '^## +When to STOP' "$f" \
         || problem "$leaf: no '## When to STOP' section"
+
+    # A skill body is filled in with its invocation's arguments before the agent
+    # reads it, fenced code included: `$1` becomes the second word passed. Invoked
+    # with no arguments it reads intact, so nothing else here would notice.
+    # `${1}` (shell) and `$(1)` (awk) mean the same and are left alone.
+    if lines=$(grep -nE '\$[0-9]' "$f" | cut -d: -f1 | paste -sd, -) && [ -n "$lines" ]; then
+        problem "$leaf: bare \$N on line(s) $lines is replaced by the invocation's arguments; write \${N} in shell or \$(N) in awk"
+    fi
 
     for s in ${seen_leaves[@]+"${seen_leaves[@]}"}; do
         [ "$s" = "$leaf" ] && problem "$leaf: duplicate leaf name; personal and project skills share one namespace, so one of these wins and the other is absent"

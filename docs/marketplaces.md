@@ -75,7 +75,7 @@ a marketplace clones from the network, so it stays an explicit step.
 ## Validating skills you did not write
 
 A marketplace hands you skills from someone else, held to no standard on the way
-in. `bin/validate-skills.sh` applies the four invariants this repo enforces on
+in. `bin/validate-skills.sh` applies the invariants this repo enforces on
 its own skills to any tree:
 
 | Check | Why it is not cosmetic |
@@ -85,6 +85,7 @@ its own skills to any tree:
 | a `## Procedure` or `## Step N` section | Without steps it is an essay, not a skill |
 | a `## When to STOP` section | This is what stops a skill firing on work it should decline |
 | leaf names unique across groups | Skills install **flat**; a duplicate silently shadows another |
+| no bare `$` before a digit | The body is filled in with the invocation's arguments, fenced code included, so `$1` reaches the agent as whatever word was passed; write `${1}` in shell or `$(1)` in awk |
 
 It reports every problem rather than stopping at the first, and exits non-zero if
 any skill fails.

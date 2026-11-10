@@ -290,6 +290,17 @@ EOF
     assert_contains "$output" "description"
 }
 
+@test "validate-skills: a bare \$N in the body fails, braced and parenthesised forms pass" {
+    make_skill "$TREE" good-skill
+    mkdir -p "$TREE/dollar"
+    printf -- '---\nname: dollar\ndescription: x\n---\n\n## Procedure\n\n%s\n%s\n\n## When to STOP\n\n- z\n' \
+        "awk '{print \$2}'" 'echo ${1} $(2) $((n+1)) $NF' > "$TREE/dollar/SKILL.md"
+    run ./bin/validate-skills.sh "$TREE"
+    [ "$status" -ne 0 ]
+    assert_contains "$output" "dollar: bare \$N on line(s) 8 "
+    assert_not_contains "$output" "good-skill"
+}
+
 @test "validate-skills: a folded description block counts as non-empty" {
     mkdir -p "$TREE/folded"
     printf -- '---\nname: folded\ndescription: >\n  Real content, wrapped onto\n  a second line.\n---\n\n## Procedure\n\n1. y\n\n## When to STOP\n\n- z\n' \

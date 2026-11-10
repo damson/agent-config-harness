@@ -96,6 +96,15 @@ list_skills() {
     done < <(list_skill_paths)
 }
 
+@test "skills: no SKILL.md holds a bare \$N, which invocation arguments replace" {
+    while IFS= read -r p; do
+        if grep -nE '\$[0-9]' "$p/SKILL.md"; then
+            echo "Skill $p: write \${N} in shell or \$(N) in awk"
+            return 1
+        fi
+    done < <(list_skill_paths)
+}
+
 @test "skills: setup.sh links every skill into ~/.claude/skills/" {
     setup_test_home
     ./bin/setup.sh >/dev/null
