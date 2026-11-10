@@ -98,7 +98,7 @@ list_skills() {
 
 @test "skills: no SKILL.md holds a bare \$N, which invocation arguments replace" {
     while IFS= read -r p; do
-        if grep -nE '\$[0-9]' "$p/SKILL.md"; then
+        if grep -nE '(^|[^\\])(\\\\)*\$[0-9]' "$p/SKILL.md"; then
             echo "Skill $p: write \${N} in shell or \$(N) in awk"
             return 1
         fi

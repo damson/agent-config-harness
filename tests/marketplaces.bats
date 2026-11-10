@@ -301,6 +301,15 @@ EOF
     assert_not_contains "$output" "good-skill"
 }
 
+@test "validate-skills: a backslash-escaped \$N is literal, a doubled backslash still expands" {
+    mkdir -p "$TREE/escaped"
+    printf -- '---\nname: escaped\ndescription: x\n---\n\n## Procedure\n\n%s\n%s\n\n## When to STOP\n\n- z\n' \
+        'costs \$1.00' 'echo \\$1' > "$TREE/escaped/SKILL.md"
+    run ./bin/validate-skills.sh "$TREE"
+    [ "$status" -ne 0 ]
+    assert_contains "$output" "escaped: bare \$N on line(s) 9 "
+}
+
 @test "validate-skills: a folded description block counts as non-empty" {
     mkdir -p "$TREE/folded"
     printf -- '---\nname: folded\ndescription: >\n  Real content, wrapped onto\n  a second line.\n---\n\n## Procedure\n\n1. y\n\n## When to STOP\n\n- z\n' \

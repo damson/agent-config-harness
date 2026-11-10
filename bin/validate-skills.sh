@@ -126,8 +126,10 @@ for p in "${skills[@]}"; do
     # A skill body is filled in with its invocation's arguments before the agent
     # reads it, fenced code included: `$1` becomes the second word passed. Invoked
     # with no arguments it reads intact, so nothing else here would notice.
-    # `${1}` (shell) and `$(1)` (awk) mean the same and are left alone.
-    if lines=$(grep -nE '\$[0-9]' "$f" | cut -d: -f1 | paste -sd, -) && [ -n "$lines" ]; then
+    # `${1}` (shell) and `$(1)` (awk) mean the same and are left alone, and so
+    # is `\$1`, the documented escape; `\\$1` still expands, so an even run of
+    # backslashes counts as none.
+    if lines=$(grep -nE '(^|[^\\])(\\\\)*\$[0-9]' "$f" | cut -d: -f1 | paste -sd, -) && [ -n "$lines" ]; then
         problem "$leaf: bare \$N on line(s) $lines is replaced by the invocation's arguments; write \${N} in shell or \$(N) in awk"
     fi
 
