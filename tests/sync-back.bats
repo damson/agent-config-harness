@@ -185,13 +185,31 @@ EOF
     [ -n "$(find "$CONSUMER/benchmarks/scores" -name '*acme.json' 2>/dev/null)" ]
 }
 
-@test "sync-back: opens PRs against develop, not main" {
-    # Pins the gitflow base. Without this, flipping the base back to main is
-    # invisible to the suite — every other sync-back test is content-agnostic
-    # about which branch the PR targets.
-    grep -q 'gh pr create --base develop'          ./bin/sync-back.sh
-    grep -q 'glab mr create --target-branch develop' ./bin/sync-back.sh
-    ! grep -qE '(--base|--target-branch) main' ./bin/sync-back.sh
+@test "sync-back: SYNC_BASE sets the PR base, for gh, glab and the manual hint" {
+    # A trunk consumer opens its PRs against main. The default stays develop,
+    # which the flow test above pins; this pins that the override reaches
+    # every place the base is named, not only the first.
+    make_flow_fixture
+    run env PATH="$STUB:$PATH" AGENT_CONFIG_ROOT="$CONSUMER" AI_SETUP_SKIP_EVAL=1 SYNC_BASE=main \
+        ./bin/sync-back.sh "$PROJ"
+    [ "$status" -eq 0 ]
+    assert_contains "$(cat "$STUB/gh.args")" "pr create --base main --head"
+
+    make_toolbox
+    rm "$STUB/gh"
+    git -C "$CONSUMER" checkout -q -
+    printf 'drift again\n' >> "$PROJ/CLAUDE.md"
+    run env PATH="$STUB:$TOOLBOX" AGENT_CONFIG_ROOT="$CONSUMER" AI_SETUP_SKIP_EVAL=1 SYNC_BASE=main \
+        ./bin/sync-back.sh "$PROJ"
+    [ "$status" -eq 0 ]
+    assert_contains "$(cat "$STUB/glab.args")" "mr create --target-branch main"
+
+    rm "$STUB/glab"
+    printf 'and again\n' >> "$PROJ/CLAUDE.md"
+    run env PATH="$STUB:$TOOLBOX" AGENT_CONFIG_ROOT="$CONSUMER" AI_SETUP_SKIP_EVAL=1 SYNC_BASE=main \
+        ./bin/sync-back.sh "$PROJ"
+    [ "$status" -eq 0 ]
+    assert_contains "$output" "Base: main"
 }
 
 # --- The skips copy_file reports ---------------------------------------------
