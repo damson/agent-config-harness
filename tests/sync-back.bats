@@ -10,6 +10,9 @@ load helpers/common
 setup() {
     cd "$REPO_ROOT"
     FIX=""
+    # The default-base tests pin develop, which a shell exporting SYNC_BASE
+    # (as a trunk consumer's might) would otherwise override.
+    unset SYNC_BASE
 }
 
 teardown() {
