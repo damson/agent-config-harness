@@ -131,6 +131,18 @@ including the shape `degraded.md` produces.
 Every result and score record carries `rubric_version`, stamped by the harness
 rather than asked of the model, and `just benchmark` shows it as a column.
 
+**A record does not carry the files it scored, and the registry is an upper
+bound rather than the answer.** The record holds the domain, the rubric version
+and the numbers, so the closest anyone can get to what a date covered is
+`config/domains.conf` as it stood then. That over-reports:
+`evals/run-eval.sh` appends a configured file only when `[ -f ]` passes on it in
+the canonical workspace, with no else branch and no log line, so a path that was
+absent, or that was a directory wearing that name, was dropped without a word in
+the run or the record. Three of the six domains score a `CLAUDE.md` alone,
+`mobile` scores three files together, and `user-pers` and `repo-docs` score no
+`CLAUDE.md` at all, so a total compared across a registry edit is comparing two
+different questions.
+
 | Version | Rubric |
 |---|---|
 | 1 | five gestalt judgements, anchored only at 5, 3 and 1 (still used by `skill-quality.md`) |
@@ -323,6 +335,11 @@ everyone to re-run until green.
   bad config is perfectly stable. `just calibrate` is the check that asks the
   other half of the question, and a rubric change is not finished until it has
   passed.
+- **The score is computed over whatever was present, and nothing stops that
+  being nothing.** `score_prompt` is called unconditionally, so a domain whose
+  configured files are all absent is still scored, graded and recorded, on a
+  prompt carrying no file at all. A grade is worth no more than a check that the
+  files behind it were there.
 - **A stack the rubric cannot place is the least stable of all.** A file about a
   repository's own workflow is not a language and a build, and scoring it as
   though it were makes the model pick a framing rather than measure a file. If a
