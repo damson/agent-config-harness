@@ -1,0 +1,16 @@
+{
+  "date": "2026-10-12T19:19:07Z",
+  "domain": "mobile",
+  "git_hash": "1a2ce08",
+  "scores": {
+    "clarity": 2,
+    "conciseness": 5,
+    "completeness": 2,
+    "consistency": 5,
+    "actionability": 3
+  },
+  "total": 17,
+  "percentage": 68,
+  "grade": "C",
+  "rubric_version": 2
+}
