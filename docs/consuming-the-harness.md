@@ -48,6 +48,7 @@ Your repo then holds only config:
 
 ```
 config/domains.conf          your domains
+config/domain-signals.conf   what each domain's projects contain (optional)
 config/marketplaces.conf     your skill marketplaces
 user-dev/  user-pers/        your instruction files
 workspace/<domain>/          your per-domain rules

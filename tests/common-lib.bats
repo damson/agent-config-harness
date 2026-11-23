@@ -284,7 +284,7 @@ setup() {
 @test "get_external_docs: android-skills returns the documentation URL" {
     run get_external_docs "android-skills"
     [ "$status" -eq 0 ]
-    [ "$output" = "https://developer.android.com/studio/cli" ]
+    [ "$output" = "https://developer.android.com/tools/agents" ]
 }
 
 @test "get_external_probe: a leading ~ expands to \$HOME" {

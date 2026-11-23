@@ -28,6 +28,7 @@ REPO_ROOT="${AGENT_CONFIG_ROOT:-$HARNESS_ROOT}"
 [ -d "$REPO_ROOT" ] || { printf 'AGENT_CONFIG_ROOT is not a directory: %s\n' "$REPO_ROOT" >&2; exit 1; }
 DOMAINS_CONF="$REPO_ROOT/config/domains.conf"
 EXTERNAL_SKILLS_CONF="$REPO_ROOT/config/external-skills.conf"
+DOMAIN_SIGNALS_CONF="$REPO_ROOT/config/domain-signals.conf"
 
 # ── Logging ───────────────────────────────────────────────
 _use_color=1
@@ -395,6 +396,88 @@ detect_domain() {
         1) printf '%s\n' "$matched"; return 0 ;;
         *) log_warn "detect_domain: ambiguous path '$path' matched: $matched"; return 1 ;;
     esac
+}
+
+# ── Domain signals ────────────────────────────────────────
+# config/domain-signals.conf says what a project of each domain CONTAINS, so a
+# project is recognised wherever it sits rather than only under its domain's
+# folder. Optional: without the file nothing is detected and nothing fails.
+#
+#   <domain> = <signal> ; <signal> ; ...
+#   <signal> = <file name glob>                     the file exists
+#            | <file name glob> ~ <ERE>             ...and a line of it matches
+#            | <file name glob> ~ <ERE> !~ <ERE>    ...and no line matches the second
+#
+# A domain matches when any signal holds in any one file. The exclusion is per
+# file, so a monorepo whose web app and mobile app each have a package.json
+# matches both domains. `;` separates signals because a regular expression may
+# contain a comma.
+
+# list_matching_domains <dir> → each domain with a signal that holds in <dir>,
+# in the order the signals file lists them. A glob is looked for at the
+# project's root and up to two folders below, which covers a module
+# (app/build.gradle.kts) and a monorepo's packages (apps/web/package.json)
+# without walking the whole tree; dependency, build and VCS folders are pruned.
+# One walk and one awk pass serve every signal: a hook runs this at every
+# session start, so it must not fork per signal.
+list_matching_domains() {
+    local dir="$1"
+    [ -f "$DOMAIN_SIGNALS_CONF" ] || return 0
+    find "$dir" -maxdepth 3 \( -name node_modules -o -name .git -o -name build \
+        -o -name dist -o -name .gradle \) -prune -o -type f -print 2>/dev/null |
+    awk -v conf="$DOMAIN_SIGNALS_CONF" '
+        # kcov-ignore-start
+        function trim(t) { gsub(/^[[:space:]]+|[[:space:]]+$/, "", t); return t }
+        function glob2re(g,   i, c, r) {
+            r = "^"
+            for (i = 1; i <= length(g); i++) {
+                c = substr(g, i, 1)
+                if (c == "*") r = r "[^/]*"
+                else if (c == "?") r = r "[^/]"
+                else if (index(".[]^$+(){}|\\", c)) r = r "\\" c
+                else r = r c
+            }
+            return r "$"
+        }
+        # true when some line of file matches re
+        function has(file, re,   line, found) {
+            found = 0
+            while ((getline line < file) > 0) if (line ~ re) { found = 1; break }
+            close(file)
+            return found
+        }
+        BEGIN {
+            n = 0; nd = 0
+            while ((getline row < conf) > 0) {
+                if (row ~ /^[[:space:]]*#/ || row ~ /^[[:space:]]*$/) continue
+                eq = index(row, "="); if (eq == 0) continue
+                d = trim(substr(row, 1, eq - 1)); if (d == "") continue
+                if (!(d in seen)) { seen[d] = 1; order[++nd] = d }
+                k = split(substr(row, eq + 1), parts, ";")
+                for (m = 1; m <= k; m++) {
+                    sig = trim(parts[m]); if (sig == "") continue
+                    ex = ""; x = index(sig, " !~ ")
+                    if (x) { ex = trim(substr(sig, x + 4)); sig = trim(substr(sig, 1, x - 1)) }
+                    pat = ""; y = index(sig, " ~ ")
+                    if (y) { pat = trim(substr(sig, y + 3)); sig = trim(substr(sig, 1, y - 1)) }
+                    n++; sd[n] = d; sg[n] = glob2re(sig); sp[n] = pat; sx[n] = ex
+                }
+            }
+            close(conf)
+        }
+        {
+            base = $0; sub(/.*\//, "", base)
+            for (m = 1; m <= n; m++) {
+                if (sd[m] in hit) continue
+                if (base !~ sg[m]) continue
+                if (sp[m] != "" && !has($0, sp[m])) continue
+                if (sx[m] != "" && has($0, sx[m])) continue
+                hit[sd[m]] = 1
+            }
+        }
+        END { for (m = 1; m <= nd; m++) if (order[m] in hit) print order[m] }
+    '
+    # kcov-ignore-end
 }
 
 # ── Skills ────────────────────────────────────────────────
