@@ -91,6 +91,21 @@ link_file() {
     ln -sf "$src" "$dest"
 }
 
+# Link only where nothing of the user's is in the way: an absent path, or a
+# link this repo already owns. Anything else is reported and left alone, which
+# is the rule for a place setup does not own (an alias folder, $HOME itself),
+# where link_file's backup would move the user's own file aside.
+link_if_free() {
+    local src="$1" dest="$2"
+    if [ -e "$dest" ] || [ -L "$dest" ]; then
+        if ! link_is_owned "$dest"; then
+            log_warn "$dest is not this repo's; left as it is"
+            return 0
+        fi
+    fi
+    ln -sfn "$src" "$dest"
+}
+
 # ── 1. Global links (user-dev = developer, user-pers = personal identity) ──
 mkdir -p "$HOME/.claude"
 
@@ -120,16 +135,54 @@ fi
 # A domain's CLAUDE.md auto-loads when the working directory is inside its
 # workspace folder. Driven by the registry, so adding a domain needs no edit
 # here — only a line in config/domains.conf.
+#
+# Every top-level file the domain registers is linked beside its CLAUDE.md, so
+# a relative link from that CLAUDE.md (to a guide, a gotchas file) resolves at
+# the linked path and not only inside this repo. A file under a subfolder
+# (`project/CLAUDE.md`) is a mirror of a project's own file, not something the
+# layer routes to, and stays unlinked. Each alias folder gets the same links as
+# the canonical one, so a project kept under an alias loads the domain too.
 for _domain in $(list_domains); do
     _ws=$(get_domain_workspace "$_domain")          # canonical subdir, e.g. workspace/mobile
     case "$_ws" in workspace/*) ;; *) continue ;; esac   # skip non-workspace domains
     [ -f "$REPO_ROOT/$_ws/CLAUDE.md" ] || continue
-    _leaf=${_ws#workspace/}
-    mkdir -p "$HOME/workspace/$_leaf"
-    link_file "$REPO_ROOT/$_ws/CLAUDE.md" "$HOME/workspace/$_leaf/CLAUDE.md"
-    log_ok "Linked $_domain layer → ~/workspace/$_leaf/CLAUDE.md"
+    while IFS= read -r _target; do
+        case "$_target" in workspace/*) ;; *) continue ;; esac
+        _leaf=${_target#workspace/}
+        # One level only: a link written for workspace/<domain>/ assumes that
+        # depth, and `..` would place the links outside ~/workspace/.
+        case "$_leaf" in ""|*/*|..|.) log_warn "skipped $_target: not a folder directly under workspace/"; continue ;; esac
+        # The canonical folder is setup's own; an alias folder is where the
+        # user keeps projects, so nothing of theirs there is moved.
+        if [ "$_target" = "$_ws" ]; then _link=link_file; else _link=link_if_free; fi
+        mkdir -p "$HOME/workspace/$_leaf"
+        "$_link" "$REPO_ROOT/$_ws/CLAUDE.md" "$HOME/workspace/$_leaf/CLAUDE.md"
+        while IFS= read -r _f; do
+            case "$_f" in ""|CLAUDE.md|*/*) continue ;; esac
+            [ -f "$REPO_ROOT/$_ws/$_f" ] || continue
+            "$_link" "$REPO_ROOT/$_ws/$_f" "$HOME/workspace/$_leaf/$_f"
+        done < <(get_domain_files "$_domain")
+        log_ok "Linked $_domain layer → ~/workspace/$_leaf/"
+    done < <(get_domain_workspaces "$_domain")
 done
-unset _domain _ws _leaf
+unset _domain _ws _target _leaf _f _link
+
+# ── 1c. ~/docs, so the layers' links into docs/ resolve ───
+# ~/.claude/ and ~/workspace/<domain>/ sit at the same depth below $HOME as
+# user-dev/ and workspace/<domain>/ sit below the repo, so every `../docs/…`
+# and `../../docs/…` link in a linked file lands on ~/docs. Anything already at
+# ~/docs that is not this repo's link is the user's, and is never moved or
+# repointed: it is reported, and those links stay broken.
+if [ -d "$REPO_ROOT/docs" ]; then
+    if { [ -e "$HOME/docs" ] || [ -L "$HOME/docs" ]; } && ! link_is_owned "$HOME/docs"; then
+        log_warn "$HOME/docs exists and is not this repo's link; links from the config into docs/ will not resolve"
+    else
+        # -n: on a rerun ~/docs is a link to a directory, and without it ln
+        # would write a second link inside the repo's docs/
+        ln -sfn "$REPO_ROOT/docs" "$HOME/docs"
+        log_ok "Linked docs → ~/docs"
+    fi
+fi
 
 # ── 2. Skills (every directory under user-dev/skills/) ────
 mkdir -p "$HOME/.claude/skills"
